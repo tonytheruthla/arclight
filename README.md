@@ -2,7 +2,7 @@
 
 **The token launchpad + prediction market for Arc — priced in real dollars, rug-proof by design.**
 
-> **v0.2 live on Arc Testnet:** launchpad factory [`0x0723...209A`](https://testnet.arcscan.app/address/0x07236980c1734d86D94D979A5d512689f7BD209A) · first token ARCG [`0x10e0...8868`](https://testnet.arcscan.app/address/0x10e0052E393d42510D704bEA062A7De577478868)
+> **v0.2 live on Arc Testnet:** launchpad factory [`0x0723...209A`](https://testnet.arcscan.app/address/0x07236980c1734d86D94D979A5d512689f7BD209A) · first token ARCG [`0x10e0...8868`](https://testnet.arcscan.app/address/0x10e0052E393d42510D704bEA062A7De577478868) · prediction market [`0xC2B2...9259`](https://testnet.arcscan.app/address/0xC2B2468Bf0D91d0c23A4116567a017Cab5d79259)
 > **v0.1 live on Arc Testnet:** milestone escrow [`0x666a...4A81`](https://testnet.arcscan.app/address/0x666aE5951023fA45dD3E484a60ab55E15D1C4A81)
 
 ## v0.2 — ArclightPump (memecoin launchpad)
@@ -15,7 +15,15 @@ Pump.fun-style one-click token launches, rebuilt for Arc and fixing pump.fun's g
 - **Platform revenue** — 1 USDC deployment fee + 1% trade fee, accrued on-chain.
 - **Proven live:** token created and traded on testnet (see `deployment-v2.json`).
 
-v0.3 roadmap: sealed-bid fair-launch window (Arc privacy primitives), DEX migration with LP burn, holder fee-share streaming, and **graduation prediction markets** — parimutuel betting on which launches graduate, fusing the launchpad with a prediction market venue.
+## v0.2 — ArclightPredict (prediction market)
+
+Parimutuel YES/NO markets on token graduations, settled in native USDC. (`contracts/ArclightPredict.sol`)
+
+- **No oracle.** The launchpad IS the source of truth: a market resolves YES the moment the token's curve reads `Graduated` on-chain, NO once the deadline passes. Resolution is permissionless and trustless — nobody has fused a launchpad and prediction market this way.
+- **Parimutuel pools** — winners split the whole pot pro-rata, 2% platform fee, one-sided markets fully refund. Live implied odds via `impliedYesBps`.
+- **Proven live:** market #1 "Will ARCG graduate within 7 days?" is open with a real YES stake (see `deployment-v2.json`).
+
+v0.3 roadmap: sealed-bid fair-launch window (Arc privacy primitives), DEX migration with LP burn, holder fee-share streaming, auto-market creation on every launch, and price over/under markets.
 
 Arclight fuses three primitives that don't exist on Arc today into one product: a launchpad, prediction markets, and revenue-based financing.
 
