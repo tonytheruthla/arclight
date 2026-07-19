@@ -1,0 +1,22 @@
+{
+  "version": "0.2",
+  "network": "arc-testnet",
+  "chainId": 5042002,
+  "contracts": {
+    "ArclightPump": {
+      "address": "0x07236980c1734d86D94D979A5d512689f7BD209A",
+      "deployTx": "0x3267ba9cb675f52984ca5e8df0e29d2f3ba6521629f7900b610f69695e0e8bdc",
+      "params": { "deploymentFee": "1 USDC", "graduationTarget": "8000 USDC", "tradeFee": "1%" }
+    },
+    "firstToken": {
+      "name": "Arclight Genesis",
+      "symbol": "ARCG",
+      "address": "0x10e0052E393d42510D704bEA062A7De577478868",
+      "createTx": "0x4ee502f7fbeb8a635f8be586d1c123bc1ef54117bf8822c089aa68b82d1bd3eb",
+      "firstBuyTx": "0x477371ed35517029ce73fb42527ef6b7f111c6518eabf4fa06545090ffa1670c"
+    }
+  },
+  "deployer": "0x8c992629AC35a229dE6fE62B5364d1DA813f661c",
+  "explorer": "https://testnet.arcscan.app/address/0x07236980c1734d86D94D979A5d512689f7BD209A",
+  "timestamp": "2026-07-19"
+}

@@ -1,8 +1,21 @@
 # Arclight
 
-**The revenue-backed launchpad for Arc — where the market, not the team, controls the money.**
+**The token launchpad + prediction market for Arc — priced in real dollars, rug-proof by design.**
 
-> **Live on Arc Testnet:** [`0x666aE5951023fA45dD3E484a60ab55E15D1C4A81`](https://testnet.arcscan.app/address/0x666aE5951023fA45dD3E484a60ab55E15D1C4A81)
+> **v0.2 live on Arc Testnet:** launchpad factory [`0x0723...209A`](https://testnet.arcscan.app/address/0x07236980c1734d86D94D979A5d512689f7BD209A) · first token ARCG [`0x10e0...8868`](https://testnet.arcscan.app/address/0x10e0052E393d42510D704bEA062A7De577478868)
+> **v0.1 live on Arc Testnet:** milestone escrow [`0x666a...4A81`](https://testnet.arcscan.app/address/0x666aE5951023fA45dD3E484a60ab55E15D1C4A81)
+
+## v0.2 — ArclightPump (memecoin launchpad)
+
+Pump.fun-style one-click token launches, rebuilt for Arc and fixing pump.fun's gaps:
+
+- **Bonding curve priced in native USDC** — coins cost real dollars, not a volatile gas token. Buys/sells via `msg.value`, no approvals. (`contracts/ArclightPump.sol`)
+- **Anti-dump creator vesting** — creator's 1% allocation is locked until 30 days after graduation; zero creator tokens circulate while the curve is live.
+- **Graduation at $8K raised** — curve freezes, LP reserve earmarked for DEX migration (v0.3), ~13x price ride from launch to graduation.
+- **Platform revenue** — 1 USDC deployment fee + 1% trade fee, accrued on-chain.
+- **Proven live:** token created and traded on testnet (see `deployment-v2.json`).
+
+v0.3 roadmap: sealed-bid fair-launch window (Arc privacy primitives), DEX migration with LP burn, holder fee-share streaming, and **graduation prediction markets** — parimutuel betting on which launches graduate, fusing the launchpad with a prediction market venue.
 
 Arclight fuses three primitives that don't exist on Arc today into one product: a launchpad, prediction markets, and revenue-based financing.
 
