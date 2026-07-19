@@ -1,0 +1,14 @@
+{
+  "name": "arclight",
+  "version": "0.1.0",
+  "description": "Arclight v0 skeleton - Arc testnet",
+  "scripts": {
+    "deploy": "node deploy.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "ethers": "^6.13.0"
+  }
+}
