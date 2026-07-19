@@ -2,6 +2,8 @@
 
 **The revenue-backed launchpad for Arc — where the market, not the team, controls the money.**
 
+> **Live on Arc Testnet:** [`0x666aE5951023fA45dD3E484a60ab55E15D1C4A81`](https://testnet.arcscan.app/address/0x666aE5951023fA45dD3E484a60ab55E15D1C4A81)
+
 Arclight fuses three primitives that don't exist on Arc today into one product: a launchpad, prediction markets, and revenue-based financing.
 
 - **Revenue-backed launches** — projects raise USDC by selling revenue-share tokens: pro-rata claims on future USDC cash flows streamed onchain. Real yield, not governance vibes.
@@ -77,7 +79,7 @@ Or with your own key: `DEPLOYER_KEY=0x... node deploy.js`
 ## Status
 
 - [x] v0 escrow + milestone contracts, compile-verified
-- [ ] Arc Testnet deployment (`deployment.json` will carry the address)
+- [x] Arc Testnet deployment — [`0x666aE5951023fA45dD3E484a60ab55E15D1C4A81`](https://testnet.arcscan.app/address/0x666aE5951023fA45dD3E484a60ab55E15D1C4A81) ([deploy tx](https://testnet.arcscan.app/tx/0x60f38ee4e1096cfcf96bc7e6258aa4866e081aa8cbe32efdc72351290926ef8f), see `deployment.json`)
 - [ ] Milestone market AMM (v1)
 - [ ] Optimistic oracle resolution (v1)
 - [ ] Revenue-share streaming (v1)

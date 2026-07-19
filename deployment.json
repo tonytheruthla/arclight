@@ -1,0 +1,12 @@
+{
+  "network": "arc-testnet",
+  "chainId": 5042002,
+  "contract": "ArclightLaunchpad",
+  "address": "0x666aE5951023fA45dD3E484a60ab55E15D1C4A81",
+  "tx": "0x60f38ee4e1096cfcf96bc7e6258aa4866e081aa8cbe32efdc72351290926ef8f",
+  "deployer": "0x8c992629AC35a229dE6fE62B5364d1DA813f661c",
+  "block": 52678218,
+  "gasUsed": 858661,
+  "explorer": "https://testnet.arcscan.app/address/0x666aE5951023fA45dD3E484a60ab55E15D1C4A81",
+  "timestamp": "2026-07-19"
+}
