@@ -317,9 +317,12 @@ const PREDICT_ABI = [
 
 /* ================= state ================= */
 let provider, signer, me, pump, predict;
-let readProvider = new ethers.JsonRpcProvider(RPC, CHAIN_ID);
+const arcNet = new ethers.Network('arc-testnet', CHAIN_ID);
+const readProvider = new ethers.JsonRpcProvider(RPC, arcNet, { staticNetwork: arcNet, batchMaxCount: 1, batchStallTime: 0 });
+readProvider.pollingInterval = 60_000;
 let pumpR = new ethers.Contract(PUMP, PUMP_ABI, readProvider);
 let predictR = new ethers.Contract(PREDICT, PREDICT_ABI, readProvider);
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
 let curToken = null, sideBuy = true;
 const tokenMeta = {}; // addr -> {name, symbol}
 
@@ -390,10 +393,11 @@ const errMsg = e => (e.shortMessage || e.message || 'Something went wrong').spli
 /* ================= stats ================= */
 async function loadStats() {
   try {
-    const [tc, mc] = await Promise.all([pumpR.tokenCount(), predictR.marketCount()]);
+    const tc = await pumpR.tokenCount(); await sleep(80);
+    const mc = await predictR.marketCount();
     document.getElementById('statTokens').textContent = tc.toString();
     document.getElementById('statMarkets').textContent = mc.toString();
-  } catch (e) {}
+  } catch (e) { console.warn('stats:', e.message); }
 }
 loadStats();
 
@@ -431,14 +435,16 @@ async function loadTokens() {
     el.innerHTML = '<div class="empty">Loading…</div>';
     let html = '';
     for (let i=n-1; i>=0 && i>n-21; i--) {
-      const addr = await pumpR.allTokens(i);
+      const addr = await pumpR.allTokens(i); await sleep(60);
       if (!tokenMeta[addr]) {
         const t = new ethers.Contract(addr, TOKEN_ABI, readProvider);
-        const [nm, sy] = await Promise.all([t.name(), t.symbol()]);
+        const nm = await t.name(); await sleep(60);
+        const sy = await t.symbol(); await sleep(60);
         tokenMeta[addr] = {name:nm, symbol:sy};
       }
       const m = tokenMeta[addr];
-      const [price, c] = await Promise.all([pumpR.spotPrice(addr), pumpR.curves(addr)]);
+      const price = await pumpR.spotPrice(addr); await sleep(60);
+      const c = await pumpR.curves(addr); await sleep(60);
       const raised = Number(E(c[5]));
       const grad = Number(c[3])===2;
       const pct = Math.min(100, raised/GRAD*100);
@@ -563,12 +569,13 @@ async function loadMarkets() {
     el.innerHTML = '<div class="empty">Loading…</div>';
     let html = '';
     for (let i=n; i>=1 && i>n-20; i--) {
-      const mk = await predictR.markets(i);
+      const mk = await predictR.markets(i); await sleep(80);
       const [tokAddr, deadline, resolved, outcome, yesPool, noPool] = mk;
       if (!tokenMeta[tokAddr]) {
         try {
           const t = new ethers.Contract(tokAddr, TOKEN_ABI, readProvider);
-          const [nm, sy] = await Promise.all([t.name(), t.symbol()]);
+          const nm = await t.name(); await sleep(60);
+          const sy = await t.symbol(); await sleep(60);
           tokenMeta[tokAddr] = {name:nm, symbol:sy};
         } catch(e){ tokenMeta[tokAddr] = {name:short(tokAddr), symbol:'?'}; }
       }
