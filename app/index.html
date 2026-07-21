@@ -172,11 +172,16 @@
 
   /* ticker */
   .ticker { border-top: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline);
-            overflow: hidden; padding: 15px 0; white-space: nowrap; background: rgba(255,255,255,.02); }
-  .ticker-track { display: inline-flex; gap: 56px; animation: tick 26s linear infinite; padding-right: 56px; }
-  .ticker span { font-size: 13.5px; color: var(--ink-2); letter-spacing: .02em; }
-  .ticker b { color: var(--ink); }
-  @keyframes tick { to { transform: translateX(-50%); } }
+            overflow: hidden; padding: 17px 0; white-space: nowrap; background: rgba(255,255,255,.02);
+            -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+            mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); }
+  .ticker-track { display: inline-flex; align-items: center; gap: 44px; padding-right: 44px;
+                  animation: tick 90s linear infinite; will-change: transform; transform: translate3d(0,0,0);
+                  backface-visibility: hidden; }
+  .ticker span { font-size: 15px; font-weight: 600; color: var(--ink-2); letter-spacing: .06em; }
+  .ticker .sep { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0;
+                 background: linear-gradient(135deg, var(--accent), var(--accent-2)); opacity: .8; }
+  @keyframes tick { to { transform: translate3d(-50%,0,0); } }
 
   /* ============ APP ============ */
   #app { display: none; position: relative; z-index: 1; }
@@ -642,13 +647,10 @@ window.addEventListener('mousemove', e=>{
 
 /* ticker */
 (function tickerInit(){
-  const items = [
-    '⚡ gas is USDC on Arc', '💵 coins priced in real dollars', '🎓 graduate at $8,000',
-    '🔒 creator tokens locked 30 days', '⚖️ markets settle with zero oracles',
-    '🚀 deploy a coin for $1', '📈 13× ride from launch to graduation', '🎲 bet YES or NO on every launch'
-  ];
-  const track = document.getElementById('tickerTrack');
-  track.innerHTML = (items.concat(items)).map(t=>`<span>${t.replace(/^([^\s]+) /, '<b>$1</b> ')}</span>`).join('');
+  const trio = ['Launch.', 'Predict.', 'Graduate.'];
+  let base = '';
+  for (let r=0; r<6; r++) trio.forEach(w=>{ base += `<span>${w}</span><i class="sep"></i>`; });
+  document.getElementById('tickerTrack').innerHTML = base + base; // duplicate for seamless -50% loop
 })();
 
 /* ================= landing <-> app ================= */
