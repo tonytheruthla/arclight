@@ -677,7 +677,13 @@ function initCurve(){
 }
 initCurve();
 function driveCurve(){
-  if (!curvePath || !curveWrap || pathLen === 0) return;
+  if (!curvePath || !curveWrap) return;
+  if (!pathLen) {                                   // lazy init once geometry exists
+    pathLen = curvePath.getTotalLength();
+    if (!pathLen) return;
+    curvePath.style.strokeDasharray = pathLen;
+    curvePath.style.strokeDashoffset = pathLen;
+  }
   const rect = curveWrap.getBoundingClientRect();
   const vh = window.innerHeight;
   const start = vh * 0.92, end = vh * 0.34;   // top enters bottom -> reaches upper third
