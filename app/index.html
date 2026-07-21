@@ -645,7 +645,7 @@ let mx=0, my=0, smx=0, smy=0, ssy=0;
 window.addEventListener('mousemove', e=>{
   mx = (e.clientX/window.innerWidth - .5); my = (e.clientY/window.innerHeight - .5);
 }, {passive:true});
-(function parallaxLoop(){
+function parallaxLoop(){
   const lerp = (a,b,t)=>a+(b-a)*t;
   smx = lerp(smx, mx, .06); smy = lerp(smy, my, .06);
   ssy = lerp(ssy, window.scrollY, .12);
@@ -658,9 +658,13 @@ window.addEventListener('mousemove', e=>{
     hi.style.transform = `translate3d(0, ${p*-46}px, 0) scale(${1 - p*.08})`;
     hi.style.opacity = String(1 - p*.9);
   }
-  if (document.getElementById('landing').style.display !== 'none') { driveCurve(); driveTug(); }
+  try {
+    if (document.getElementById('landing').style.display !== 'none') { driveCurve(); driveTug(); }
+  } catch (e) { /* consts may not be ready on very first frame */ }
   requestAnimationFrame(parallaxLoop);
-})();
+}
+// kick off on the next frame, after all declarations below have initialized
+requestAnimationFrame(parallaxLoop);
 
 /* ---- scroll-driven graduation curve + fireworks ---- */
 const curvePath = document.getElementById('curvePath');
