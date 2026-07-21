@@ -176,7 +176,7 @@
             -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
             mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); }
   .ticker-track { display: inline-flex; align-items: center; gap: 44px; padding-right: 44px;
-                  animation: tick 350s linear infinite; will-change: transform; transform: translate3d(0,0,0);
+                  animation: tick 1200s linear infinite; will-change: transform; transform: translate3d(0,0,0);
                   backface-visibility: hidden; }
   .ticker span { font-size: 15px; font-weight: 600; color: var(--ink-2); letter-spacing: .06em; }
   .ticker .sep { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0;
@@ -682,32 +682,95 @@ function showPanel(tab) {
 }
 
 /* ================= wallet ================= */
+
+// pick the actual MetaMask/injected provider even when several wallets fight over window.ethereum
+function pickInjected() {
+  const eth = window.ethereum;
+  if (!eth) return null;
+  if (Array.isArray(eth.providers) && eth.providers.length) {
+    return eth.providers.find(p => p.isMetaMask) || eth.providers.find(p => p.isRabby)
+        || eth.providers.find(p => p.isCoinbaseWallet) || eth.providers[0];
+  }
+  return eth;
+}
+// raw request with a timeout so a jammed wallet can't hang the UI forever
+function rawRequest(injected, args, ms = 45000) {
+  return Promise.race([
+    injected.request(args),
+    new Promise((_, rej) => setTimeout(() => {
+      const e = new Error('timeout'); e.code = 'TIMEOUT'; rej(e);
+    }, ms))
+  ]);
+}
+
+let connecting = false;
 async function connect() {
-  if (!window.ethereum) { toast('No wallet found. Install MetaMask, Rabby or Rainbow.'); return; }
+  const injected = pickInjected();
+  if (!injected) { toast('No wallet detected. Install MetaMask, Rabby or Rainbow, then reload.'); return; }
+  if (connecting) { toast('Check your wallet — a request is already open.'); return; }
+  connecting = true;
+  const btn = document.getElementById('connectBtn');
+  const label = btn.textContent;
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span>Connecting…';
   try {
-    provider = new ethers.BrowserProvider(window.ethereum);
-    await provider.send('eth_requestAccounts', []);
-    const net = await provider.getNetwork();
-    if (Number(net.chainId) !== CHAIN_ID) {
-      try { await provider.send('wallet_switchEthereumChain', [{chainId: CHAIN_HEX}]); }
-      catch (e) {
-        await provider.send('wallet_addEthereumChain', [{
-          chainId: CHAIN_HEX, chainName: 'Arc Testnet',
-          nativeCurrency: {name:'USDC', symbol:'USDC', decimals:18},
-          rpcUrls: [RPC], blockExplorerUrls: [EXPLORER]
-        }]);
-      }
-      provider = new ethers.BrowserProvider(window.ethereum);
+    // 1) request accounts (opens the wallet popup)
+    let accounts;
+    try {
+      accounts = await rawRequest(injected, { method: 'eth_requestAccounts' });
+    } catch (e) {
+      if (e.code === 4001) throw new Error('You rejected the connection. Click Connect and approve in your wallet.');
+      if (e.code === -32002) throw new Error('Your wallet already has a pending request — open the MetaMask popup and approve or reject it, then try again.');
+      if (e.code === 'TIMEOUT') throw new Error('Wallet did not respond. Open the MetaMask extension, unlock it, clear any pending popup, then retry.');
+      throw e;
     }
+    if (!accounts || !accounts.length) throw new Error('No account returned. Unlock your wallet and try again.');
+
+    // 2) make sure we are on Arc Testnet
+    let chainId = await rawRequest(injected, { method: 'eth_chainId' }, 8000).catch(() => null);
+    if (chainId !== CHAIN_HEX) {
+      try {
+        await rawRequest(injected, { method: 'wallet_switchEthereumChain', params: [{ chainId: CHAIN_HEX }] });
+      } catch (e) {
+        if (e.code === 4902 || e.code === -32603) {
+          // chain not added yet — add it
+          await rawRequest(injected, { method: 'wallet_addEthereumChain', params: [{
+            chainId: CHAIN_HEX, chainName: 'Arc Testnet',
+            nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
+            rpcUrls: [RPC], blockExplorerUrls: [EXPLORER]
+          }]});
+        } else if (e.code === 4001) {
+          throw new Error('Please approve the switch to Arc Testnet to continue.');
+        } else { throw e; }
+      }
+    }
+
+    // 3) wire up ethers against the confirmed injected provider
+    provider = new ethers.BrowserProvider(injected);
     signer = await provider.getSigner();
     me = await signer.getAddress();
     pump = new ethers.Contract(PUMP, PUMP_ABI, signer);
     predict = new ethers.Contract(PREDICT, PREDICT_ABI, signer);
-    const bal = await provider.getBalance(me);
-    document.getElementById('connectBtn').textContent = short(me) + ' · $' + fmt(E(bal),2);
-    toast('Connected — $' + fmt(E(bal),2) + ' testnet USDC');
+
+    let bal = 0n;
+    try { bal = await provider.getBalance(me); } catch (e) {}
+    btn.disabled = false;
+    btn.textContent = short(me) + ' · $' + fmt(E(bal), 2);
+    toast('Connected — $' + fmt(E(bal), 2) + ' testnet USDC');
+
+    // react to the user changing account / network in the wallet
+    if (injected.on && !injected._arkBound) {
+      injected._arkBound = true;
+      injected.on('accountsChanged', () => location.reload());
+      injected.on('chainChanged', () => location.reload());
+    }
     loadStats();
-  } catch (e) { toast(errMsg(e)); }
+  } catch (e) {
+    btn.disabled = false; btn.textContent = label;
+    toast(errMsg(e));
+    console.warn('connect failed:', e);
+  } finally {
+    connecting = false;
+  }
 }
 const needWallet = () => { if (!signer) { toast('Connect your wallet first.'); return true; } return false; };
 const errMsg = e => (e.shortMessage || e.message || 'Something went wrong').split('(')[0].slice(0,120);
