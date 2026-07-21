@@ -104,6 +104,22 @@
   .btn-lg { padding: 15px 32px; font-size: 17px; }
   .btn-sm { padding: 6px 14px; font-size: 12.5px; }
 
+  /* luminescent halo button */
+  .btn-glow { position: relative; background: var(--accent); isolation: isolate; }
+  .btn-glow::before {
+    content: ''; position: absolute; inset: -2px; border-radius: 980px; z-index: -1;
+    background: linear-gradient(120deg, #22d3ee, #0a84ff, #7dd3fc, #0a84ff, #22d3ee);
+    background-size: 300% 300%; animation: glowShift 5s linear infinite;
+    filter: blur(9px); opacity: .85;
+  }
+  .btn-glow::after {
+    content: ''; position: absolute; inset: 0; border-radius: 980px; z-index: -1;
+    background: var(--accent); box-shadow: 0 0 22px rgba(10,132,255,.55);
+  }
+  .btn-glow:hover::before { opacity: 1; filter: blur(13px); }
+  .btn-glow:hover { transform: scale(1.03); }
+  @keyframes glowShift { to { background-position: 300% 50%; } }
+
   /* ============ LANDING ============ */
   #landing { position: relative; z-index: 1; }
   .scene { min-height: 92vh; display: flex; flex-direction: column; justify-content: center; align-items: center;
@@ -137,24 +153,29 @@
   .stat b { display: block; font-size: 30px; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
   .stat span { font-size: 13px; color: var(--ink-3); }
 
-  /* curve scene */
+  /* curve scene — scroll driven */
   .curve-wrap { width: min(720px, 92vw); margin-top: 46px; position: relative; }
   .curve-wrap svg { width: 100%; height: auto; overflow: visible; }
-  #curvePath { stroke-dasharray: 1200; stroke-dashoffset: 1200; transition: stroke-dashoffset 2.2s var(--ease) .2s; }
-  .in #curvePath { stroke-dashoffset: 0; }
-  #gradFlag { opacity: 0; transform: translateY(10px) scale(.85); transform-origin: center;
-              transition: opacity .6s var(--ease) 2s, transform .7s var(--spring) 2s; }
-  .in #gradFlag { opacity: 1; transform: translateY(0) scale(1); }
-  #curveDot { opacity: 0; transition: opacity .4s ease 2.1s; }
-  .in #curveDot { opacity: 1; animation: dotpulse 2s ease 2.2s infinite; }
-  @keyframes dotpulse { 0%,100% { r: 7; } 50% { r: 10; } }
+  #curvePath { stroke-dasharray: 1; stroke-dashoffset: 1; }        /* set by JS */
+  #curveDot { opacity: 0; filter: drop-shadow(0 0 8px rgba(48,209,88,.9)); }
+  #gradFlag { opacity: 0; transform: translateY(10px) scale(.85); transform-origin: 625px 33px;
+              transition: opacity .5s var(--ease), transform .6s var(--spring); }
+  #gradFlag.show { opacity: 1; transform: translateY(0) scale(1); }
+  /* fireworks */
+  #fx { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
+  .spark { position: absolute; width: 6px; height: 6px; border-radius: 50%; opacity: 0;
+           will-change: transform, opacity; }
+  @keyframes burst {
+    0% { opacity: 1; transform: translate(0,0) scale(1); }
+    100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(.3); }
+  }
 
   /* predict scene tug bar */
   .tug { width: min(640px, 90vw); margin: 44px auto 0; }
-  .tug-bar { display: flex; height: 52px; border-radius: 15px; overflow: hidden; font-weight: 700; font-size: 16px; }
+  .tug-bar { display: flex; height: 54px; border-radius: 15px; overflow: hidden; font-weight: 700; font-size: 16px;
+             box-shadow: 0 8px 30px rgba(0,0,0,.4); }
   .tug-yes { background: linear-gradient(180deg,#34d95e,#28b64c); color: #04270f; display: flex; align-items: center; padding-left: 18px;
-             width: 50%; transition: width 1.6s var(--spring) .3s; }
-  .in .tug-yes { width: 72%; }
+             width: 62%; box-shadow: inset -1px 0 8px rgba(0,0,0,.25); }
   .tug-no { background: linear-gradient(180deg,#ff574c,#e53a30); color: #3a0705; display: flex; align-items: center; justify-content: flex-end;
             padding-right: 18px; flex: 1; }
   .tug-cap { display: flex; justify-content: space-between; font-size: 13px; color: var(--ink-3); margin-top: 12px; }
@@ -176,7 +197,7 @@
             -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
             mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); }
   .ticker-track { display: inline-flex; align-items: center; gap: 44px; padding-right: 44px;
-                  animation: tick 1200s linear infinite; will-change: transform; transform: translate3d(0,0,0);
+                  animation: tick 4800s linear infinite; will-change: transform; transform: translate3d(0,0,0);
                   backface-visibility: hidden; }
   .ticker span { font-size: 15px; font-weight: 600; color: var(--ink-2); letter-spacing: .06em; }
   .ticker .sep { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0;
@@ -361,7 +382,7 @@
     <h2 class="grad-blue rv rv2">A coin in one click.<br>One dollar.</h2>
     <p class="big rv rv3">Name it, symbol it, ship it. Your coin trades instantly on a bonding curve — no liquidity to raise, no code to write. Creator tokens stay locked until 30 days after graduation, so nobody dumps on you.</p>
     <div class="rv rv4" style="margin-top:34px;">
-      <button class="btn btn-ghost btn-lg" onclick="enterApp('launch')">Launch yours →</button>
+      <button class="btn btn-glow btn-lg" onclick="enterApp('launch')">Launch yours →</button>
     </div>
   </div>
 
@@ -371,7 +392,7 @@
     <h2 class="grad-green rv rv2">Real dollars.<br>Real price discovery.</h2>
     <p class="big rv rv3">Every coin is priced in USDC from the first trade. Buy early on the curve, ride it to the $8,000 graduation — a 13× climb — then the liquidity moves on-chain forever.</p>
     <div class="curve-wrap rv rv4">
-      <svg viewBox="0 0 720 300" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <svg id="curveSvg" viewBox="0 0 720 300" fill="none" xmlns="http://www.w3.org/2000/svg">
         <defs>
           <linearGradient id="cg" x1="0" y1="0" x2="720" y2="0">
             <stop offset="0" stop-color="#0a84ff"/><stop offset="1" stop-color="#30d158"/>
@@ -379,7 +400,7 @@
         </defs>
         <line x1="0" y1="270" x2="720" y2="270" stroke="rgba(255,255,255,.12)"/>
         <path id="curvePath" d="M 10 265 Q 300 258 480 210 Q 620 168 660 60" stroke="url(#cg)" stroke-width="5" stroke-linecap="round"/>
-        <circle id="curveDot" cx="660" cy="60" r="7" fill="#30d158"/>
+        <circle id="curveDot" cx="10" cy="265" r="8" fill="#30d158"/>
         <g id="gradFlag">
           <rect x="560" y="18" rx="9" width="130" height="30" fill="rgba(48,209,88,.15)"/>
           <text x="625" y="38" text-anchor="middle" font-size="14" font-weight="600" fill="#30d158" font-family="-apple-system, sans-serif">graduated 🎓</text>
@@ -387,6 +408,7 @@
         <text x="14" y="292" font-size="12" fill="rgba(255,255,255,.35)" font-family="-apple-system, sans-serif">$0</text>
         <text x="690" y="292" text-anchor="end" font-size="12" fill="rgba(255,255,255,.35)" font-family="-apple-system, sans-serif">$8,000 raised</text>
       </svg>
+      <div id="fx"></div>
     </div>
   </div>
 
@@ -397,24 +419,18 @@
     <p class="big rv rv3">Every launch spawns a market. Stake USDC on YES or NO — winners split the pot. No oracle, no judge: the blockchain itself settles the bet the moment a coin graduates.</p>
     <div class="tug rv rv4">
       <div class="tug-bar">
-        <div class="tug-yes">YES 72%</div>
-        <div class="tug-no">NO 28%</div>
+        <div class="tug-yes" id="tugYes">YES 62%</div>
+        <div class="tug-no" id="tugNo">NO 38%</div>
       </div>
-      <div class="tug-cap"><span>the crowd is bullish</span><span>pot $2 · settles on-chain</span></div>
+      <div class="tug-cap"><span id="tugMood">the crowd is bullish</span><span>pot $2 · settles on-chain</span></div>
     </div>
   </div>
 
-  <!-- scene 5: why -->
+  <!-- scene 5: closer -->
   <div class="scene">
-    <div class="rv"><div class="kicker">Why Arklight</div></div>
-    <h2 class="rv rv2">Built different.</h2>
-    <div class="feat-grid">
-      <div class="feat rv rv2"><span class="ico">💵</span><b>Priced in dollars</b><p>The only launchpad where coins cost real USDC, not a volatile gas token. What you see is what you pay — gas included.</p></div>
-      <div class="feat rv rv3"><span class="ico">🔒</span><b>Rug-resistant</b><p>Creator allocations lock until 30 days post-graduation. Zero creator tokens circulate while the curve is live.</p></div>
-      <div class="feat rv rv4"><span class="ico">⚖️</span><b>Oracle-free markets</b><p>Graduation bets settle by reading the launchpad contract itself. Trustless, permissionless, instant.</p></div>
-    </div>
-    <div class="rv rv4" style="margin-top:56px;">
-      <button class="btn btn-primary btn-lg" onclick="enterApp('trade')">Enter the app</button>
+    <h2 class="grad-blue rv rv2" style="font-size:clamp(52px,9vw,96px);">Built different.</h2>
+    <div class="rv rv3" style="margin-top:48px;">
+      <button class="btn btn-glow btn-lg" onclick="enterApp('trade')">Enter the app</button>
     </div>
   </div>
 </div>
@@ -642,8 +658,88 @@ window.addEventListener('mousemove', e=>{
     hi.style.transform = `translate3d(0, ${p*-46}px, 0) scale(${1 - p*.08})`;
     hi.style.opacity = String(1 - p*.9);
   }
+  if (document.getElementById('landing').style.display !== 'none') { driveCurve(); driveTug(); }
   requestAnimationFrame(parallaxLoop);
 })();
+
+/* ---- scroll-driven graduation curve + fireworks ---- */
+const curvePath = document.getElementById('curvePath');
+const curveDot = document.getElementById('curveDot');
+const curveWrap = document.querySelector('.curve-wrap');
+const gradFlag = document.getElementById('gradFlag');
+const fxLayer = document.getElementById('fx');
+let pathLen = 0, graduated = false;
+function initCurve(){
+  if (!curvePath) return;
+  pathLen = curvePath.getTotalLength();
+  curvePath.style.strokeDasharray = pathLen;
+  curvePath.style.strokeDashoffset = pathLen;
+}
+initCurve();
+function driveCurve(){
+  if (!curvePath || !curveWrap || pathLen === 0) return;
+  const rect = curveWrap.getBoundingClientRect();
+  const vh = window.innerHeight;
+  const start = vh * 0.92, end = vh * 0.34;   // top enters bottom -> reaches upper third
+  let p = (start - rect.top) / (start - end);
+  p = Math.max(0, Math.min(1, p));
+  curvePath.style.strokeDashoffset = pathLen * (1 - p);
+  const pt = curvePath.getPointAtLength(pathLen * p);
+  curveDot.setAttribute('cx', pt.x);
+  curveDot.setAttribute('cy', pt.y);
+  curveDot.style.opacity = p > 0.015 ? '1' : '0';
+  curveDot.setAttribute('r', 8 + Math.sin(performance.now()/260) * 1.6);
+  if (p >= 0.985 && !graduated) {
+    graduated = true;
+    gradFlag.classList.add('show');
+    fireworks(pt);
+  } else if (p < 0.85 && graduated) {
+    graduated = false;
+    gradFlag.classList.remove('show');
+  }
+}
+function fireworks(pt){
+  if (!fxLayer || !curveWrap) return;
+  const scale = curveWrap.clientWidth / 720;
+  const cx = pt.x * scale, cy = pt.y * scale;
+  const colors = ['#30d158','#22d3ee','#ffd60a','#7dd3fc','#ffffff','#0a84ff'];
+  for (let b = 0; b < 2; b++) {           // two quick bursts
+    setTimeout(() => {
+      for (let i = 0; i < 20; i++) {
+        const s = document.createElement('div');
+        s.className = 'spark';
+        const ang = (Math.PI * 2 * i) / 20 + Math.random() * 0.3;
+        const dist = 42 + Math.random() * 54;
+        s.style.left = cx + 'px'; s.style.top = cy + 'px';
+        s.style.background = colors[(Math.random()*colors.length)|0];
+        s.style.setProperty('--dx', Math.cos(ang) * dist + 'px');
+        s.style.setProperty('--dy', (Math.sin(ang) * dist - 10) + 'px');
+        s.style.animation = `burst ${700 + Math.random()*400}ms cubic-bezier(.2,.7,.3,1) forwards`;
+        fxLayer.appendChild(s);
+        setTimeout(() => s.remove(), 1300);
+      }
+    }, b * 220);
+  }
+}
+
+/* ---- tug-of-war YES / NO ---- */
+const tugYes = document.getElementById('tugYes');
+const tugNo = document.getElementById('tugNo');
+const tugMood = document.getElementById('tugMood');
+const tugWrap = document.querySelector('.tug');
+function driveTug(){
+  if (!tugYes || !tugWrap) return;
+  const r = tugWrap.getBoundingClientRect();
+  if (r.top > window.innerHeight || r.bottom < 0) return;   // only when on screen
+  const t = performance.now() / 1000;
+  let yes = 60 + 13 * Math.sin(t * 0.7) + 6 * Math.sin(t * 1.7 + 1.2) + 3 * Math.sin(t * 3.1);
+  yes = Math.max(28, Math.min(82, yes));
+  const yr = Math.round(yes);
+  tugYes.style.width = yes.toFixed(1) + '%';
+  tugYes.textContent = 'YES ' + yr + '%';
+  tugNo.textContent = 'NO ' + (100 - yr) + '%';
+  tugMood.textContent = yr > 57 ? 'the crowd is bullish' : yr < 43 ? 'the crowd turns bearish' : 'neck and neck';
+}
 
 /* ticker */
 (function tickerInit(){
