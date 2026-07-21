@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arclight — Launch. Trade. Predict.</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #f5f5f7;
+    --surface: #ffffff;
+    --ink: #1d1d1f;
+    --ink-2: #6e6e73;
+    --ink-3: #aeaeb2;
+    --accent: #0071e3;
+    --accent-hover: #0077ed;
+    --green: #34c759;
+    --red: #ff3b30;
+    --amber: #ff9f0a;
+    --radius: 18px;
+    --shadow: 0 4px 24px rgba(0,0,0,.06);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-font-smoothing: antialiased; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg); color: var(--ink); line-height: 1.5;
+  }
+  ::selection { background: rgba(0,113,227,.2); }
+
+  /* ---------- nav ---------- */
+  nav {
+    position: sticky; top: 0; z-index: 50;
+    backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px);
+    background: rgba(251,251,253,.8); border-bottom: 1px solid rgba(0,0,0,.06);
+  }
+  .nav-inner {
+    max-width: 980px; margin: 0 auto; padding: 0 22px;
+    display: flex; align-items: center; gap: 28px; height: 52px;
+  }
+  .logo { font-weight: 700; font-size: 17px; letter-spacing: -.02em; display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  .logo-dot { width: 14px; height: 14px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #22d3ee, #0071e3); }
+  .nav-links { display: flex; gap: 24px; flex: 1; }
+  .nav-link { font-size: 13px; color: var(--ink-2); cursor: pointer; transition: color .2s; background: none; border: none; font-family: inherit; }
+  .nav-link:hover, .nav-link.active { color: var(--ink); }
+  .btn {
+    font-family: inherit; font-size: 14px; font-weight: 500; border: none; cursor: pointer;
+    border-radius: 980px; padding: 8px 18px; transition: all .2s; letter-spacing: -.01em;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-primary:disabled { background: var(--ink-3); cursor: default; }
+  .btn-ghost { background: rgba(0,0,0,.05); color: var(--ink); }
+  .btn-ghost:hover { background: rgba(0,0,0,.09); }
+  .btn-lg { padding: 14px 30px; font-size: 17px; }
+  .btn-sm { padding: 5px 14px; font-size: 12px; }
+
+  /* ---------- hero ---------- */
+  .hero { text-align: center; padding: 110px 22px 90px; }
+  .hero h1 {
+    font-size: clamp(48px, 9vw, 88px); font-weight: 700; letter-spacing: -.03em; line-height: 1.05;
+    background: linear-gradient(135deg, #1d1d1f 30%, #0071e3 70%, #22d3ee);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .hero p.sub { font-size: clamp(19px, 3vw, 26px); color: var(--ink-2); margin: 18px auto 8px; max-width: 640px; font-weight: 400; letter-spacing: -.01em; }
+  .hero p.fine { font-size: 14px; color: var(--ink-3); margin-bottom: 34px; }
+  .hero-cta { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  .stat-strip { display: flex; justify-content: center; gap: 54px; margin-top: 72px; flex-wrap: wrap; }
+  .stat b { display: block; font-size: 28px; font-weight: 700; letter-spacing: -.02em; }
+  .stat span { font-size: 13px; color: var(--ink-2); }
+
+  /* ---------- layout ---------- */
+  main { max-width: 980px; margin: 0 auto; padding: 0 22px 120px; }
+  section.panel { display: none; padding-top: 48px; }
+  section.panel.visible { display: block; }
+  h2.panel-title { font-size: 40px; font-weight: 700; letter-spacing: -.025em; margin-bottom: 6px; }
+  p.panel-sub { color: var(--ink-2); font-size: 17px; margin-bottom: 34px; }
+
+  .card {
+    background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow);
+    padding: 28px; margin-bottom: 18px;
+  }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 700px) { .grid-2 { grid-template-columns: 1fr; } }
+
+  label { display: block; font-size: 13px; font-weight: 600; color: var(--ink-2); margin: 16px 0 6px; }
+  input[type="text"], input[type="number"] {
+    width: 100%; font-family: inherit; font-size: 17px; padding: 12px 16px;
+    border: 1px solid rgba(0,0,0,.1); border-radius: 12px; background: var(--bg);
+    outline: none; transition: border .2s, box-shadow .2s; color: var(--ink);
+  }
+  input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(0,113,227,.12); background: #fff; }
+
+  /* ---------- token rows ---------- */
+  .row {
+    display: flex; align-items: center; gap: 16px; padding: 18px 22px;
+    background: var(--surface); border-radius: 14px; box-shadow: var(--shadow);
+    margin-bottom: 10px; cursor: pointer; transition: transform .15s;
+  }
+  .row:hover { transform: translateY(-1px); }
+  .avatar {
+    width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 15px; color: #fff;
+  }
+  .row-main { flex: 1; min-width: 0; }
+  .row-title { font-weight: 600; font-size: 16px; letter-spacing: -.01em; }
+  .row-sub { font-size: 13px; color: var(--ink-2); }
+  .row-right { text-align: right; }
+  .row-price { font-weight: 600; font-size: 15px; font-variant-numeric: tabular-nums; }
+  .pill { display: inline-block; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 980px; }
+  .pill.live { background: rgba(52,199,89,.12); color: #1d9d46; }
+  .pill.grad { background: rgba(0,113,227,.1); color: var(--accent); }
+
+  .progress { height: 6px; border-radius: 3px; background: rgba(0,0,0,.07); overflow: hidden; margin-top: 8px; }
+  .progress i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--accent), #22d3ee); transition: width .5s; }
+
+  /* ---------- trade detail ---------- */
+  .seg { display: inline-flex; background: rgba(0,0,0,.05); border-radius: 10px; padding: 3px; margin-bottom: 4px; }
+  .seg button {
+    font-family: inherit; font-size: 14px; font-weight: 600; border: none; cursor: pointer;
+    padding: 7px 22px; border-radius: 8px; background: transparent; color: var(--ink-2); transition: all .2s;
+  }
+  .seg button.on { background: #fff; color: var(--ink); box-shadow: 0 1px 4px rgba(0,0,0,.12); }
+  .quote { font-size: 14px; color: var(--ink-2); margin-top: 10px; min-height: 21px; font-variant-numeric: tabular-nums; }
+  .big-num { font-size: 34px; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+
+  /* ---------- markets ---------- */
+  .odds-bar { display: flex; height: 34px; border-radius: 10px; overflow: hidden; margin: 14px 0 10px; font-size: 13px; font-weight: 700; color: #fff; }
+  .odds-yes { background: var(--green); display: flex; align-items: center; padding-left: 12px; min-width: 44px; transition: width .5s; }
+  .odds-no { background: var(--red); display: flex; align-items: center; justify-content: flex-end; padding-right: 12px; flex: 1; min-width: 44px; }
+  .bet-row { display: flex; gap: 10px; align-items: center; margin-top: 14px; flex-wrap: wrap; }
+  .bet-row input { max-width: 140px; }
+  .btn-yes { background: var(--green); color: #fff; }
+  .btn-yes:hover { filter: brightness(1.05); }
+  .btn-no { background: var(--red); color: #fff; }
+  .btn-no:hover { filter: brightness(1.05); }
+
+  /* ---------- toast ---------- */
+  #toast {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(80px);
+    background: rgba(29,29,31,.95); color: #fff; font-size: 14px; padding: 12px 22px;
+    border-radius: 980px; transition: transform .35s cubic-bezier(.32,.72,0,1); z-index: 100;
+    max-width: 90vw; text-align: center; backdrop-filter: blur(10px);
+  }
+  #toast.show { transform: translateX(-50%) translateY(0); }
+
+  .empty { text-align: center; color: var(--ink-3); padding: 48px 0; font-size: 15px; }
+  .mono { font-family: "SF Mono", ui-monospace, Menlo, monospace; font-size: 12px; }
+  a { color: var(--accent); text-decoration: none; }
+  footer { text-align: center; padding: 40px 22px 60px; color: var(--ink-3); font-size: 12px; border-top: 1px solid rgba(0,0,0,.06); }
+  .back { background: none; border: none; color: var(--accent); font-family: inherit; font-size: 15px; cursor: pointer; padding: 0; margin-bottom: 18px; }
+  .spin { display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,.4); border-top-color:#fff; border-radius:50%; animation: sp .7s linear infinite; vertical-align: -2px; margin-right: 7px;}
+  @keyframes sp { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <div class="logo" onclick="show('home')"><span class="logo-dot"></span>Arclight</div>
+    <div class="nav-links">
+      <button class="nav-link" data-tab="launch" onclick="show('launch')">Launch</button>
+      <button class="nav-link" data-tab="trade" onclick="show('trade')">Trade</button>
+      <button class="nav-link" data-tab="predict" onclick="show('predict')">Predict</button>
+    </div>
+    <button class="btn btn-primary" id="connectBtn" onclick="connect()">Connect</button>
+  </div>
+</nav>
+
+<!-- ================= HERO ================= -->
+<div class="hero" id="hero">
+  <h1>Launch. Trade.<br>Predict.</h1>
+  <p class="sub">The memecoin launchpad where every coin is priced in real dollars — and every launch is a market you can bet on.</p>
+  <p class="fine">Live on Arc Testnet · gas is USDC · no oracle, no rugs on the curve</p>
+  <div class="hero-cta">
+    <button class="btn btn-primary btn-lg" onclick="show('launch')">Launch a coin</button>
+    <button class="btn btn-ghost btn-lg" onclick="show('trade')">Explore tokens</button>
+  </div>
+  <div class="stat-strip">
+    <div class="stat"><b id="statTokens">—</b><span>coins launched</span></div>
+    <div class="stat"><b id="statMarkets">—</b><span>open markets</span></div>
+    <div class="stat"><b>$1</b><span>to deploy</span></div>
+    <div class="stat"><b>$8K</b><span>to graduate</span></div>
+  </div>
+</div>
+
+<main>
+  <!-- ================= LAUNCH ================= -->
+  <section class="panel" id="panel-launch">
+    <h2 class="panel-title">Launch a coin.</h2>
+    <p class="panel-sub">One click. One dollar. Your coin trades instantly on a bonding curve priced in USDC.</p>
+    <div class="card" style="max-width:560px">
+      <label>Name</label>
+      <input type="text" id="tokName" placeholder="Moon Cat" maxlength="32">
+      <label>Symbol</label>
+      <input type="text" id="tokSymbol" placeholder="MCAT" maxlength="10" style="text-transform:uppercase">
+      <div style="margin-top:26px; display:flex; align-items:center; gap:16px;">
+        <button class="btn btn-primary btn-lg" id="createBtn" onclick="createToken()">Create for $1</button>
+        <span style="font-size:13px; color:var(--ink-2)">1 USDC deploy fee · creator allocation locks until 30d after graduation</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= TRADE (list) ================= -->
+  <section class="panel" id="panel-trade">
+    <h2 class="panel-title">Trade.</h2>
+    <p class="panel-sub">Every coin costs real dollars. Graduate at $8,000 raised.</p>
+    <div id="tokenList"><div class="empty">Connect your wallet to load tokens.</div></div>
+  </section>
+
+  <!-- ================= TRADE (detail) ================= -->
+  <section class="panel" id="panel-token">
+    <button class="back" onclick="show('trade')">‹ All coins</button>
+    <div class="grid-2">
+      <div class="card">
+        <div style="display:flex; align-items:center; gap:14px; margin-bottom:6px;">
+          <div class="avatar" id="dAvatar">?</div>
+          <div>
+            <div style="font-weight:700; font-size:22px; letter-spacing:-.02em;" id="dName">—</div>
+            <div style="font-size:13px; color:var(--ink-2);" id="dSymbol">—</div>
+          </div>
+          <span class="pill live" id="dPhase" style="margin-left:auto">live</span>
+        </div>
+        <div class="big-num" id="dPrice">$—</div>
+        <div style="font-size:13px; color:var(--ink-2);">per token</div>
+        <div style="margin-top:22px; font-size:13px; color:var(--ink-2); display:flex; justify-content:space-between;">
+          <span>Progress to graduation</span><span id="dRaised">$0 / $8,000</span>
+        </div>
+        <div class="progress"><i id="dProgress" style="width:0%"></i></div>
+        <div style="margin-top:22px; font-size:13px; color:var(--ink-2);">Your balance</div>
+        <div style="font-weight:600; font-size:17px;" id="dBalance">—</div>
+        <div style="margin-top:16px;"><a id="dExplorer" target="_blank" class="mono">view on arcscan ↗</a></div>
+      </div>
+      <div class="card">
+        <div class="seg">
+          <button id="segBuy" class="on" onclick="setSide(true)">Buy</button>
+          <button id="segSell" onclick="setSide(false)">Sell</button>
+        </div>
+        <label id="amtLabel">Amount in USDC</label>
+        <input type="number" id="tradeAmt" placeholder="10" min="0" step="any" oninput="quoteTrade()">
+        <div class="quote" id="tradeQuote"></div>
+        <button class="btn btn-primary btn-lg" id="tradeBtn" style="width:100%; margin-top:16px;" onclick="doTrade()">Buy</button>
+        <div style="font-size:12px; color:var(--ink-3); margin-top:12px;">1% platform fee · slippage-protected</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= PREDICT ================= -->
+  <section class="panel" id="panel-predict">
+    <h2 class="panel-title">Predict.</h2>
+    <p class="panel-sub">Will it graduate? Stake USDC. Winners split the pot. The blockchain settles it — no oracle, no judge.</p>
+    <div class="card" style="display:flex; gap:14px; align-items:flex-end; flex-wrap:wrap;">
+      <div style="flex:1; min-width:220px;">
+        <label style="margin-top:0">Token address</label>
+        <input type="text" id="mkToken" placeholder="0x…" class="mono">
+      </div>
+      <div>
+        <label style="margin-top:0">Days until deadline</label>
+        <input type="number" id="mkDays" value="7" min="1" style="max-width:110px">
+      </div>
+      <button class="btn btn-ghost" style="height:47px" onclick="createMarket()">Open market</button>
+    </div>
+    <div id="marketList"><div class="empty">Connect your wallet to load markets.</div></div>
+  </section>
+</main>
+
+<footer>
+  Arclight · Arc Testnet (chain 5042002) · contracts:
+  <a id="fPump" target="_blank" class="mono">Pump</a> ·
+  <a id="fPredict" target="_blank" class="mono">Predict</a> ·
+  <a href="https://github.com/tonytheruthla/arclight" target="_blank">GitHub</a>
+  <div style="margin-top:8px;">Testnet software. Nothing here is financial advice.</div>
+</footer>
+
+<div id="toast"></div>
+
+<script>
+/* ================= config ================= */
+const CHAIN_ID = 5042002;
+const CHAIN_HEX = '0x4cef52';
+const RPC = 'https://rpc.testnet.arc.network';
+const EXPLORER = 'https://testnet.arcscan.app';
+const PUMP = '0x07236980c1734d86D94D979A5d512689f7BD209A';
+const PREDICT = '0xC2B2468Bf0D91d0c23A4116567a017Cab5d79259';
+const GRAD = 8000; // USDC
+
+const PUMP_ABI = [
+  'function createToken(string,string) payable returns (address)',
+  'function buy(address,uint256) payable returns (uint256)',
+  'function sell(address,uint256,uint256) returns (uint256)',
+  'function quoteBuy(address,uint256) view returns (uint256)',
+  'function quoteSell(address,uint256) view returns (uint256)',
+  'function spotPrice(address) view returns (uint256)',
+  'function curves(address) view returns (address,uint64,uint64,uint8,uint256,uint256,bool)',
+  'function tokenCount() view returns (uint256)',
+  'function allTokens(uint256) view returns (address)',
+  'event TokenCreated(address indexed token, address indexed creator, string name, string symbol)'
+];
+const TOKEN_ABI = [
+  'function name() view returns (string)',
+  'function symbol() view returns (string)',
+  'function balanceOf(address) view returns (uint256)',
+  'function allowance(address,address) view returns (uint256)',
+  'function approve(address,uint256) returns (bool)'
+];
+const PREDICT_ABI = [
+  'function createMarket(address,uint64) returns (uint256)',
+  'function bet(uint256,bool) payable',
+  'function resolve(uint256)',
+  'function claim(uint256)',
+  'function marketCount() view returns (uint256)',
+  'function markets(uint256) view returns (address,uint64,bool,bool,uint256,uint256)',
+  'function impliedYesBps(uint256) view returns (uint256)',
+  'function positions(uint256,address) view returns (uint256,uint256,bool)'
+];
+
+/* ================= state ================= */
+let provider, signer, me, pump, predict;
+let readProvider = new ethers.JsonRpcProvider(RPC, CHAIN_ID);
+let pumpR = new ethers.Contract(PUMP, PUMP_ABI, readProvider);
+let predictR = new ethers.Contract(PREDICT, PREDICT_ABI, readProvider);
+let curToken = null, sideBuy = true;
+const tokenMeta = {}; // addr -> {name, symbol}
+
+document.getElementById('fPump').href = EXPLORER + '/address/' + PUMP;
+document.getElementById('fPredict').href = EXPLORER + '/address/' + PREDICT;
+
+/* ================= helpers ================= */
+const fmt = (x, d=4) => Number(x).toLocaleString('en-US', {maximumFractionDigits:d});
+const E = ethers.formatEther;
+const P = ethers.parseEther;
+const short = a => a.slice(0,6) + '…' + a.slice(-4);
+const hue = a => parseInt(a.slice(2,8),16) % 360;
+
+function toast(msg, sticky=false) {
+  const t = document.getElementById('toast');
+  t.innerHTML = msg; t.classList.add('show');
+  clearTimeout(t._h);
+  if (!sticky) t._h = setTimeout(()=>t.classList.remove('show'), 4200);
+}
+function toastHide(){ document.getElementById('toast').classList.remove('show'); }
+
+function show(tab) {
+  document.querySelectorAll('section.panel').forEach(s=>s.classList.remove('visible'));
+  document.querySelectorAll('.nav-link').forEach(b=>b.classList.remove('active'));
+  document.getElementById('hero').style.display = tab==='home' ? '' : 'none';
+  if (tab!=='home') {
+    document.getElementById('panel-'+tab).classList.add('visible');
+    const nb = document.querySelector(`.nav-link[data-tab="${tab==='token'?'trade':tab}"]`);
+    if (nb) nb.classList.add('active');
+  }
+  if (tab==='trade') loadTokens();
+  if (tab==='predict') loadMarkets();
+  window.scrollTo({top:0});
+}
+
+/* ================= wallet ================= */
+async function connect() {
+  if (!window.ethereum) { toast('No wallet found. Install MetaMask, Rabby or Rainbow.'); return; }
+  try {
+    provider = new ethers.BrowserProvider(window.ethereum);
+    await provider.send('eth_requestAccounts', []);
+    const net = await provider.getNetwork();
+    if (Number(net.chainId) !== CHAIN_ID) {
+      try {
+        await provider.send('wallet_switchEthereumChain', [{chainId: CHAIN_HEX}]);
+      } catch (e) {
+        await provider.send('wallet_addEthereumChain', [{
+          chainId: CHAIN_HEX, chainName: 'Arc Testnet',
+          nativeCurrency: {name:'USDC', symbol:'USDC', decimals:18},
+          rpcUrls: [RPC], blockExplorerUrls: [EXPLORER]
+        }]);
+      }
+      provider = new ethers.BrowserProvider(window.ethereum);
+    }
+    signer = await provider.getSigner();
+    me = await signer.getAddress();
+    pump = new ethers.Contract(PUMP, PUMP_ABI, signer);
+    predict = new ethers.Contract(PREDICT, PREDICT_ABI, signer);
+    const bal = await provider.getBalance(me);
+    document.getElementById('connectBtn').textContent = short(me) + ' · $' + fmt(E(bal),2);
+    toast('Connected. Balance: $' + fmt(E(bal),2) + ' testnet USDC');
+    loadStats();
+  } catch (e) { toast(errMsg(e)); }
+}
+const needWallet = () => { if (!signer) { toast('Connect your wallet first.'); return true; } return false; };
+const errMsg = e => (e.shortMessage || e.message || 'Something went wrong').split('(')[0].slice(0,120);
+
+/* ================= stats ================= */
+async function loadStats() {
+  try {
+    const [tc, mc] = await Promise.all([pumpR.tokenCount(), predictR.marketCount()]);
+    document.getElementById('statTokens').textContent = tc.toString();
+    document.getElementById('statMarkets').textContent = mc.toString();
+  } catch (e) {}
+}
+loadStats();
+
+/* ================= launch ================= */
+async function createToken() {
+  if (needWallet()) return;
+  const name = document.getElementById('tokName').value.trim();
+  const sym = document.getElementById('tokSymbol').value.trim().toUpperCase();
+  if (!name || !sym) { toast('Give your coin a name and symbol.'); return; }
+  const btn = document.getElementById('createBtn');
+  btn.disabled = true;
+  try {
+    toast('<span class="spin"></span>Deploying ' + sym + '…', true);
+    const tx = await pump.createToken(name, sym, {value: P('1')});
+    const rc = await tx.wait();
+    let addr = null;
+    for (const log of rc.logs) {
+      try { const p = pump.interface.parseLog(log); if (p && p.name==='TokenCreated') addr = p.args[0]; } catch(e){}
+    }
+    toastHide();
+    toast('🚀 ' + sym + ' is live! ' + (addr?short(addr):''));
+    document.getElementById('tokName').value=''; document.getElementById('tokSymbol').value='';
+    loadStats();
+    if (addr) { await loadTokens(); openToken(addr); } else show('trade');
+  } catch (e) { toastHide(); toast(errMsg(e)); }
+  btn.disabled = false;
+}
+
+/* ================= trade list ================= */
+async function loadTokens() {
+  const el = document.getElementById('tokenList');
+  try {
+    const n = Number(await pumpR.tokenCount());
+    if (n===0) { el.innerHTML = '<div class="empty">No coins yet. Be the first to launch.</div>'; return; }
+    el.innerHTML = '<div class="empty">Loading…</div>';
+    let html = '';
+    for (let i=n-1; i>=0 && i>n-21; i--) {
+      const addr = await pumpR.allTokens(i);
+      if (!tokenMeta[addr]) {
+        const t = new ethers.Contract(addr, TOKEN_ABI, readProvider);
+        const [nm, sy] = await Promise.all([t.name(), t.symbol()]);
+        tokenMeta[addr] = {name:nm, symbol:sy};
+      }
+      const m = tokenMeta[addr];
+      const [price, c] = await Promise.all([pumpR.spotPrice(addr), pumpR.curves(addr)]);
+      const raised = Number(E(c[5]));
+      const grad = Number(c[3])===2;
+      const pct = Math.min(100, raised/GRAD*100);
+      const mcap = Number(E(price)) * 1e9;
+      html += `
+      <div class="row" onclick="openToken('${addr}')">
+        <div class="avatar" style="background:hsl(${hue(addr)},70%,55%)">${m.symbol.slice(0,3)}</div>
+        <div class="row-main">
+          <div class="row-title">${m.name} <span style="color:var(--ink-3);font-weight:400">· ${m.symbol}</span></div>
+          <div class="row-sub">mcap $${fmt(mcap,0)} · raised $${fmt(raised,0)}</div>
+          <div class="progress" style="max-width:280px"><i style="width:${pct}%"></i></div>
+        </div>
+        <div class="row-right">
+          <div class="row-price">$${fmt(E(price),6)}</div>
+          <span class="pill ${grad?'grad':'live'}">${grad?'graduated':'live'}</span>
+        </div>
+      </div>`;
+    }
+    el.innerHTML = html;
+  } catch (e) { el.innerHTML = '<div class="empty">Could not load tokens. '+errMsg(e)+'</div>'; }
+}
+
+/* ================= trade detail ================= */
+async function openToken(addr) {
+  curToken = addr;
+  show('token');
+  document.querySelector('.nav-link[data-tab="trade"]').classList.add('active');
+  const m = tokenMeta[addr] || {name:'—',symbol:'—'};
+  document.getElementById('dName').textContent = m.name;
+  document.getElementById('dSymbol').textContent = m.symbol + ' · ' + short(addr);
+  document.getElementById('dAvatar').textContent = m.symbol.slice(0,3);
+  document.getElementById('dAvatar').style.background = `hsl(${hue(addr)},70%,55%)`;
+  document.getElementById('dExplorer').href = EXPLORER + '/address/' + addr;
+  refreshToken();
+}
+async function refreshToken() {
+  if (!curToken) return;
+  try {
+    const [price, c] = await Promise.all([pumpR.spotPrice(curToken), pumpR.curves(curToken)]);
+    const raised = Number(E(c[5]));
+    const grad = Number(c[3])===2;
+    document.getElementById('dPrice').textContent = '$' + fmt(E(price),8);
+    document.getElementById('dRaised').textContent = '$' + fmt(raised,0) + ' / $8,000';
+    document.getElementById('dProgress').style.width = Math.min(100,raised/GRAD*100) + '%';
+    const ph = document.getElementById('dPhase');
+    ph.textContent = grad ? 'graduated' : 'live';
+    ph.className = 'pill ' + (grad?'grad':'live');
+    if (me) {
+      const t = new ethers.Contract(curToken, TOKEN_ABI, readProvider);
+      const b = await t.balanceOf(me);
+      document.getElementById('dBalance').textContent = fmt(E(b),2) + ' ' + (tokenMeta[curToken]?.symbol||'');
+    } else document.getElementById('dBalance').textContent = 'connect wallet';
+  } catch(e){}
+}
+function setSide(buy) {
+  sideBuy = buy;
+  document.getElementById('segBuy').classList.toggle('on', buy);
+  document.getElementById('segSell').classList.toggle('on', !buy);
+  document.getElementById('amtLabel').textContent = buy ? 'Amount in USDC' : 'Amount in tokens';
+  document.getElementById('tradeBtn').textContent = buy ? 'Buy' : 'Sell';
+  document.getElementById('tradeBtn').style.background = buy ? 'var(--accent)' : 'var(--ink)';
+  document.getElementById('tradeQuote').textContent = '';
+  document.getElementById('tradeAmt').value = '';
+}
+let quoteTimer;
+function quoteTrade() {
+  clearTimeout(quoteTimer);
+  quoteTimer = setTimeout(async () => {
+    const v = document.getElementById('tradeAmt').value;
+    const q = document.getElementById('tradeQuote');
+    if (!v || Number(v)<=0 || !curToken) { q.textContent=''; return; }
+    try {
+      if (sideBuy) {
+        const net = P(v) * 99n / 100n;
+        const out = await pumpR.quoteBuy(curToken, net);
+        q.textContent = '≈ ' + fmt(E(out),0) + ' ' + (tokenMeta[curToken]?.symbol||'tokens');
+      } else {
+        const out = await pumpR.quoteSell(curToken, P(v));
+        q.textContent = '≈ $' + fmt(Number(E(out))*0.99, 4) + ' USDC';
+      }
+    } catch(e){ q.textContent = ''; }
+  }, 250);
+}
+async function doTrade() {
+  if (needWallet()) return;
+  const v = document.getElementById('tradeAmt').value;
+  if (!v || Number(v)<=0) { toast('Enter an amount.'); return; }
+  const btn = document.getElementById('tradeBtn'); btn.disabled = true;
+  try {
+    if (sideBuy) {
+      toast('<span class="spin"></span>Buying…', true);
+      const net = P(v) * 99n / 100n;
+      const out = await pumpR.quoteBuy(curToken, net);
+      const tx = await pump.buy(curToken, out * 97n / 100n, {value: P(v)});
+      await tx.wait();
+      toastHide(); toast('Bought ' + fmt(E(out),0) + ' ' + (tokenMeta[curToken]?.symbol||''));
+    } else {
+      const t = new ethers.Contract(curToken, TOKEN_ABI, signer);
+      const allowance = await t.allowance(me, PUMP);
+      if (allowance < P(v)) {
+        toast('<span class="spin"></span>Approving…', true);
+        await (await t.approve(PUMP, ethers.MaxUint256)).wait();
+      }
+      toast('<span class="spin"></span>Selling…', true);
+      const out = await pumpR.quoteSell(curToken, P(v));
+      const tx = await pump.sell(curToken, P(v), out * 97n / 100n);
+      await tx.wait();
+      toastHide(); toast('Sold for ≈ $' + fmt(Number(E(out))*0.99,4));
+    }
+    document.getElementById('tradeAmt').value=''; document.getElementById('tradeQuote').textContent='';
+    refreshToken();
+  } catch (e) { toastHide(); toast(errMsg(e)); }
+  btn.disabled = false;
+}
+
+/* ================= predict ================= */
+async function loadMarkets() {
+  const el = document.getElementById('marketList');
+  try {
+    const n = Number(await predictR.marketCount());
+    if (n===0) { el.innerHTML = '<div class="empty">No markets yet. Open one on any live coin.</div>'; return; }
+    el.innerHTML = '<div class="empty">Loading…</div>';
+    let html = '';
+    for (let i=n; i>=1 && i>n-20; i--) {
+      const mk = await predictR.markets(i);
+      const [tokAddr, deadline, resolved, outcome, yesPool, noPool] = mk;
+      if (!tokenMeta[tokAddr]) {
+        try {
+          const t = new ethers.Contract(tokAddr, TOKEN_ABI, readProvider);
+          const [nm, sy] = await Promise.all([t.name(), t.symbol()]);
+          tokenMeta[tokAddr] = {name:nm, symbol:sy};
+        } catch(e){ tokenMeta[tokAddr] = {name:short(tokAddr), symbol:'?'}; }
+      }
+      const m = tokenMeta[tokAddr];
+      const pot = Number(E(yesPool)) + Number(E(noPool));
+      const yesPct = pot>0 ? Math.round(Number(E(yesPool))/pot*100) : 50;
+      const dl = new Date(Number(deadline)*1000);
+      const expired = Date.now()/1000 > Number(deadline);
+      let status, action;
+      if (resolved) {
+        status = outcome ? '<span class="pill grad">resolved · YES</span>' : '<span class="pill" style="background:rgba(255,59,48,.1);color:var(--red)">resolved · NO</span>';
+        action = `<button class="btn btn-ghost btn-sm" onclick="claimM(${i})">Claim winnings</button>`;
+      } else if (expired) {
+        status = '<span class="pill" style="background:rgba(255,159,10,.12);color:#c77700">awaiting resolution</span>';
+        action = `<button class="btn btn-ghost btn-sm" onclick="resolveM(${i})">Resolve</button>`;
+      } else {
+        status = '<span class="pill live">open</span>';
+        action = `
+        <div class="bet-row">
+          <input type="number" id="betAmt${i}" placeholder="$" min="0" step="any">
+          <button class="btn btn-yes btn-sm" onclick="betM(${i},true)">YES ${yesPct}¢</button>
+          <button class="btn btn-no btn-sm" onclick="betM(${i},false)">NO ${100-yesPct}¢</button>
+          <button class="btn btn-ghost btn-sm" onclick="resolveM(${i})" title="resolves YES instantly if already graduated">Resolve</button>
+        </div>`;
+      }
+      html += `
+      <div class="card">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <div class="avatar" style="background:hsl(${hue(tokAddr)},70%,55%); width:36px; height:36px; font-size:12px;">${m.symbol.slice(0,3)}</div>
+          <div style="flex:1">
+            <div style="font-weight:600; font-size:16px;">Will ${m.name} graduate by ${dl.toLocaleDateString('en-US',{month:'short',day:'numeric'})}?</div>
+            <div style="font-size:13px; color:var(--ink-2)">Market #${i} · pot $${fmt(pot,2)} · deadline ${dl.toLocaleString()}</div>
+          </div>
+          ${status}
+        </div>
+        <div class="odds-bar">
+          <div class="odds-yes" style="width:${Math.max(8,yesPct)}%">YES ${yesPct}%</div>
+          <div class="odds-no">NO ${100-yesPct}%</div>
+        </div>
+        ${action}
+      </div>`;
+    }
+    el.innerHTML = html;
+  } catch (e) { el.innerHTML = '<div class="empty">Could not load markets. '+errMsg(e)+'</div>'; }
+}
+async function createMarket() {
+  if (needWallet()) return;
+  const tok = document.getElementById('mkToken').value.trim();
+  const days = Number(document.getElementById('mkDays').value);
+  if (!ethers.isAddress(tok)) { toast('Enter a valid token address.'); return; }
+  if (!days || days<1) { toast('Deadline must be at least 1 day out.'); return; }
+  try {
+    toast('<span class="spin"></span>Opening market…', true);
+    const deadline = Math.floor(Date.now()/1000) + days*86400;
+    const tx = await predict.createMarket(tok, deadline);
+    await tx.wait();
+    toastHide(); toast('Market open. Place the first bet.');
+    document.getElementById('mkToken').value='';
+    loadMarkets(); loadStats();
+  } catch (e) { toastHide(); toast(errMsg(e)); }
+}
+async function betM(id, yes) {
+  if (needWallet()) return;
+  const v = document.getElementById('betAmt'+id).value;
+  if (!v || Number(v)<=0) { toast('Enter a bet amount in USDC.'); return; }
+  try {
+    toast('<span class="spin"></span>Placing bet…', true);
+    const tx = await predict.bet(id, yes, {value: P(v)});
+    await tx.wait();
+    toastHide(); toast('Bet placed: $' + v + ' on ' + (yes?'YES':'NO'));
+    loadMarkets();
+  } catch (e) { toastHide(); toast(errMsg(e)); }
+}
+async function resolveM(id) {
+  if (needWallet()) return;
+  try {
+    toast('<span class="spin"></span>Resolving…', true);
+    const tx = await predict.resolve(id);
+    await tx.wait();
+    toastHide(); toast('Market resolved.');
+    loadMarkets();
+  } catch (e) { toastHide(); toast(errMsg(e)); }
+}
+async function claimM(id) {
+  if (needWallet()) return;
+  try {
+    toast('<span class="spin"></span>Claiming…', true);
+    const tx = await predict.claim(id);
+    await tx.wait();
+    toastHide(); toast('Winnings claimed 🎉');
+    loadMarkets();
+  } catch (e) { toastHide(); toast(errMsg(e)); }
+}
+
+/* refresh detail price every 12s */
+setInterval(()=>{ if (document.getElementById('panel-token').classList.contains('visible')) refreshToken(); }, 12000);
+</script>
+</body>
+</html>
