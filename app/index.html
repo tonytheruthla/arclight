@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Arclight — Launch. Trade. Predict.</title>
+<title>Arklight — Launch. Trade. Predict.</title>
 <meta name="theme-color" content="#000000">
 <link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="%230a84ff"/><stop offset="1" stop-color="%2322d3ee"/></linearGradient></defs><path d="M 8 54 Q 22 51 36 41 Q 51 30 55 11" stroke="url(%23g)" stroke-width="7.5" stroke-linecap="round" fill="none"/><circle cx="54" cy="10" r="6.5" fill="%237dd3fc"/></svg>'>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
@@ -176,7 +176,7 @@
             -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
             mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); }
   .ticker-track { display: inline-flex; align-items: center; gap: 44px; padding-right: 44px;
-                  animation: tick 90s linear infinite; will-change: transform; transform: translate3d(0,0,0);
+                  animation: tick 350s linear infinite; will-change: transform; transform: translate3d(0,0,0);
                   backface-visibility: hidden; }
   .ticker span { font-size: 15px; font-weight: 600; color: var(--ink-2); letter-spacing: .06em; }
   .ticker .sep { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0;
@@ -316,7 +316,7 @@
         <path d="M 8 54 Q 22 51 36 41 Q 51 30 55 11" stroke="url(#markGrad)" stroke-width="7.5" stroke-linecap="round"/>
         <circle cx="54" cy="10" r="6.5" fill="#7dd3fc"/>
       </svg>
-      Arclight
+      Arklight
     </div>
     <div class="nav-links">
       <button class="nav-link" data-tab="launch" onclick="enterApp('launch')">Launch</button>
@@ -406,7 +406,7 @@
 
   <!-- scene 5: why -->
   <div class="scene">
-    <div class="rv"><div class="kicker">Why Arclight</div></div>
+    <div class="rv"><div class="kicker">Why Arklight</div></div>
     <h2 class="rv rv2">Built different.</h2>
     <div class="feat-grid">
       <div class="feat rv rv2"><span class="ico">💵</span><b>Priced in dollars</b><p>The only launchpad where coins cost real USDC, not a volatile gas token. What you see is what you pay — gas included.</p></div>
@@ -500,7 +500,7 @@
 </div>
 
 <footer>
-  Arclight · Arc Testnet (chain 5042002) · contracts:
+  Arklight · Arc Testnet (chain 5042002) · contracts:
   <a id="fPump" target="_blank" class="mono">Pump</a> ·
   <a id="fPredict" target="_blank" class="mono">Predict</a> ·
   <a href="https://github.com/tonytheruthla/arclight" target="_blank">GitHub</a>
@@ -591,7 +591,7 @@ function countUp(el, target) {
 
 /* ================= intro ================= */
 (function introInit(){
-  const word = 'ARCLIGHT';
+  const word = 'ARKLIGHT';
   const el = document.getElementById('introWord');
   [...word].forEach((ch,i)=>{
     const s = document.createElement('span');
