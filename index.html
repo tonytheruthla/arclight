@@ -6,6 +6,9 @@
 <title>Arklight — Launch. Trade. Predict.</title>
 <meta name="theme-color" content="#000000">
 <link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="%230a84ff"/><stop offset="1" stop-color="%2322d3ee"/></linearGradient></defs><path d="M 8 54 Q 22 51 36 41 Q 51 30 55 11" stroke="url(%23g)" stroke-width="7.5" stroke-linecap="round" fill="none"/><circle cx="54" cy="10" r="6.5" fill="%237dd3fc"/></svg>'>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
 <style>
   :root {
@@ -21,9 +24,17 @@
   }
   * { margin:0; padding:0; box-sizing:border-box; -webkit-font-smoothing:antialiased; }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     background: var(--bg); color: var(--ink); line-height: 1.5; overflow-x: hidden;
+    font-feature-settings: "cv11","ss01"; -webkit-font-smoothing: antialiased;
   }
+  /* display type — geometric grotesk */
+  h1, h2, .panel-title, .big-num, .stat b, .hud-item b, #goTitle, #tierFlash, .intro-word {
+    font-family: 'Space Grotesk', 'Inter', sans-serif; }
+  /* elegant italic-serif accent for key words */
+  .accent-serif { font-family: 'Instrument Serif', Georgia, serif; font-style: italic; font-weight: 400;
+    letter-spacing: 0; -webkit-text-fill-color: initial; background: none; font-size: 1.12em;
+    color: #eaf2ff; text-shadow: 0 0 30px rgba(125,211,252,.5); padding-right: .04em; }
   ::selection { background: rgba(10,132,255,.35); }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration:.01ms !important; transition-duration:.01ms !important; }
@@ -178,11 +189,11 @@
   .scene h1 { font-size: clamp(52px, 10vw, 104px); font-weight: 700; letter-spacing: -.035em; line-height: 1.02; }
   .scene h2 { font-size: clamp(40px, 7vw, 72px); font-weight: 700; letter-spacing: -.03em; line-height: 1.05; }
   .scene p.big { font-size: clamp(18px, 2.6vw, 24px); color: var(--ink-2); max-width: 640px; margin: 22px auto 0; letter-spacing: -.012em; }
-  .grad-blue { background: linear-gradient(135deg,#fff 25%,#7dd3fc 60%,#0a84ff 90%);
+  .grad-blue { background: linear-gradient(120deg,#ffffff 18%,#a5d8ff 46%,#0a84ff 72%,#8b7dff 100%);
                -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-  .grad-green { background: linear-gradient(135deg,#fff 30%,#7ce495 65%,#30d158 95%);
+  .grad-green { background: linear-gradient(120deg,#ffffff 22%,#8ff0b0 55%,#30d158 82%,#22d3ee 100%);
                 -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-  .grad-pink { background: linear-gradient(135deg,#fff 30%,#ffb3ae 60%,#ff453a 95%);
+  .grad-pink { background: linear-gradient(120deg,#ffffff 22%,#ffc2be 52%,#ff6a8a 80%,#b46bff 100%);
                -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
 
   /* scroll reveals — rack-focus style */
@@ -432,7 +443,7 @@
   <div class="scene" id="heroScene">
     <div id="heroInner" style="display:flex; flex-direction:column; align-items:center;">
       <div class="rv"><div class="kicker">Live on Arc Testnet</div></div>
-      <h1 class="grad-blue shimmer rv rv2">Launch. Trade.<br>Predict.</h1>
+      <h1 class="grad-blue shimmer rv rv2">Launch. Trade.<br><span class="accent-serif">Predict.</span></h1>
       <p class="big rv rv3">The memecoin launchpad where every coin is priced in real dollars — and every launch is a market you can bet on.</p>
       <div class="rv rv4" style="margin-top:38px; display:flex; gap:14px; flex-wrap:wrap; justify-content:center;">
         <button class="btn btn-primary btn-lg" onclick="enterApp('launch')">Enter the app</button>
@@ -457,7 +468,7 @@
   <div class="scene" id="sceneLaunch">
     <div class="ghost-num">01</div>
     <div class="rv"><div class="kicker">01 · Launch</div></div>
-    <h2 class="grad-blue rv rv2">A coin in one click.<br>One dollar.</h2>
+    <h2 class="grad-blue rv rv2">A coin in one click.<br><span class="accent-serif">One dollar.</span></h2>
     <p class="big rv rv3">Name it, symbol it, ship it. Your coin trades instantly on a bonding curve — no liquidity to raise, no code to write. Creator tokens stay locked until 30 days after graduation, so nobody dumps on you.</p>
     <div class="rv rv4" style="margin-top:34px;">
       <button class="btn btn-glow btn-lg" onclick="enterApp('launch')">Launch yours →</button>
@@ -468,7 +479,7 @@
   <div class="scene">
     <div class="ghost-num">02</div>
     <div class="rv"><div class="kicker">02 · Trade</div></div>
-    <h2 class="grad-green rv rv2">Real dollars.<br>Real price discovery.</h2>
+    <h2 class="grad-green rv rv2">Real dollars.<br>Real <span class="accent-serif">price discovery.</span></h2>
     <p class="big rv rv3">Every coin is priced in USDC from the first trade. Buy early on the curve, ride it to the $8,000 graduation — a 13× climb — then the liquidity moves on-chain forever.</p>
     <div class="curve-wrap rv rv4">
       <svg id="curveSvg" viewBox="0 0 720 300" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -495,7 +506,7 @@
   <div class="scene">
     <div class="ghost-num">03</div>
     <div class="rv"><div class="kicker">03 · Predict</div></div>
-    <h2 class="grad-pink rv rv2">Will it graduate?<br>Put money on it.</h2>
+    <h2 class="grad-pink rv rv2">Will it <span class="accent-serif">graduate?</span><br>Put money on it.</h2>
     <p class="big rv rv3">Every launch spawns a market. Stake USDC on YES or NO — winners split the pot. No oracle, no judge: the blockchain itself settles the bet the moment a coin graduates.</p>
     <div class="tug rv rv4">
       <div class="tug-bar">
@@ -510,7 +521,7 @@
   <div class="scene" id="sceneGame">
     <div class="ghost-num">04</div>
     <div class="rv"><div class="kicker">04 · Play</div></div>
-    <h2 class="grad-green rv rv2">Ride the curve.<br>Bank the light.</h2>
+    <h2 class="grad-green rv rv2">Ride the curve.<br>Bank <span class="accent-serif">the light.</span></h2>
     <p class="big rv rv3">Tap to boost the comet up the bonding curve. Grab light orbs, dodge the rug candles, graduate for a bonus. Beat your high score — then flex it.</p>
 
     <div class="game-wrap rv rv4">
@@ -538,7 +549,7 @@
 
   <!-- scene 5: closer -->
   <div class="scene">
-    <h2 class="grad-blue rv rv2" style="font-size:clamp(52px,9vw,96px);">Built different.</h2>
+    <h2 class="grad-blue rv rv2" style="font-size:clamp(52px,9vw,96px);">Built <span class="accent-serif">different.</span></h2>
     <div class="rv rv3" style="margin-top:36px; display:flex; gap:14px; flex-wrap:wrap; justify-content:center;">
       <button class="btn btn-glow btn-lg" onclick="enterApp('trade')">Enter the app</button>
       <button class="btn btn-ghost btn-lg" onclick="shareSite()">Share Arklight ↗</button>
