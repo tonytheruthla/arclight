@@ -66,6 +66,30 @@
 
   /* ============ ambient ============ */
   #motes { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 0; pointer-events: none; opacity: .55; }
+  /* cursor spotlight */
+  #spotlight { position: fixed; inset: 0; z-index: 2; pointer-events: none;
+    background: radial-gradient(360px circle at var(--mx, 50%) var(--my, 40%),
+      rgba(34,211,238,.10), rgba(10,132,255,.05) 42%, transparent 68%);
+    mix-blend-mode: screen; opacity: 0; transition: opacity .7s var(--ease); }
+  #spotlight.on { opacity: 1; }
+  @media (hover: none) { #spotlight { display: none; } }
+
+  /* editorial ghost numerals behind scenes */
+  .ghost-num { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    font-size: clamp(180px, 33vw, 440px); font-weight: 800; letter-spacing: -.05em; line-height: 1;
+    color: rgba(255,255,255,.028); z-index: 0; pointer-events: none; user-select: none; }
+  .scene > .rv, .scene > h1, .scene > h2, .scene > p, .scene > div:not(.ghost-num) { position: relative; z-index: 1; }
+
+  /* side level-select dot rail */
+  #sceneDots { position: fixed; right: 20px; top: 50%; transform: translateY(-50%); z-index: 40;
+    display: flex; flex-direction: column; gap: 13px; opacity: 0; transition: opacity .5s var(--ease); }
+  #sceneDots.on { opacity: 1; }
+  #sceneDots button { width: 9px; height: 9px; border-radius: 50%; border: none; cursor: pointer; padding: 0;
+    background: rgba(255,255,255,.2); transition: all .35s var(--spring); position: relative; }
+  #sceneDots button:hover { background: rgba(255,255,255,.5); }
+  #sceneDots button.active { background: linear-gradient(var(--accent), var(--accent-2));
+    box-shadow: 0 0 12px rgba(34,211,238,.75); transform: scale(1.5); }
+  @media (max-width: 760px) { #sceneDots { display: none; } }
   .orb { position: fixed; border-radius: 50%; filter: blur(120px); opacity: .16; pointer-events: none; z-index: 0;
          will-change: transform; }
 
@@ -143,7 +167,13 @@
   #landing { position: relative; z-index: 1; }
   .scene { min-height: 92vh; display: flex; flex-direction: column; justify-content: center; align-items: center;
            text-align: center; padding: 90px 22px; position: relative; }
-  .scene .kicker { font-size: 13px; letter-spacing: .22em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 18px; }
+  .scene .kicker, .hero .kicker { display: inline-flex; align-items: center; gap: 9px;
+    font-size: 13px; letter-spacing: .22em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 18px; }
+  .kicker::before { content: ''; width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+    background: var(--accent-2); box-shadow: 0 0 9px var(--accent-2); animation: kpulse 2.2s var(--ease) infinite; }
+  @keyframes kpulse { 0%,100% { opacity: .45; transform: scale(.8); } 50% { opacity: 1; transform: scale(1.25); } }
+  /* hero depth layers */
+  .hero, #heroScene { perspective: 1000px; }
   .scene h1 { font-size: clamp(52px, 10vw, 104px); font-weight: 700; letter-spacing: -.035em; line-height: 1.02; }
   .scene h2 { font-size: clamp(40px, 7vw, 72px); font-weight: 700; letter-spacing: -.03em; line-height: 1.05; }
   .scene p.big { font-size: clamp(18px, 2.6vw, 24px); color: var(--ink-2); max-width: 640px; margin: 22px auto 0; letter-spacing: -.012em; }
@@ -369,6 +399,8 @@
 
 <div id="scrollBeam"></div>
 <canvas id="motes"></canvas>
+<div id="spotlight"></div>
+<div id="sceneDots"></div>
 <div class="orb orb-1" id="orb1"></div>
 <div class="orb orb-2" id="orb2"></div>
 
@@ -422,6 +454,7 @@
 
   <!-- scene 2: launch -->
   <div class="scene" id="sceneLaunch">
+    <div class="ghost-num">01</div>
     <div class="rv"><div class="kicker">01 · Launch</div></div>
     <h2 class="grad-blue rv rv2">A coin in one click.<br>One dollar.</h2>
     <p class="big rv rv3">Name it, symbol it, ship it. Your coin trades instantly on a bonding curve — no liquidity to raise, no code to write. Creator tokens stay locked until 30 days after graduation, so nobody dumps on you.</p>
@@ -432,6 +465,7 @@
 
   <!-- scene 3: trade / curve -->
   <div class="scene">
+    <div class="ghost-num">02</div>
     <div class="rv"><div class="kicker">02 · Trade</div></div>
     <h2 class="grad-green rv rv2">Real dollars.<br>Real price discovery.</h2>
     <p class="big rv rv3">Every coin is priced in USDC from the first trade. Buy early on the curve, ride it to the $8,000 graduation — a 13× climb — then the liquidity moves on-chain forever.</p>
@@ -458,6 +492,7 @@
 
   <!-- scene 4: predict -->
   <div class="scene">
+    <div class="ghost-num">03</div>
     <div class="rv"><div class="kicker">03 · Predict</div></div>
     <h2 class="grad-pink rv rv2">Will it graduate?<br>Put money on it.</h2>
     <p class="big rv rv3">Every launch spawns a market. Stake USDC on YES or NO — winners split the pot. No oracle, no judge: the blockchain itself settles the bet the moment a coin graduates.</p>
@@ -472,6 +507,7 @@
 
   <!-- scene 4.5: PLAY -->
   <div class="scene" id="sceneGame">
+    <div class="ghost-num">04</div>
     <div class="rv"><div class="kicker">04 · Play</div></div>
     <h2 class="grad-green rv rv2">Ride the curve.<br>Bank the light.</h2>
     <p class="big rv rv3">Tap to boost the comet up the bonding curve. Grab light orbs, dodge the rug candles, graduate for a bonus. Beat your high score — then flex it.</p>
@@ -718,6 +754,7 @@ observeAll();
 let mx=0, my=0, smx=0, smy=0, ssy=0;
 window.addEventListener('mousemove', e=>{
   mx = (e.clientX/window.innerWidth - .5); my = (e.clientY/window.innerHeight - .5);
+  cursorSeen = true;
 }, {passive:true});
 function parallaxLoop(){
   const lerp = (a,b,t)=>a+(b-a)*t;
@@ -726,17 +763,30 @@ function parallaxLoop(){
   const o1 = document.getElementById('orb1'), o2 = document.getElementById('orb2');
   if (o1) o1.style.transform = `translate3d(${smx*-44}px, ${smy*-30 + ssy*0.05}px, 0)`;
   if (o2) o2.style.transform = `translate3d(${smx*34}px, ${smy*26 - ssy*0.04}px, 0)`;
+  const landingVisible = document.getElementById('landing').style.display !== 'none';
   const hi = document.getElementById('heroInner');
-  if (hi && document.getElementById('landing').style.display !== 'none') {
+  if (hi && landingVisible) {
     const p = Math.min(1, ssy / (window.innerHeight * .85));
-    hi.style.transform = `translate3d(0, ${p*-46}px, 0) scale(${1 - p*.08})`;
+    // scroll shrink + cursor-driven 3D tilt + depth
+    hi.style.transform = `perspective(1000px) translate3d(0, ${p*-46}px, 0) rotateX(${-smy*6}deg) rotateY(${smx*7}deg) scale(${1 - p*.08})`;
     hi.style.opacity = String(1 - p*.9);
   }
+  // cursor spotlight (smoothed)
+  const sp = document.getElementById('spotlight');
+  if (sp) {
+    sp.style.setProperty('--mx', ((smx+.5)*innerWidth).toFixed(0)+'px');
+    sp.style.setProperty('--my', ((smy+.5)*innerHeight).toFixed(0)+'px');
+    sp.classList.toggle('on', landingVisible && cursorSeen);
+  }
+  const dots = document.getElementById('sceneDots');
+  if (dots) dots.classList.toggle('on', landingVisible);
+  if (landingVisible) trackActiveDot();
   try {
-    if (document.getElementById('landing').style.display !== 'none') { driveCurve(); driveTug(); }
+    if (landingVisible) { driveCurve(); driveTug(); }
   } catch (e) { /* consts may not be ready on very first frame */ }
   requestAnimationFrame(parallaxLoop);
 }
+let cursorSeen = false;
 // kick off on the next frame, after all declarations below have initialized
 requestAnimationFrame(parallaxLoop);
 
@@ -834,6 +884,29 @@ function updateBeam(){
 }
 window.addEventListener('scroll', updateBeam, {passive:true});
 updateBeam();
+
+/* ---- side level-select dot rail ---- */
+let sceneEls = [], dotEls = [];
+(function buildDots(){
+  const rail = document.getElementById('sceneDots');
+  const landing = document.getElementById('landing');
+  if (!rail || !landing) return;
+  sceneEls = [...landing.querySelectorAll('.scene')];
+  const labels = ['Home','Launch','Trade','Predict','Play','Enter'];
+  sceneEls.forEach((s,i)=>{
+    const b = document.createElement('button');
+    b.title = labels[i] || ('0'+i);
+    b.onclick = ()=> s.scrollIntoView({behavior:'smooth', block:'center'});
+    rail.appendChild(b); dotEls.push(b);
+  });
+})();
+function trackActiveDot(){
+  if (!dotEls.length) return;
+  const mid = window.innerHeight/2; let ai = 0, best = 1e9;
+  sceneEls.forEach((s,i)=>{ const r=s.getBoundingClientRect(); const d=Math.abs((r.top+r.bottom)/2 - mid);
+    if (d<best){ best=d; ai=i; } });
+  dotEls.forEach((d,i)=> d.classList.toggle('active', i===ai));
+}
 
 /* ==================================================================
    SOUND — soft synthesized ASMR cues (no audio files), mutable
