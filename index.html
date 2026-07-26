@@ -66,13 +66,14 @@
 
   /* ============ ambient ============ */
   #motes { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 0; pointer-events: none; opacity: .55; }
-  /* cursor spotlight */
+  /* cursor spotlight — hue themed per scene via --scene-rgb (lerped in JS) */
   #spotlight { position: fixed; inset: 0; z-index: 2; pointer-events: none;
-    background: radial-gradient(360px circle at var(--mx, 50%) var(--my, 40%),
-      rgba(34,211,238,.10), rgba(10,132,255,.05) 42%, transparent 68%);
+    background: radial-gradient(380px circle at var(--mx, 50%) var(--my, 40%),
+      rgba(var(--scene-rgb, 10,132,255), .13), rgba(var(--scene-rgb, 10,132,255), .05) 44%, transparent 70%);
     mix-blend-mode: screen; opacity: 0; transition: opacity .7s var(--ease); }
   #spotlight.on { opacity: 1; }
   @media (hover: none) { #spotlight { display: none; } }
+  .ghost-num { transition: color .6s var(--ease); will-change: transform; }
 
   /* editorial ghost numerals behind scenes */
   .ghost-num { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
@@ -780,7 +781,7 @@ function parallaxLoop(){
   }
   const dots = document.getElementById('sceneDots');
   if (dots) dots.classList.toggle('on', landingVisible);
-  if (landingVisible) trackActiveDot();
+  if (landingVisible) { trackActiveDot(); tickSceneColor(); }
   try {
     if (landingVisible) { driveCurve(); driveTug(); }
   } catch (e) { /* consts may not be ready on very first frame */ }
@@ -885,13 +886,17 @@ function updateBeam(){
 window.addEventListener('scroll', updateBeam, {passive:true});
 updateBeam();
 
-/* ---- side level-select dot rail ---- */
-let sceneEls = [], dotEls = [];
+/* ---- side level-select dot rail + scene color theming ---- */
+let sceneEls = [], dotEls = [], ghostNums = [];
+// per-scene ambient hue: Home, Launch, Trade, Predict, Play, Enter
+const scenePalette = [[10,132,255],[10,132,255],[48,209,88],[255,90,86],[34,211,238],[10,132,255]];
+let scR=10, scG=132, scB=255, tgR=10, tgG=132, tgB=255;
 (function buildDots(){
   const rail = document.getElementById('sceneDots');
   const landing = document.getElementById('landing');
   if (!rail || !landing) return;
   sceneEls = [...landing.querySelectorAll('.scene')];
+  ghostNums = [...landing.querySelectorAll('.ghost-num')];
   const labels = ['Home','Launch','Trade','Predict','Play','Enter'];
   sceneEls.forEach((s,i)=>{
     const b = document.createElement('button');
@@ -906,6 +911,21 @@ function trackActiveDot(){
   sceneEls.forEach((s,i)=>{ const r=s.getBoundingClientRect(); const d=Math.abs((r.top+r.bottom)/2 - mid);
     if (d<best){ best=d; ai=i; } });
   dotEls.forEach((d,i)=> d.classList.toggle('active', i===ai));
+  const pal = scenePalette[ai] || scenePalette[0];
+  tgR=pal[0]; tgG=pal[1]; tgB=pal[2];
+  // ghost numeral parallax + cursor drift
+  ghostNums.forEach(g=>{
+    const r = g.parentElement.getBoundingClientRect();
+    const prog = (r.top + r.height/2 - mid) / window.innerHeight;   // ~ -1..1
+    g.style.transform = `translate(calc(-50% + ${smx*26}px), calc(-50% + ${prog*-58 + smy*20}px))`;
+  });
+}
+function tickSceneColor(){
+  const l=(a,b)=>a+(b-a)*0.06;
+  scR=l(scR,tgR); scG=l(scG,tgG); scB=l(scB,tgB);
+  const rgb = `${scR|0},${scG|0},${scB|0}`;
+  document.documentElement.style.setProperty('--scene-rgb', rgb);
+  const o1=document.getElementById('orb1'); if(o1) o1.style.background=`rgb(${rgb})`;
 }
 
 /* ==================================================================
