@@ -25,6 +25,50 @@ Parimutuel YES/NO markets on token graduations, settled in native USDC. (`contra
 
 v0.3 roadmap: sealed-bid fair-launch window (Arc privacy primitives), DEX migration with LP burn, holder fee-share streaming, auto-market creation on every launch, and price over/under markets.
 
+## Light Points 🔆 — play-to-earn layer
+
+**ASCENT** is a one-tap arcade game built into the landing page: fly the Arklight comet
+up the bonding curve, collect light orbs, dodge rug candles, and graduate for a bonus.
+Difficulty steps up a tier every 100 points (faster candles, tighter gaps).
+
+**Light points** are the reward currency earned by playing.
+
+### How accumulation works (live today)
+
+| Action | Light earned |
+|---|---|
+| Collect a light orb | +1 |
+| Graduate a run (every $8K raised in-game) | +15 |
+| Tier up (every 100 light) | difficulty increases, score multiplier potential |
+
+- Points are **bound to the connected wallet**. Each address has its own balance
+  (`ark_light_<address>`), viewable in the wallet **profile panel** in the nav.
+- Play before connecting and your balance is held as a **guest bank**, then
+  **automatically merged into your wallet** the moment you connect — nothing is lost.
+- Disconnecting never burns points; they remain attached to that address.
+- Current storage is client-side (localStorage). Migration to on-chain / signed-server
+  accounting is a v2.1 item so balances are portable and verifiable.
+
+### Planned rewards (roadmap)
+
+Light points are cosmetic today. Planned utility, in priority order:
+
+1. **Token boosts** — spend light to push a listed coin up the Arklight board
+   (visibility ranking on the Trade view). Turns attention into an earnable resource
+   instead of a paid ad slot.
+2. **Fee rebates** — tiered discounts on the 1% trade fee and the $1 deploy fee.
+3. **Prediction-market perks** — reduced rake on graduation-market winnings,
+   or free entry to featured markets.
+4. **Launch allowlist / priority** — early access to sealed-bid fair-launch windows.
+5. **Leaderboard + seasons** — global high-score board with seasonal resets and
+   rewards for top light earners; shareable score cards for X.
+6. **On-chain claim** — snapshot light balances and make them claimable/mintable
+   so they can be held, transferred, or spent trustlessly.
+
+> Design note: light must stay **earned, not bought**, so boosts reflect genuine
+> engagement rather than budget. Any future purchasable path should be separate
+> from earned light.
+
 Arclight fuses three primitives that don't exist on Arc today into one product: a launchpad, prediction markets, and revenue-based financing.
 
 - **Revenue-backed launches** — projects raise USDC by selling revenue-share tokens: pro-rata claims on future USDC cash flows streamed onchain. Real yield, not governance vibes.
