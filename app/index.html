@@ -37,7 +37,20 @@
     color: #eaf2ff; text-shadow: 0 0 30px rgba(125,211,252,.5); padding-right: .04em; }
   ::selection { background: rgba(10,132,255,.35); }
   @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after { animation-duration:.01ms !important; transition-duration:.01ms !important; }
+    /* NOTE: without iteration-count:1, infinite animations replay thousands of
+       times/second at .01ms and appear to strobe. This keeps motion truly off. */
+    *, *::before, *::after {
+      animation-duration: .01ms !important;
+      animation-iteration-count: 1 !important;
+      animation-delay: 0s !important;
+      transition-duration: .01ms !important;
+      scroll-behavior: auto !important;
+    }
+    /* looping decorative motion -> fully static */
+    .ticker-track { animation: none !important; transform: none !important; }
+    .progress i::after, .shimmer, .kicker::before, #curveDot { animation: none !important; }
+    .scroll-cue { animation: none !important; opacity: .6 !important; }
+    #motes { display: none !important; }
   }
 
   /* ============ INTRO ============ */
