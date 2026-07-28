@@ -262,6 +262,39 @@
   .game-overlay.hidden { opacity: 0; pointer-events: none; }
   .go-inner { padding: 24px; }
 
+  /* ---- wallet picker modal ---- */
+  #walletModal { position: fixed; inset: 0; z-index: 300; display: none; align-items: center; justify-content: center;
+    background: rgba(0,0,0,.72); backdrop-filter: blur(10px); padding: 20px; }
+  #walletModal.open { display: flex; animation: wmIn .35s var(--ease); }
+  @keyframes wmIn { from { opacity: 0; } to { opacity: 1; } }
+  .wm-card { width: min(420px, 94vw); background: linear-gradient(180deg,#1c1c1f,#141416);
+    border: 1px solid var(--hairline); border-radius: 22px; padding: 26px;
+    box-shadow: 0 30px 80px rgba(0,0,0,.7); animation: wmPop .45s var(--spring); max-height: 86vh; overflow-y: auto; }
+  @keyframes wmPop { from { transform: translateY(18px) scale(.96); } to { transform: none; } }
+  .wm-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .wm-title { font-family:'Space Grotesk',sans-serif; font-size: 22px; font-weight: 700; letter-spacing: -.02em; }
+  .wm-x { background: none; border: none; color: var(--ink-3); font-size: 22px; cursor: pointer; line-height: 1; padding: 4px 8px; }
+  .wm-x:hover { color: var(--ink); }
+  .wm-sub { font-size: 13.5px; color: var(--ink-2); margin-bottom: 18px; }
+  .wm-item { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; cursor: pointer;
+    background: rgba(255,255,255,.045); border: 1px solid var(--hairline); border-radius: 15px;
+    padding: 13px 15px; margin-bottom: 9px; font-family: inherit; color: var(--ink);
+    transition: transform .35s var(--spring), background .25s var(--ease), border-color .25s var(--ease); }
+  .wm-item:hover { background: rgba(255,255,255,.09); border-color: rgba(255,255,255,.2); transform: translateY(-2px); }
+  .wm-item:active { transform: scale(.985); }
+  .wm-ico { width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0; object-fit: cover;
+    background: linear-gradient(135deg,var(--accent),var(--accent-2)); display:flex; align-items:center;
+    justify-content:center; font-weight:700; font-size:15px; color:#fff; }
+  .wm-name { font-weight: 600; font-size: 15.5px; }
+  .wm-meta { font-size: 12px; color: var(--ink-3); }
+  .wm-badge { margin-left: auto; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; padding: 3px 9px;
+    border-radius: 980px; background: rgba(48,209,88,.15); color: var(--green); }
+  .wm-badge.warn { background: rgba(255,214,10,.14); color: var(--amber); }
+  .wm-empty { text-align: center; padding: 10px 0 4px; }
+  .wm-links { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+  .wm-links a { font-size: 13.5px; }
+  .wm-foot { font-size: 11.5px; color: var(--ink-3); margin-top: 14px; text-align: center; }
+
   /* feature cards scene */
   .feat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; width: min(940px, 94vw); margin-top: 52px; }
   @media (max-width: 760px) { .feat-grid { grid-template-columns: 1fr; } }
@@ -644,6 +677,18 @@
   <a href="https://github.com/tonytheruthla/arclight" target="_blank">GitHub</a>
   <div style="margin-top:8px;">Testnet software. Nothing here is financial advice.</div>
 </footer>
+
+<div id="walletModal" onclick="if(event.target===this) closeWalletModal()">
+  <div class="wm-card">
+    <div class="wm-head">
+      <div class="wm-title">Connect wallet</div>
+      <button class="wm-x" onclick="closeWalletModal()" aria-label="Close">×</button>
+    </div>
+    <div class="wm-sub">Any Ethereum-compatible wallet works on Arc.</div>
+    <div id="wmList"></div>
+    <div class="wm-foot">Arc Testnet · chain 5042002 · gas is USDC</div>
+  </div>
+</div>
 
 <div id="toast"></div>
 
@@ -1236,16 +1281,67 @@ function showPanel(tab) {
 
 /* ================= wallet ================= */
 
-// pick the actual MetaMask/injected provider even when several wallets fight over window.ethereum
-function pickInjected() {
-  const eth = window.ethereum;
-  if (!eth) return null;
-  if (Array.isArray(eth.providers) && eth.providers.length) {
-    return eth.providers.find(p => p.isMetaMask) || eth.providers.find(p => p.isRabby)
-        || eth.providers.find(p => p.isCoinbaseWallet) || eth.providers[0];
-  }
-  return eth;
+/* ---------- multi-wallet discovery: EIP-6963 + legacy injections ---------- */
+const wallets = new Map();          // key -> { key, name, icon, provider, source }
+function addWallet(key, name, provider, icon, source){
+  if (!provider || !key) return;
+  if (wallets.has(key)) return;
+  wallets.set(key, { key, name, provider, icon, source });
 }
+function labelFor(p){
+  if (!p) return null;
+  if (p.isMetaMask && !p.isBraveWallet && !p.isRabby) return 'MetaMask';
+  if (p.isPhantom) return 'Phantom';
+  if (p.isSafePal || p.isSafePalWallet) return 'SafePal';
+  if (p.isCoinbaseWallet || p.isCoinbaseBrowser) return 'Coinbase Wallet';
+  if (p.isRabby) return 'Rabby';
+  if (p.isTrust || p.isTrustWallet) return 'Trust Wallet';
+  if (p.isOkxWallet || p.isOKExWallet) return 'OKX Wallet';
+  if (p.isBraveWallet) return 'Brave Wallet';
+  if (p.isBitKeep || p.isBitget) return 'Bitget Wallet';
+  if (p.isRainbow) return 'Rainbow';
+  if (p.isZerion) return 'Zerion';
+  if (p.isFrame) return 'Frame';
+  return 'Injected Wallet';
+}
+// 1) EIP-6963 — the modern standard every major wallet now supports
+window.addEventListener('eip6963:announceProvider', e => {
+  const { info, provider } = e.detail || {};
+  if (!info || !provider) return;
+  addWallet(info.rdns || info.uuid || info.name, info.name, provider, info.icon, '6963');
+});
+function requestProviders(){ window.dispatchEvent(new Event('eip6963:requestProvider')); }
+requestProviders();
+// 2) legacy / namespaced injections (covers wallets that skip 6963)
+function scanLegacy(){
+  const eth = window.ethereum;
+  if (eth) {
+    if (Array.isArray(eth.providers) && eth.providers.length) {
+      eth.providers.forEach((p,i)=> addWallet('legacy:'+(labelFor(p)||i), labelFor(p), p, null, 'legacy'));
+    } else {
+      addWallet('legacy:'+(labelFor(eth)||'injected'), labelFor(eth), eth, null, 'legacy');
+    }
+  }
+  const named = [
+    ['Phantom',        window.phantom && window.phantom.ethereum],
+    ['SafePal',        window.safepal || window.safepalProvider],
+    ['OKX Wallet',     window.okxwallet],
+    ['Trust Wallet',   window.trustwallet],
+    ['Coinbase Wallet',window.coinbaseWalletExtension],
+    ['Bitget Wallet',  window.bitkeep && window.bitkeep.ethereum],
+    ['Rabby',          window.rabby],
+  ];
+  named.forEach(([n,p])=>{ if (p && typeof p.request === 'function') addWallet('named:'+n, n, p, null, 'named'); });
+}
+scanLegacy();
+setTimeout(()=>{ requestProviders(); scanLegacy(); }, 900);   // late-injecting wallets
+
+const INSTALL_LINKS = [
+  ['MetaMask','https://metamask.io/download/'],
+  ['Phantom','https://phantom.com/download'],
+  ['SafePal','https://www.safepal.com/download'],
+  ['Rabby','https://rabby.io/'],
+];
 // raw request with a timeout so a jammed wallet can't hang the UI forever
 function rawRequest(injected, args, ms = 45000) {
   return Promise.race([
@@ -1256,11 +1352,51 @@ function rawRequest(injected, args, ms = 45000) {
   ]);
 }
 
+/* ---------- picker UI ---------- */
+window.closeWalletModal = function(){ document.getElementById('walletModal').classList.remove('open'); };
+function walletIconHTML(w){
+  if (w.icon) return `<img class="wm-ico" src="${w.icon}" alt="">`;
+  const initial = (w.name||'W').trim().charAt(0).toUpperCase();
+  return `<div class="wm-ico">${initial}</div>`;
+}
+function renderWalletList(){
+  const list = document.getElementById('wmList');
+  const arr = [...wallets.values()];
+  // preferred order, then the rest
+  const rank = n => { const o=['MetaMask','Phantom','SafePal','Rabby','Coinbase Wallet','Trust Wallet','OKX Wallet']; const i=o.indexOf(n); return i<0?99:i; };
+  arr.sort((a,b)=> rank(a.name)-rank(b.name) || (a.name||'').localeCompare(b.name||''));
+  if (!arr.length){
+    list.innerHTML = `<div class="wm-empty">
+      <div style="font-size:14px;color:var(--ink-2);margin-bottom:6px;">No wallet detected in this browser.</div>
+      <div style="font-size:12.5px;color:var(--ink-3);">Install one of these, then reload the page:</div>
+      <div class="wm-links">${INSTALL_LINKS.map(([n,u])=>`<a href="${u}" target="_blank" rel="noopener">${n} →</a>`).join('')}</div>
+    </div>`;
+    return;
+  }
+  const last = localStorage.getItem('ark_wallet');
+  list.innerHTML = arr.map(w=>`
+    <button class="wm-item" onclick="connectWith('${w.key.replace(/'/g,"\\'")}')">
+      ${walletIconHTML(w)}
+      <div>
+        <div class="wm-name">${w.name||'Wallet'}</div>
+        <div class="wm-meta">${w.source==='6963'?'detected':'injected'}</div>
+      </div>
+      ${last===w.key?'<span class="wm-badge">last used</span>':''}
+    </button>`).join('');
+}
+window.connect = function(){
+  requestProviders(); scanLegacy();
+  renderWalletList();
+  document.getElementById('walletModal').classList.add('open');
+};
+
 let connecting = false;
-async function connect() {
-  const injected = pickInjected();
-  if (!injected) { toast('No wallet detected. Install MetaMask, Rabby or Rainbow, then reload.'); return; }
+window.connectWith = async function(key) {
+  const entry = wallets.get(key);
+  if (!entry) { toast('That wallet is no longer available — reload and try again.'); return; }
+  const injected = entry.provider;
   if (connecting) { toast('Check your wallet — a request is already open.'); return; }
+  closeWalletModal();
   connecting = true;
   const btn = document.getElementById('connectBtn');
   const label = btn.textContent;
@@ -1272,7 +1408,7 @@ async function connect() {
       await rawRequest(injected, { method: 'eth_chainId' }, 3500);
     } catch (pf) {
       if (pf.code === 'TIMEOUT') {
-        throw new Error('Your wallet extension is not responding. Open MetaMask and unlock it (or toggle it off/on in chrome://extensions), then reload.');
+        throw new Error(entry.name + ' is not responding. Unlock it, or click Connect again and pick a different wallet.');
       }
     }
     // 1) request accounts (opens the wallet popup)
@@ -1317,7 +1453,8 @@ async function connect() {
     try { bal = await provider.getBalance(me); } catch (e) {}
     btn.disabled = false;
     btn.textContent = short(me) + ' · $' + fmt(E(bal), 2);
-    toast('Connected — $' + fmt(E(bal), 2) + ' testnet USDC');
+    localStorage.setItem('ark_wallet', entry.key);
+    toast('Connected with ' + entry.name + ' — $' + fmt(E(bal), 2) + ' testnet USDC');
 
     // react to the user changing account / network in the wallet
     if (injected.on && !injected._arkBound) {
