@@ -295,6 +295,41 @@
   .wm-links a { font-size: 13.5px; }
   .wm-foot { font-size: 11.5px; color: var(--ink-3); margin-top: 14px; text-align: center; }
 
+  /* ---- profile dropdown (under the wallet button) ---- */
+  #profilePanel { position: fixed; top: 62px; right: 18px; z-index: 260; width: 320px;
+    background: linear-gradient(180deg,#1c1c1f,#141416); border: 1px solid var(--hairline);
+    border-radius: 20px; padding: 20px; box-shadow: 0 26px 70px rgba(0,0,0,.72);
+    display: none; }
+  #profilePanel.open { display: block; animation: wmPop .4s var(--spring); }
+  .pp-top { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+  .pp-av { width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0;
+    box-shadow: 0 0 0 1px rgba(255,255,255,.12), 0 0 18px rgba(10,132,255,.4); }
+  .pp-addr { font-family:'SF Mono',ui-monospace,Menlo,monospace; font-size: 14px; font-weight: 600; }
+  .pp-net { font-size: 11.5px; color: var(--green); display:flex; align-items:center; gap:5px; }
+  .pp-net::before { content:''; width:6px; height:6px; border-radius:50%; background: var(--green);
+    box-shadow:0 0 8px var(--green); }
+  .pp-light { background: linear-gradient(135deg, rgba(10,132,255,.16), rgba(34,211,238,.10));
+    border: 1px solid rgba(34,211,238,.22); border-radius: 15px; padding: 15px; margin-bottom: 12px; }
+  .pp-light-top { display:flex; align-items:baseline; justify-content:space-between; }
+  .pp-light b { font-family:'Space Grotesk',sans-serif; font-size: 30px; letter-spacing:-.02em;
+    background: linear-gradient(120deg,#fff,#7dd3fc,#22d3ee); -webkit-background-clip:text;
+    background-clip:text; -webkit-text-fill-color:transparent; }
+  .pp-light span { font-size: 11px; letter-spacing:.14em; color: var(--ink-3); }
+  .pp-stats { display:flex; gap:8px; margin-bottom: 14px; }
+  .pp-stat { flex:1; background: rgba(255,255,255,.045); border:1px solid var(--hairline);
+    border-radius: 12px; padding: 10px; text-align:center; }
+  .pp-stat b { display:block; font-size:17px; font-variant-numeric:tabular-nums; }
+  .pp-stat span { font-size:10px; letter-spacing:.1em; color: var(--ink-3); }
+  .pp-row { display:flex; gap:8px; }
+  .pp-btn { flex:1; font-family:inherit; font-size:13px; font-weight:600; cursor:pointer;
+    border-radius: 11px; padding: 10px; border:1px solid var(--hairline);
+    background: rgba(255,255,255,.05); color: var(--ink); transition: all .25s var(--ease); }
+  .pp-btn:hover { background: rgba(255,255,255,.1); }
+  .pp-btn.danger { color: var(--red); border-color: rgba(255,69,58,.3); background: rgba(255,69,58,.08); }
+  .pp-btn.danger:hover { background: rgba(255,69,58,.16); }
+  .pp-note { font-size: 11px; color: var(--ink-3); margin-top: 12px; text-align:center; line-height:1.5; }
+  @media (max-width: 520px){ #profilePanel { right: 10px; left: 10px; width: auto; } }
+
   /* feature cards scene */
   .feat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; width: min(940px, 94vw); margin-top: 52px; }
   @media (max-width: 760px) { .feat-grid { grid-template-columns: 1fr; } }
@@ -678,6 +713,32 @@
   <div style="margin-top:8px;">Testnet software. Nothing here is financial advice.</div>
 </footer>
 
+<div id="profilePanel">
+  <div class="pp-top">
+    <canvas class="pp-av" id="ppAv" width="42" height="42"></canvas>
+    <div style="flex:1; min-width:0;">
+      <div class="pp-addr" id="ppAddr">0x…</div>
+      <div class="pp-net" id="ppNet">Arc Testnet</div>
+    </div>
+  </div>
+  <div class="pp-light">
+    <div class="pp-light-top">
+      <b id="ppLight">0</b>
+      <span>LIGHT ✦</span>
+    </div>
+    <div style="font-size:11.5px;color:var(--ink-2);margin-top:4px;">earned playing ASCENT · tied to this wallet</div>
+  </div>
+  <div class="pp-stats">
+    <div class="pp-stat"><b id="ppBest">0</b><span>BEST</span></div>
+    <div class="pp-stat"><b id="ppBal">$0</b><span>USDC</span></div>
+  </div>
+  <div class="pp-row">
+    <button class="pp-btn" onclick="copyAddr()">Copy address</button>
+    <button class="pp-btn danger" onclick="disconnectWallet()">Disconnect</button>
+  </div>
+  <div class="pp-note">Light points will unlock rewards &amp; token boosts.<br>Play ASCENT to earn more. 🔆</div>
+</div>
+
 <div id="walletModal" onclick="if(event.target===this) closeWalletModal()">
   <div class="wm-card">
     <div class="wm-head">
@@ -824,8 +885,8 @@ function parallaxLoop(){
   const hi = document.getElementById('heroInner');
   if (hi && landingVisible) {
     const p = Math.min(1, ssy / (window.innerHeight * .85));
-    // scroll shrink + cursor-driven 3D tilt + depth
-    hi.style.transform = `perspective(1000px) translate3d(0, ${p*-46}px, 0) rotateX(${-smy*6}deg) rotateY(${smx*7}deg) scale(${1 - p*.08})`;
+    // scroll-linked only — headline stays visually static (no cursor tilt / no shimmer)
+    hi.style.transform = `translate3d(0, ${p*-46}px, 0) scale(${1 - p*.06})`;
     hi.style.opacity = String(1 - p*.9);
   }
   // cursor spotlight (smoothed)
@@ -1075,6 +1136,25 @@ document.addEventListener('pointermove', e=>{
 document.addEventListener('pointerleave', ()=>document.querySelectorAll('.btn-lg').forEach(x=>x.style.transform=''), true);
 
 /* ==================================================================
+   LIGHT POINTS — per-wallet ledger (guest balance merges on connect)
+================================================================== */
+const GUEST_BANK = 'ark_light_bank';
+function bankKeyFor(addr){ return addr ? 'ark_light_' + addr.toLowerCase() : GUEST_BANK; }
+window.arkBankKey = () => bankKeyFor(window.me);
+window.arkGetBank = () => +(localStorage.getItem(window.arkBankKey()) || 0);
+window.arkSetBank = v => localStorage.setItem(window.arkBankKey(), v);
+window.arkGetBest = () => +(localStorage.getItem('ark_light_best') || 0);
+// when a wallet connects, move any light earned as a guest onto that wallet
+function mergeGuestLight(addr){
+  const guest = +(localStorage.getItem(GUEST_BANK) || 0);
+  if (!guest || !addr) return 0;
+  const k = bankKeyFor(addr);
+  localStorage.setItem(k, (+(localStorage.getItem(k) || 0)) + guest);
+  localStorage.removeItem(GUEST_BANK);
+  return guest;
+}
+
+/* ==================================================================
    ASCENT — one-tap arcade game: ride the curve, bank the light
 ================================================================== */
 (function(){
@@ -1082,12 +1162,15 @@ document.addEventListener('pointerleave', ()=>document.querySelectorAll('.btn-lg
   if (!cv) return;
   const ctx = cv.getContext('2d');
   const W = cv.width, H = cv.height;
-  const bankKey = 'ark_light_bank', bestKey = 'ark_light_best';
-  let bank = +(localStorage.getItem(bankKey) || 0);
+  const bestKey = 'ark_light_best';
   let best = +(localStorage.getItem(bestKey) || 0);
   const $ = id => document.getElementById(id);
-  $('gBank').textContent = bank.toLocaleString();
-  $('gBest').textContent = best.toLocaleString();
+  // light balance always reflects the *currently connected wallet* (or guest)
+  window.arkRefreshHUD = function(){
+    $('gBank').textContent = window.arkGetBank().toLocaleString();
+    $('gBest').textContent = (+(localStorage.getItem(bestKey)||0)).toLocaleString();
+  };
+  window.arkRefreshHUD();
 
   let comet, obstacles, orbs, particles, score, speed, spawnT, orbT, running=false, over=false, raf=0, raised=0, flashT=0, tier=1;
 
@@ -1124,10 +1207,11 @@ document.addEventListener('pointerleave', ()=>document.querySelectorAll('.btn-lg
   }
   function hit(){
     over = true; running = false; sfx('over');
-    bank += score; localStorage.setItem(bankKey, bank);
+    window.arkSetBank(window.arkGetBank() + score);          // credit the connected wallet
     if (score > best){ best = score; localStorage.setItem(bestKey, best); }
-    $('gBank').textContent = bank.toLocaleString();
-    $('gBest').textContent = best.toLocaleString();
+    const bank = window.arkGetBank();
+    window.arkRefreshHUD();
+    if (typeof renderProfile === 'function') renderProfile();
     window._lastScore = score;
     const ov = $('gameOverlay');
     $('goTitle').textContent = score>0 ? '+' + score + ' light ✦' : 'Rugged.';
@@ -1394,6 +1478,7 @@ function renderWalletList(){
     </button>`).join('');
 }
 window.connect = function(){
+  if (window.me) { toggleProfile(); return; }      // already connected -> show profile
   requestProviders(); scanLegacy();
   renderWalletList();
   document.getElementById('walletModal').classList.add('open');
@@ -1463,7 +1548,12 @@ window.connectWith = async function(key) {
     btn.disabled = false;
     btn.textContent = short(me) + ' · $' + fmt(E(bal), 2);
     localStorage.setItem('ark_wallet', entry.key);
-    toast('Connected with ' + entry.name + ' — $' + fmt(E(bal), 2) + ' testnet USDC');
+    window.me = me; window.arkBal = fmt(E(bal), 2); window.arkWalletName = entry.name;
+    const moved = mergeGuestLight(me);                 // guest light -> this wallet
+    window.arkRefreshHUD && window.arkRefreshHUD();
+    renderProfile();
+    toast('Connected with ' + entry.name + ' — $' + fmt(E(bal), 2) + ' testnet USDC'
+          + (moved ? ' · +' + moved + ' light ✦ added to your wallet' : ''));
 
     // react to the user changing account / network in the wallet
     if (injected.on && !injected._arkBound) {
@@ -1480,6 +1570,57 @@ window.connectWith = async function(key) {
     connecting = false;
   }
 }
+/* ---------- profile panel: identity + light points + disconnect ---------- */
+function blockie(canvas, addr){
+  if (!canvas || !addr) return;
+  const ctx = canvas.getContext('2d'); const S = canvas.width; const cells = 7; const c = S/cells;
+  let h = 0; for (let i=2;i<addr.length;i++) h = (h*31 + addr.charCodeAt(i)) >>> 0;
+  const hue = h % 360;
+  ctx.fillStyle = `hsl(${(hue+200)%360},70%,12%)`; ctx.fillRect(0,0,S,S);
+  for (let y=0;y<cells;y++) for (let x=0;x<Math.ceil(cells/2);x++){
+    h = (h*1103515245 + 12345) >>> 0;
+    if ((h>>>16) % 100 < 46){
+      ctx.fillStyle = ((h>>>8)%2) ? `hsl(${hue},85%,62%)` : `hsl(${(hue+40)%360},90%,70%)`;
+      ctx.fillRect(x*c, y*c, c+.5, c+.5);
+      ctx.fillRect((cells-1-x)*c, y*c, c+.5, c+.5);   // mirror for symmetry
+    }
+  }
+}
+function renderProfile(){
+  if (!window.me) return;
+  document.getElementById('ppAddr').textContent = short(window.me);
+  document.getElementById('ppNet').textContent = 'Arc Testnet · ' + (window.arkWalletName || 'connected');
+  document.getElementById('ppLight').textContent = window.arkGetBank().toLocaleString();
+  document.getElementById('ppBest').textContent = window.arkGetBest().toLocaleString();
+  document.getElementById('ppBal').textContent = '$' + (window.arkBal || '0');
+  blockie(document.getElementById('ppAv'), window.me);
+}
+window.toggleProfile = function(){
+  const p = document.getElementById('profilePanel');
+  if (p.classList.contains('open')) { p.classList.remove('open'); return; }
+  renderProfile(); p.classList.add('open');
+};
+window.copyAddr = function(){
+  if (!window.me) return;
+  navigator.clipboard.writeText(window.me).then(()=>toast('Address copied'),()=>toast('Copy failed'));
+};
+window.disconnectWallet = function(){
+  provider = null; signer = null; me = null; pump = null; predict = null;
+  window.me = null; window.arkBal = null; window.arkWalletName = null;
+  localStorage.removeItem('ark_wallet');
+  document.getElementById('profilePanel').classList.remove('open');
+  const b = document.getElementById('connectBtn');
+  b.textContent = 'Connect'; b.disabled = false;
+  window.arkRefreshHUD && window.arkRefreshHUD();     // HUD falls back to guest balance
+  toast('Wallet disconnected. Your light points stay saved to that wallet.');
+};
+// close the profile when clicking outside it
+document.addEventListener('click', e=>{
+  const p = document.getElementById('profilePanel');
+  if (!p || !p.classList.contains('open')) return;
+  if (!p.contains(e.target) && e.target.id !== 'connectBtn') p.classList.remove('open');
+});
+
 const needWallet = () => { if (!signer) { toast('Connect your wallet first.'); return true; } return false; };
 const errMsg = e => (e.shortMessage || e.message || 'Something went wrong').split('(')[0].slice(0,120);
 
