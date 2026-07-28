@@ -1286,6 +1286,15 @@ const wallets = new Map();          // key -> { key, name, icon, provider, sourc
 function addWallet(key, name, provider, icon, source){
   if (!provider || !key) return;
   if (wallets.has(key)) return;
+  // de-dupe by wallet name across detection methods; EIP-6963 entry always wins
+  const nm = (name||'').toLowerCase();
+  for (const [k,w] of wallets) {
+    if ((w.name||'').toLowerCase() === nm) {
+      if (w.source === '6963') return;                  // keep the richer 6963 entry
+      if (source === '6963') { wallets.delete(k); break; } // upgrade legacy -> 6963
+      return;
+    }
+  }
   wallets.set(key, { key, name, provider, icon, source });
 }
 function labelFor(p){
