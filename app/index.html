@@ -443,7 +443,7 @@
   <div class="scene" id="heroScene">
     <div id="heroInner" style="display:flex; flex-direction:column; align-items:center;">
       <div class="rv"><div class="kicker">Live on Arc Testnet</div></div>
-      <h1 class="grad-blue shimmer rv rv2">Launch. Trade.<br><span class="accent-serif">Predict.</span></h1>
+      <h1 class="grad-blue rv rv2">Launch. Trade.<br><span class="accent-serif">Predict.</span></h1>
       <p class="big rv rv3">The memecoin launchpad where every coin is priced in real dollars — and every launch is a market you can bet on.</p>
       <div class="rv rv4" style="margin-top:38px; display:flex; gap:14px; flex-wrap:wrap; justify-content:center;">
         <button class="btn btn-primary btn-lg" onclick="enterApp('launch')">Enter the app</button>
@@ -1266,6 +1266,15 @@ async function connect() {
   const label = btn.textContent;
   btn.disabled = true; btn.innerHTML = '<span class="spin"></span>Connecting…';
   try {
+    // 0) pre-flight: eth_chainId is answered locally & instantly by a healthy wallet.
+    //    If it stalls, the extension itself is wedged — fail fast with a fix, don't hang.
+    try {
+      await rawRequest(injected, { method: 'eth_chainId' }, 3500);
+    } catch (pf) {
+      if (pf.code === 'TIMEOUT') {
+        throw new Error('Your wallet extension is not responding. Open MetaMask and unlock it (or toggle it off/on in chrome://extensions), then reload.');
+      }
+    }
     // 1) request accounts (opens the wallet popup)
     let accounts;
     try {
@@ -1273,7 +1282,7 @@ async function connect() {
     } catch (e) {
       if (e.code === 4001) throw new Error('You rejected the connection. Click Connect and approve in your wallet.');
       if (e.code === -32002) throw new Error('Your wallet already has a pending request — open the MetaMask popup and approve or reject it, then try again.');
-      if (e.code === 'TIMEOUT') throw new Error('Wallet did not respond. Open the MetaMask extension, unlock it, clear any pending popup, then retry.');
+      if (e.code === 'TIMEOUT') throw new Error('Wallet not responding. Fix: open the MetaMask extension (unlock + clear any pending popup), or disable/re-enable it in chrome://extensions, then reload this page.');
       throw e;
     }
     if (!accounts || !accounts.length) throw new Error('No account returned. Unlock your wallet and try again.');
