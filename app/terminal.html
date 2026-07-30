@@ -508,12 +508,16 @@ async function load(){
       }
     }catch(e){ /* market read is optional; table still renders */ }
 
-    // --- metadata only for tokens we haven't cached (name/symbol are immutable)
+    // --- metadata only for tokens we haven't cached (name/symbol are immutable).
+    //     These MUST go through retry(): the public RPC rate-limits a burst of
+    //     name/symbol reads, and a dropped one renders as "—" until the next
+    //     poll 20s later. Backing off costs a moment; failing shows a broken list.
     const missing = addr.filter(a=>!meta[a.toLowerCase()]);
     if(missing.length){
-      await pool(missing, 4, async a=>{
+      await pool(missing, 3, async a=>{
         const c=new ethers.Contract(a, TOKEN_ABI, provider);
-        const [nm,sy]=await Promise.all([c.name(),c.symbol()]);
+        const nm = await retry(()=>c.name());
+        const sy = await retry(()=>c.symbol());
         meta[a.toLowerCase()]={name:nm,symbol:sy};
       });
       saveMeta();
@@ -911,9 +915,10 @@ async function tape(){
     const evs=[];
     for(const lg of logs.slice(-14).reverse()){
       try{
-        const p=iface.parseLog(lg); if(!p) continue;
-        const k=(p.args[0]||'').toLowerCase?.() ? p.args[0].toLowerCase() : '';
-        const sym=(meta[k]&&meta[k].symbol)||'???';
+        const p=iface.parseLog({topics:[...lg.topics], data:lg.data}); if(!p) continue;
+        const a0=p.args[0];
+        const k=(typeof a0==='string') ? a0.toLowerCase() : '';
+        const sym=(meta[k]&&meta[k].symbol)||(k?short(k):'???');
         if(p.name==='Bought') evs.push('<span class="ev"><span class="up">BUY</span> '+sym+' $'+Number(E(p.args[2])).toFixed(2)+'</span>');
         else if(p.name==='Sold') evs.push('<span class="ev"><span class="dn">SELL</span> '+sym+' $'+Number(E(p.args[3])).toFixed(2)+'</span>');
         else if(p.name==='TokenCreated') evs.push('<span class="ev"><span style="color:var(--cyan)">NEW</span> '+p.args[3]+'</span>');
