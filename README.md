@@ -27,7 +27,7 @@ v0.3 roadmap: sealed-bid fair-launch window (Arc privacy primitives), DEX migrat
 
 ## Light Points 🔆 — play-to-earn layer
 
-**ASCENT** is a one-tap arcade game built into the landing page: fly the Arklight comet
+**ASCENT** is a one-tap arcade game built into the landing page: fly the Arclite comet
 up the bonding curve, collect light orbs, dodge rug candles, and graduate for a bonus.
 Difficulty steps up a tier every 100 points (faster candles, tighter gaps).
 
@@ -53,7 +53,7 @@ Difficulty steps up a tier every 100 points (faster candles, tighter gaps).
 
 Light points are cosmetic today. Planned utility, in priority order:
 
-1. **Token boosts** — spend light to push a listed coin up the Arklight board
+1. **Token boosts** — spend light to push a listed coin up the Arclite board
    (visibility ranking on the Trade view). Turns attention into an earnable resource
    instead of a paid ad slot.
 2. **Fee rebates** — tiered discounts on the 1% trade fee and the $1 deploy fee.

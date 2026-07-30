@@ -1,4 +1,4 @@
-# Arklight — Audit Brief
+# Arclite — Audit Brief
 
 **Send this file with the scope.** It exists to save you time: it tells you what the system does,
 where we already know it's dangerous, and what we've already fixed. We would rather you spend the
@@ -10,8 +10,8 @@ engagement on the hard parts than rediscovering things we can hand you on day on
 
 | File | Lines | Note |
 |---|---|---|
-| `contracts/ArclightPumpV4.sol` | ~355 | Launchpad + bonding curve + graduation. **Audit candidate.** |
-| `contracts/ArclightPredictV3.sol` | ~250 | Parimutuel graduation markets. Unchanged since v0.3. |
+| `contracts/ArclitePumpV4.sol` | ~355 | Launchpad + bonding curve + graduation. **Audit candidate.** |
+| ` contracts/ArclitePredictV4.sol` | ~250 | Parimutuel graduation markets. Unchanged since v0.3. |
 
 **Out of scope:** `ArclightPumpV3.sol`, `ArclightPredictV3` historical versions, `ArclightLaunchpad.sol`
 (v0.1, abandoned), everything under `app/`.
@@ -29,7 +29,7 @@ engagement on the hard parts than rediscovering things we can hand you on day on
 
 > **Gas is USDC, with 18 decimals. Not ETH.**
 
-Arklight targets [Arc](https://docs.arc.network), Circle's stablecoin-native L1, where the native gas
+Arclite targets [Arc](https://docs.arc.network), Circle's stablecoin-native L1, where the native gas
 token is USDC. Every `msg.value` in this codebase is **dollars**, and `1e18 == $1.00`.
 
 Consequences worth holding in your head:
@@ -44,7 +44,7 @@ Consequences worth holding in your head:
 
 ## 3. What the system does
 
-**Launchpad (`ArclightPumpV4`)**
+**Launchpad (`ArclitePumpV4`)**
 
 1. `createToken` — clones an ERC-20 (EIP-1167), 1B supply held by the factory. Flat deploy fee.
 2. `buy` / `sell` — constant-product curve over *virtual* reserves
@@ -114,7 +114,7 @@ Two-step ownership (`transferOwnership` → `acceptOwnership`). Pause covers ent
 
 ## 5. What we already found and fixed
 
-Full write-up in `arklight-contract-audit.md`. Summary of the v0.2 → v0.3 fixes, all of which we
+Full write-up in `arclite-contract-audit.md`. Summary of the v0.2 → v0.3 fixes, all of which we
 reproduced against the old code in `regress-v2.js`:
 
 | Severity | Bug | Fix |
@@ -177,5 +177,5 @@ Please still comment on these; we'd rather hear it now.
 
 ## 9. Contact
 
-Rahul Bhatia — raul@arklight.fun · https://arklight.fun
+Rahul Bhatia — raul@arclite.fun · https://arclite.fun
 Repo: https://github.com/tonytheruthla/arclight

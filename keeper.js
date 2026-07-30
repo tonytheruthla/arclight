@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Arklight market keeper.
+ * Arclite market keeper.
  *
  * Market resolution is permissionless by design — but permissionless means
  * "anyone CAN", not "someone WILL". An unresolved market is a user who staked

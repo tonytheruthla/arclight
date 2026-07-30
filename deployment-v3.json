@@ -22,7 +22,7 @@
       "resolution": "oracle-free; YES only if graduatedAt <= deadline"
     },
     "firstToken": {
-      "name": "Arklight V3 Genesis",
+      "name": "Arclite V3 Genesis",
       "symbol": "ARKV3",
       "address": "0x68FC1a6D6bE5A55ed2a1D0E21E2Ee7CC25302f27",
       "createTx": "0x8d1fce84d5b5b497d485733bd7c5203d726876ee8a9b1ec5f2d9450182d87983",

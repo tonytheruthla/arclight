@@ -1,4 +1,4 @@
-# Arklight market keeper — runs on GitHub Actions, no VPS required.
+# Arclite market keeper — runs on GitHub Actions, no VPS required.
 #
 # INSTALL
 #   1. Save this file to  .github/workflows/keeper.yml  in the repo.
@@ -33,7 +33,7 @@ on:
 
 # Don't let a slow run overlap the next one.
 concurrency:
-  group: arklight-keeper
+  group: arclite-keeper
   cancel-in-progress: false
 
 jobs:
