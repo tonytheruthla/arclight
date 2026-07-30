@@ -1,0 +1,992 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Arklight Terminal</title>
+<!--
+  ARKLIGHT TERMINAL
+  =================
+  A gmgn.ai-style dense trading terminal, with one column nobody else can show:
+  ODDS — the live graduation market on every coin.
+
+  Design thesis: gmgn wins on information density and one-click execution. Copying
+  that is table stakes. The reason to switch is that every row here carries a market
+  price on whether the coin makes it. That turns a token list into a prediction board.
+
+  Everything is read from ArclightPumpV3 + ArclightPredictV3 via one batched page()
+  call each — never one call per token (see arklight-contract-audit.md).
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.2/ethers.umd.min.js"></script>
+<style>
+:root{
+  --bg:#07080c; --bg2:#0b0d13; --panel:#0e1118; --panel2:#12161f;
+  --hair:#1c2230; --hair2:#252c3b;
+  --ink:#e8ecf4; --ink2:#8b93a7; --ink3:#5a6377;
+  --blue:#0a84ff; --cyan:#22d3ee; --light:#7dd3fc;
+  --green:#30d158; --red:#ff453a; --amber:#ffd60a; --violet:#8b7dff;
+  --row:52px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--bg); color:var(--ink);
+  font:400 13px/1.45 Inter,-apple-system,sans-serif;
+  -webkit-font-smoothing:antialiased; overflow:hidden;
+}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.dsp{font-family:'Space Grotesk',sans-serif;font-weight:700}
+
+/* ---------- shell ---------- */
+.app{display:grid;grid-template-rows:48px 42px 1fr 26px;height:100vh}
+.topbar{
+  display:flex;align-items:center;gap:14px;padding:0 14px;
+  border-bottom:1px solid var(--hair);background:linear-gradient(180deg,#0d1017,#0a0c11);
+}
+.logo{display:flex;align-items:center;gap:9px;font-weight:700;letter-spacing:.02em;font-size:14px}
+.logo .mk{width:20px;height:20px;position:relative}
+.logo .mk::after{content:'';position:absolute;inset:0;border-radius:50%;
+  background:radial-gradient(circle at 68% 32%,#bfe9ff,var(--cyan) 38%,var(--blue) 72%,transparent 74%);
+  box-shadow:0 0 14px rgba(34,211,238,.55)}
+.pill{
+  font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+  padding:4px 9px;border-radius:20px;border:1px solid var(--hair2);color:var(--ink2);
+}
+.pill.live{color:var(--green);border-color:rgba(48,209,88,.35);background:rgba(48,209,88,.07)}
+.pill.live::before{content:'';display:inline-block;width:5px;height:5px;border-radius:50%;
+  background:var(--green);margin-right:6px;vertical-align:1px;animation:blip 2s infinite}
+@keyframes blip{0%,100%{opacity:1}50%{opacity:.35}}
+.search{
+  flex:1;max-width:340px;display:flex;align-items:center;gap:8px;
+  background:var(--panel);border:1px solid var(--hair);border-radius:8px;padding:6px 10px;
+}
+.search input{background:none;border:0;outline:0;color:var(--ink);font:inherit;width:100%}
+.search input::placeholder{color:var(--ink3)}
+.search kbd{font:600 10px 'JetBrains Mono',monospace;color:var(--ink3);
+  border:1px solid var(--hair2);border-radius:4px;padding:1px 5px}
+.spacer{flex:1}
+.btn{
+  font:600 12px Inter,sans-serif;padding:7px 13px;border-radius:8px;cursor:pointer;
+  border:1px solid var(--hair2);background:var(--panel2);color:var(--ink);transition:.14s;
+}
+.btn:hover{border-color:#33405a;background:#161b26}
+.btn.primary{background:linear-gradient(180deg,#1a8fff,#0a6fd8);border-color:#2b9bff;color:#fff}
+.btn.primary:hover{filter:brightness(1.1)}
+
+/* ---------- toolbar ---------- */
+.toolbar{
+  display:flex;align-items:center;gap:6px;padding:0 14px;
+  border-bottom:1px solid var(--hair);background:var(--bg2);overflow-x:auto;
+}
+.tab{
+  font:600 12px Inter,sans-serif;padding:5px 11px;border-radius:7px;cursor:pointer;
+  color:var(--ink2);border:1px solid transparent;white-space:nowrap;
+}
+.tab:hover{color:var(--ink);background:var(--panel)}
+.tab.on{color:var(--ink);background:var(--panel2);border-color:var(--hair2)}
+.tab .n{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--ink3);margin-left:5px}
+.vr{width:1px;height:20px;background:var(--hair);margin:0 6px}
+.presets{display:flex;align-items:center;gap:4px}
+.presets .lbl{font-size:10.5px;color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;margin-right:3px}
+.chip{
+  font:600 11.5px 'JetBrains Mono',monospace;padding:4px 9px;border-radius:6px;cursor:pointer;
+  border:1px solid var(--hair2);background:var(--panel);color:var(--ink2);
+}
+.chip.on{background:rgba(10,132,255,.16);border-color:var(--blue);color:#9fd0ff}
+
+/* ---------- main ---------- */
+.main{display:grid;grid-template-columns:1fr 330px;min-height:0}
+.tablewrap{overflow:auto;min-height:0;border-right:1px solid var(--hair)}
+table{width:100%;border-collapse:collapse}
+thead th{
+  position:sticky;top:0;z-index:5;background:#0a0c12;
+  font:600 10px Inter,sans-serif;letter-spacing:.09em;text-transform:uppercase;color:var(--ink3);
+  text-align:right;padding:9px 12px;border-bottom:1px solid var(--hair);white-space:nowrap;
+}
+thead th:first-child,thead th.l{text-align:left}
+tbody tr{border-bottom:1px solid rgba(28,34,48,.55);cursor:pointer;height:var(--row)}
+tbody tr:hover{background:#0d1118}
+tbody tr.sel{background:rgba(10,132,255,.09);box-shadow:inset 2px 0 0 var(--blue)}
+td{padding:0 12px;text-align:right;white-space:nowrap}
+td.l{text-align:left}
+
+.coin{display:flex;align-items:center;gap:9px}
+.av{width:28px;height:28px;border-radius:8px;flex:0 0 28px;display:grid;place-items:center;
+  font:700 10px 'Space Grotesk',sans-serif;color:#fff;letter-spacing:-.02em}
+.cname{font-weight:600;font-size:12.5px;line-height:1.25}
+.csym{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--ink3)}
+
+.num{font-family:'JetBrains Mono',monospace;font-size:12px}
+.up{color:var(--green)} .dn{color:var(--red)} .dim{color:var(--ink3)}
+
+/* progress to graduation */
+.prog{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+.bar{width:64px;height:5px;border-radius:3px;background:#1a1f2c;overflow:hidden;flex:0 0 64px}
+.bar i{display:block;height:100%;border-radius:3px;
+  background:linear-gradient(90deg,var(--blue),var(--cyan),var(--green))}
+
+/* THE differentiator: inline graduation odds */
+.odds{display:flex;align-items:center;gap:7px;justify-content:flex-end}
+.tug{width:76px;height:16px;border-radius:5px;overflow:hidden;display:flex;flex:0 0 76px;
+  border:1px solid var(--hair2);background:#141926}
+.tug .y{background:linear-gradient(180deg,#2fd35c,#22a847)}
+.tug .n{background:linear-gradient(180deg,#ff5147,#d93a31)}
+.oddsv{font-family:'JetBrains Mono',monospace;font-size:11.5px;font-weight:700;min-width:30px}
+.nomkt{font-size:10.5px;color:var(--ink3);font-style:italic}
+
+.acts{display:flex;gap:5px;justify-content:flex-end}
+.mini{
+  font:700 10.5px 'JetBrains Mono',monospace;padding:4px 8px;border-radius:6px;cursor:pointer;
+  border:1px solid var(--hair2);background:var(--panel2);color:var(--ink2);
+}
+.mini:hover{color:#fff;border-color:#3a4761}
+.mini.buy:hover{background:rgba(10,132,255,.2);border-color:var(--blue);color:#a7d4ff}
+.mini.y:hover{background:rgba(48,209,88,.18);border-color:var(--green);color:#8ff0aa}
+.mini.n:hover{background:rgba(255,69,58,.18);border-color:var(--red);color:#ffada7}
+
+/* ---------- right rail ---------- */
+.rail{overflow:auto;background:var(--bg2);padding:14px;min-height:0}
+.rail h3{font:600 10px Inter;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:10px}
+.card{background:var(--panel);border:1px solid var(--hair);border-radius:11px;padding:13px;margin-bottom:11px}
+.kv{display:flex;justify-content:space-between;align-items:baseline;padding:5px 0;font-size:12px}
+.kv span{color:var(--ink2)}
+.kv b{font-family:'JetBrains Mono',monospace;font-weight:500}
+.big{font:700 26px 'Space Grotesk',sans-serif;letter-spacing:-.02em}
+.spark{width:100%;height:52px;display:block}
+.rail .btn{width:100%;margin-top:7px}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.empty{color:var(--ink3);font-size:12px;text-align:center;padding:30px 10px;line-height:1.7}
+
+/* ---------- tape ---------- */
+.tape{
+  display:flex;align-items:center;gap:16px;padding:0 14px;overflow:hidden;
+  border-top:1px solid var(--hair);background:#090b10;
+  font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--ink3);
+}
+.tape .ev{white-space:nowrap;opacity:0;animation:fadein .4s forwards}
+@keyframes fadein{to{opacity:1}}
+
+/* ---------- misc ---------- */
+.skel{height:var(--row);background:linear-gradient(90deg,#0c0f15,#111621,#0c0f15);
+  background-size:200% 100%;animation:sh 1.3s infinite}
+@keyframes sh{to{background-position:-200% 0}}
+/* ---------- fund modal ---------- */
+.modal{position:fixed;inset:0;z-index:120;background:rgba(4,5,8,.72);backdrop-filter:blur(6px);
+  display:none;align-items:center;justify-content:center;padding:20px}
+.modal.on{display:flex}
+.sheet{width:440px;max-width:100%;max-height:88vh;overflow:auto;background:var(--panel);
+  border:1px solid var(--hair2);border-radius:16px;padding:18px;
+  box-shadow:0 30px 80px rgba(0,0,0,.7)}
+.sheetTop{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px}
+.segs{display:flex;gap:5px;background:#0a0d13;border:1px solid var(--hair);border-radius:9px;padding:4px;margin-bottom:14px}
+.seg{flex:1;text-align:center;font:600 12px Inter,sans-serif;padding:6px;border-radius:6px;cursor:pointer;color:var(--ink3)}
+.seg.on{background:var(--panel2);color:var(--ink);border:1px solid var(--hair2)}
+.pane{display:none}.pane.on{display:block}
+.note{font-size:11.5px;line-height:1.6;color:var(--ink3);margin-bottom:13px}
+.fld{display:block;margin-bottom:10px}
+.fld>span{display:block;font:600 10px Inter,sans-serif;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--ink3);margin-bottom:5px}
+.fld select,.fld input{width:100%;background:#0a0d13;border:1px solid var(--hair2);border-radius:8px;
+  padding:9px 11px;color:var(--ink);font:500 13px Inter,sans-serif;outline:0}
+.fld input.mono{font-family:'JetBrains Mono',monospace}
+.fld select:focus,.fld input:focus{border-color:var(--blue)}
+.ro{background:#0a0d13;border:1px dashed var(--hair2);border-radius:8px;padding:9px 11px;
+  font-size:12px;color:var(--ink2)}
+.hr{height:1px;background:var(--hair);margin:14px 0}
+.log{margin-top:12px;background:#08090d;border:1px solid var(--hair);border-radius:8px;padding:10px;
+  font-family:'JetBrains Mono',monospace;font-size:10.5px;line-height:1.7;max-height:170px;overflow:auto;color:var(--ink2)}
+.log b{color:var(--cyan);font-weight:500}
+.log .ok{color:var(--green)} .log .bad{color:var(--red)}
+.sheetFoot{margin-top:14px;padding-top:12px;border-top:1px solid var(--hair);font-size:11px;color:var(--ink3)}
+.sheetFoot a{color:var(--cyan);text-decoration:none}
+.pill.warn{color:var(--amber);border-color:rgba(255,214,10,.4);background:rgba(255,214,10,.08)}
+#fundBtn.pulse{border-color:var(--amber);color:var(--amber);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,214,10,.35)}50%{box-shadow:0 0 0 6px rgba(255,214,10,0)}}
+.toast{position:fixed;bottom:44px;left:50%;transform:translateX(-50%) translateY(20px);
+  background:#151a25;border:1px solid var(--hair2);border-radius:9px;padding:10px 16px;
+  font-size:12.5px;opacity:0;transition:.25s;z-index:99;max-width:88vw}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.err{border-color:rgba(255,69,58,.5)}
+@media (max-width:1000px){ .main{grid-template-columns:1fr} .rail{display:none} }
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;
+    transition-duration:.01ms!important}
+  .pill.live::before,.skel{animation:none!important}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ================= top bar ================= -->
+  <div class="topbar">
+    <div class="logo"><div class="mk"></div>ARKLIGHT<span style="color:var(--ink3);font-weight:500">/terminal</span></div>
+    <div class="pill live" id="netPill">arc testnet</div>
+    <div class="search">
+      <span style="color:var(--ink3)">⌕</span>
+      <input id="q" placeholder="Search name, symbol or address…" autocomplete="off">
+      <kbd>/</kbd>
+    </div>
+    <div class="spacer"></div>
+    <div class="pill" id="balPill" title="Your USDC balance on Arc — this is both your gas and your buying power">—</div>
+    <button class="btn" id="fundBtn">Fund ↓</button>
+    <button class="btn" id="refreshBtn">Refresh</button>
+    <button class="btn primary" id="connectBtn">Connect</button>
+  </div>
+
+  <!-- ================= toolbar ================= -->
+  <div class="toolbar">
+    <div class="tab on" data-f="new">New <span class="n" id="c-new">0</span></div>
+    <div class="tab" data-f="climbing">Climbing <span class="n" id="c-climbing">0</span></div>
+    <div class="tab" data-f="near">Near grad <span class="n" id="c-near">0</span></div>
+    <div class="tab" data-f="grad">Graduated <span class="n" id="c-grad">0</span></div>
+    <div class="tab" data-f="odds">Best odds <span class="n" id="c-odds">0</span></div>
+    <div class="vr"></div>
+    <div class="presets">
+      <span class="lbl">Buy</span>
+      <div class="chip on" data-amt="1">$1</div>
+      <div class="chip" data-amt="5">$5</div>
+      <div class="chip" data-amt="25">$25</div>
+      <div class="chip" data-amt="100">$100</div>
+    </div>
+    <div class="vr"></div>
+    <div class="presets">
+      <span class="lbl">Bet</span>
+      <div class="chip on" data-bet="1">$1</div>
+      <div class="chip" data-bet="5">$5</div>
+      <div class="chip" data-bet="20">$20</div>
+    </div>
+    <div class="spacer"></div>
+    <span style="font-size:10.5px;color:var(--ink3)" class="mono" id="lastSync">—</span>
+  </div>
+
+  <!-- ================= main ================= -->
+  <div class="main">
+    <div class="tablewrap">
+      <table>
+        <thead><tr>
+          <th class="l" style="width:34px">#</th>
+          <th class="l">Coin</th>
+          <th>Age</th>
+          <th>Price</th>
+          <th>Mcap</th>
+          <th>Raised</th>
+          <th style="width:150px">Progress</th>
+          <th style="width:150px" title="Live graduation market — the column no other terminal has">Odds ⚖</th>
+          <th style="width:130px"></th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+
+    <!-- right rail -->
+    <div class="rail" id="rail">
+      <div class="empty">Select a coin<br><span style="color:var(--ink3);font-size:11px">↑ ↓ to move · Enter to open</span></div>
+    </div>
+  </div>
+
+  <!-- ================= tape ================= -->
+  <div class="tape" id="tape"><span class="ev">waiting for chain events…</span></div>
+</div>
+
+<!-- ================= FUND MODAL =================
+     Solves the single biggest funnel drop: "I have no USDC on Arc."
+     Arc uses USDC as its gas token, so with a zero balance a user cannot do
+     ANYTHING — not even pay for a failed transaction. Circle's App Kit Bridge
+     (CCTP v2) and Unified Balance (Gateway) let them arrive from 20+ chains.
+     App Kit is loaded lazily on first open so the terminal boots fast. -->
+<div class="modal" id="fundModal">
+  <div class="sheet">
+    <div class="sheetTop">
+      <div>
+        <div class="dsp" style="font-size:17px">Fund your Arc wallet</div>
+        <div style="font-size:11.5px;color:var(--ink3);margin-top:3px">
+          On Arc, USDC <em>is</em> the gas token — one balance pays fees and buys coins.
+        </div>
+      </div>
+      <button class="mini" id="fundClose">ESC</button>
+    </div>
+
+    <div class="segs">
+      <div class="seg on" data-mode="bridge">Bridge once</div>
+      <div class="seg" data-mode="unified">Unified balance</div>
+    </div>
+
+    <!-- ---- bridge ---- -->
+    <div class="pane on" id="pane-bridge">
+      <p class="note">Moves real USDC from another chain to Arc via CCTP&nbsp;v2 — burn on the source,
+        mint on Arc. Your wallet signs each step.</p>
+      <label class="fld"><span>From</span>
+        <select id="srcChain"></select>
+      </label>
+      <label class="fld"><span>Amount (USDC)</span>
+        <input id="brAmt" class="mono" value="5" inputmode="decimal">
+      </label>
+      <div class="fld"><span>To</span><div class="ro mono">Arc Testnet · your same address</div></div>
+      <button class="btn primary" id="doBridge" style="width:100%;margin-top:10px">Bridge to Arc</button>
+      <div class="log" id="brLog" hidden></div>
+    </div>
+
+    <!-- ---- unified balance ---- -->
+    <div class="pane" id="pane-unified">
+      <p class="note">Deposit USDC from several chains into one chain-agnostic balance (Circle Gateway),
+        then spend it on Arc instantly. Best if your USDC is scattered.</p>
+      <label class="fld"><span>Deposit from</span>
+        <select id="ubChain"></select>
+      </label>
+      <label class="fld"><span>Deposit amount</span>
+        <input id="ubDep" class="mono" value="5" inputmode="decimal">
+      </label>
+      <button class="btn" id="doDeposit" style="width:100%;margin-top:8px">Deposit to unified balance</button>
+      <div class="hr"></div>
+      <label class="fld"><span>Spend on Arc</span>
+        <input id="ubSpend" class="mono" value="5" inputmode="decimal">
+      </label>
+      <button class="btn primary" id="doSpend" style="width:100%;margin-top:8px">Spend onto Arc</button>
+      <div class="log" id="ubLog" hidden></div>
+    </div>
+
+    <div class="sheetFoot">
+      <span>No USDC anywhere? <a href="https://faucet.circle.com" target="_blank" rel="noopener">Circle testnet faucet ↗</a></span>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ==================================================================
+   CONFIG
+================================================================== */
+const CHAIN_ID = 5042002;
+const RPC      = 'https://rpc.testnet.arc.network';
+const EXPLORER = 'https://testnet.arcscan.app';
+// v0.3 contracts (see deployment-v3.json)
+const PUMP = '0xe6e185c2b77AB49C63774f24a53e87B7A17826E1';
+const PRED = '0x1DC7fAe3157b9Ef003903599762fe8842478bE0b';
+
+const V_USDC   = 3000n * 10n**18n;        // VIRTUAL_USDC
+const V_TOKENS = 1080000000n * 10n**18n;  // VIRTUAL_TOKENS
+const SUPPLY   = 1000000000;              // 1B per token
+
+const PUMP_ABI = [
+  'function page(uint256,uint256) view returns (address[],uint8[],uint256[],uint256[],address[])',
+  'function tokenCount() view returns (uint256)',
+  'function graduationUsdc() view returns (uint256)',
+  'function curves(address) view returns (address,uint64,uint64,uint8,uint256,uint256,bool,bool,uint256,uint256)',
+  'function buy(address,uint256) payable returns (uint256)',
+  'function quoteBuy(address,uint256) view returns (uint256)',
+  'event Bought(address indexed token,address indexed buyer,uint256 usdcIn,uint256 tokensOut)',
+  'event Sold(address indexed token,address indexed seller,uint256 tokensIn,uint256 usdcOut)',
+  'event TokenCreated(address indexed token,address indexed creator,string name,string symbol)'
+];
+const PRED_ABI = [
+  'function page(uint256,uint256) view returns (uint256[],address[],uint64[],bool[],bool[],uint256[],uint256[])',
+  'function marketCount() view returns (uint256)',
+  'function bet(uint256,bool) payable'
+];
+const TOKEN_ABI = ['function name() view returns (string)','function symbol() view returns (string)'];
+
+/* ==================================================================
+   RPC — rate-limit aware. The public Arc RPC returns -32011
+   "request limit reached" readily; every call backs off and retries.
+================================================================== */
+const net = new ethers.Network('arc', BigInt(CHAIN_ID));
+const provider = new ethers.JsonRpcProvider(RPC, net, {
+  staticNetwork: net, batchMaxCount: 1, batchStallTime: 0
+});
+const pumpR = new ethers.Contract(PUMP, PUMP_ABI, provider);
+const predR = new ethers.Contract(PRED, PRED_ABI, provider);
+
+let signer=null, me=null, pumpW=null, predW=null;
+
+async function retry(fn, tries=5){
+  for(let i=0;i<tries;i++){
+    try{ return await fn(); }
+    catch(e){
+      const m = String(e && (e.message||e));
+      if(i===tries-1) throw e;
+      await sleep(m.includes('limit') ? 900*(i+1) : 350*(i+1));
+    }
+  }
+}
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+
+/* ==================================================================
+   FORMAT
+================================================================== */
+const E = ethers.formatEther;
+function fmtUsd(n, dp){
+  n = Number(n);
+  if(!isFinite(n)) return '—';
+  if(dp!=null) return '$'+n.toLocaleString(undefined,{minimumFractionDigits:dp,maximumFractionDigits:dp});
+  if(n>=1e9) return '$'+(n/1e9).toFixed(2)+'B';
+  if(n>=1e6) return '$'+(n/1e6).toFixed(2)+'M';
+  if(n>=1e3) return '$'+(n/1e3).toFixed(1)+'K';
+  return '$'+n.toFixed(n<1?4:2);
+}
+function fmtPrice(n){
+  n=Number(n);
+  if(n===0) return '$0';
+  if(n<0.0001) return '$'+n.toExponential(2);
+  return '$'+n.toFixed(6);
+}
+function age(ts){
+  const s = Math.floor(Date.now()/1000) - Number(ts);
+  if(s<60) return s+'s';
+  if(s<3600) return Math.floor(s/60)+'m';
+  if(s<86400) return Math.floor(s/3600)+'h';
+  return Math.floor(s/86400)+'d';
+}
+function hue(a){ let h=0; for(let i=2;i<a.length;i++) h=(h*31+a.charCodeAt(i))%360; return h; }
+function short(a){ return a.slice(0,6)+'…'+a.slice(-4); }
+function spot(realUsdc, sold){
+  const tR = V_TOKENS - sold;
+  if(tR<=0n) return 0;
+  return Number(E(((V_USDC+realUsdc)*10n**18n)/tR));
+}
+function toast(msg, err){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className='toast on'+(err?' err':'');
+  clearTimeout(t._h); t._h=setTimeout(()=>t.className='toast',3800);
+}
+
+/* ==================================================================
+   STATE
+================================================================== */
+let GRAD_TARGET = 8000;
+let coins = [];          // merged coin + market rows
+let filter = 'new';
+let selected = -1;
+let buyAmt = 1, betAmt = 1;
+const META_KEY='ark_term_meta';
+let meta = {};
+try{ meta = JSON.parse(localStorage.getItem(META_KEY)||'{}'); }catch(e){}
+const saveMeta = ()=>{ try{ localStorage.setItem(META_KEY, JSON.stringify(meta)); }catch(e){} };
+
+/** bounded-concurrency map — never a serial await loop */
+async function pool(items, limit, fn){
+  const out=new Array(items.length); let next=0;
+  await Promise.all(Array.from({length:Math.min(limit,items.length)}, async()=>{
+    while(true){ const i=next++; if(i>=items.length) return;
+      try{ out[i]=await fn(items[i],i); }catch(e){ out[i]=null; } }
+  }));
+  return out;
+}
+
+/* ==================================================================
+   LOAD — two batched page() calls, not one call per token
+================================================================== */
+async function load(){
+  const tb=document.getElementById('rows');
+  if(!coins.length) tb.innerHTML = Array.from({length:9},()=>'<tr><td colspan="9" class="skel"></td></tr>').join('');
+  try{
+    GRAD_TARGET = Number(E(await retry(()=>pumpR.graduationUsdc())));
+
+    const n = Number(await retry(()=>pumpR.tokenCount()));
+    if(n===0){ tb.innerHTML='<tr><td colspan="9" class="empty">No coins launched yet.</td></tr>'; return; }
+
+    // --- one call for the whole token page
+    const [addr,phase,sold,raised,creator] = await retry(()=>pumpR.page(0, Math.min(n,100)));
+
+    // --- one call for the whole market page, indexed by token
+    let mkt = {};
+    try{
+      const mc = Number(await retry(()=>predR.marketCount()));
+      if(mc>0){
+        const [ids,tks,dls,res,outc,yes,no] = await retry(()=>predR.page(0, Math.min(mc,100)));
+        for(let i=0;i<ids.length;i++){
+          const k = tks[i].toLowerCase();
+          // keep the newest unresolved market per token
+          if(!mkt[k] || (!res[i] && mkt[k].resolved)) {
+            mkt[k] = { id:Number(ids[i]), deadline:Number(dls[i]), resolved:res[i],
+                       outcome:outc[i], yes:yes[i], no:no[i] };
+          }
+        }
+      }
+    }catch(e){ /* market read is optional; table still renders */ }
+
+    // --- metadata only for tokens we haven't cached (name/symbol are immutable)
+    const missing = addr.filter(a=>!meta[a.toLowerCase()]);
+    if(missing.length){
+      await pool(missing, 4, async a=>{
+        const c=new ethers.Contract(a, TOKEN_ABI, provider);
+        const [nm,sy]=await Promise.all([c.name(),c.symbol()]);
+        meta[a.toLowerCase()]={name:nm,symbol:sy};
+      });
+      saveMeta();
+    }
+
+    coins = addr.map((a,i)=>{
+      const k=a.toLowerCase();
+      const m=meta[k]||{name:'—',symbol:'—'};
+      const r=Number(E(raised[i]));
+      const px=spot(raised[i], sold[i]);
+      const mk=mkt[k]||null;
+      let yesBps=null;
+      if(mk){
+        const tot=mk.yes+mk.no;
+        yesBps = tot===0n ? 5000 : Number(mk.yes*10000n/tot);
+      }
+      return {
+        addr:a, name:m.name, symbol:m.symbol,
+        phase:Number(phase[i]), sold:sold[i], raised:r,
+        price:px, mcap:px*SUPPLY,
+        pct: Math.min(100, r/GRAD_TARGET*100),
+        creator:creator[i], mkt, market:mk, yesBps
+      };
+    }).reverse(); // newest first
+
+    render();
+    document.getElementById('lastSync').textContent =
+      'synced '+new Date().toLocaleTimeString()+' · '+coins.length+' coins · 2 rpc calls';
+  }catch(e){
+    tb.innerHTML='<tr><td colspan="9" class="empty">Could not load. '+
+      String(e.message||e).slice(0,120)+'</td></tr>';
+  }
+}
+
+/* ==================================================================
+   FILTER + RENDER
+================================================================== */
+function view(){
+  const q=(document.getElementById('q').value||'').trim().toLowerCase();
+  let v=coins.filter(c=>!q || c.name.toLowerCase().includes(q) ||
+        c.symbol.toLowerCase().includes(q) || c.addr.toLowerCase().includes(q));
+  if(filter==='new')      v=v.filter(c=>c.phase===1);
+  if(filter==='climbing') v=v.filter(c=>c.phase===1 && c.pct>=5 && c.pct<70).sort((a,b)=>b.pct-a.pct);
+  if(filter==='near')     v=v.filter(c=>c.phase===1 && c.pct>=70).sort((a,b)=>b.pct-a.pct);
+  if(filter==='grad')     v=v.filter(c=>c.phase===2);
+  if(filter==='odds')     v=v.filter(c=>c.market && !c.market.resolved)
+                             .sort((a,b)=>(b.yesBps||0)-(a.yesBps||0));
+  return v;
+}
+function counts(){
+  const set={
+    new:coins.filter(c=>c.phase===1).length,
+    climbing:coins.filter(c=>c.phase===1&&c.pct>=5&&c.pct<70).length,
+    near:coins.filter(c=>c.phase===1&&c.pct>=70).length,
+    grad:coins.filter(c=>c.phase===2).length,
+    odds:coins.filter(c=>c.market&&!c.market.resolved).length
+  };
+  for(const k in set) document.getElementById('c-'+k).textContent=set[k];
+}
+
+function oddsCell(c){
+  if(!c.market) return '<div class="odds"><span class="nomkt">no market</span></div>';
+  if(c.market.resolved){
+    const w=c.market.outcome;
+    return '<div class="odds"><span class="oddsv '+(w?'up':'dn')+'">'+(w?'YES':'NO')+'</span>'+
+           '<span class="dim" style="font-size:10.5px">settled</span></div>';
+  }
+  const y=c.yesBps/100, nn=100-y;
+  return '<div class="odds">'+
+    '<span class="oddsv up">'+y.toFixed(0)+'</span>'+
+    '<div class="tug"><div class="y" style="width:'+y+'%"></div><div class="n" style="width:'+nn+'%"></div></div>'+
+    '<span class="oddsv dn">'+nn.toFixed(0)+'</span></div>';
+}
+
+function render(){
+  counts();
+  const v=view(), tb=document.getElementById('rows');
+  if(!v.length){ tb.innerHTML='<tr><td colspan="9" class="empty">Nothing here yet.</td></tr>'; return; }
+  tb.innerHTML=v.map((c,i)=>{
+    const grad=c.phase===2;
+    return '<tr data-i="'+i+'" class="'+(i===selected?'sel':'')+'">'+
+      '<td class="l dim num">'+(i+1)+'</td>'+
+      '<td class="l"><div class="coin">'+
+        '<div class="av" style="background:linear-gradient(135deg,hsl('+hue(c.addr)+',70%,52%),hsl('+((hue(c.addr)+40)%360)+',70%,38%))">'+
+          (c.symbol||'—').slice(0,3)+'</div>'+
+        '<div><div class="cname">'+c.name+'</div><div class="csym">'+c.symbol+' · '+short(c.addr)+'</div></div>'+
+      '</div></td>'+
+      '<td class="num dim">'+(grad?'—':'live')+'</td>'+
+      '<td class="num">'+fmtPrice(c.price)+'</td>'+
+      '<td class="num">'+fmtUsd(c.mcap)+'</td>'+
+      '<td class="num">'+fmtUsd(c.raised,0)+'</td>'+
+      '<td><div class="prog"><span class="num '+(c.pct>=70?'up':'dim')+'">'+c.pct.toFixed(0)+'%</span>'+
+        '<div class="bar"><i style="width:'+c.pct+'%"></i></div></div></td>'+
+      '<td>'+oddsCell(c)+'</td>'+
+      '<td><div class="acts">'+
+        (grad?'<span class="dim" style="font-size:10.5px">graduated</span>'
+             :'<button class="mini buy" data-act="buy" data-i="'+i+'">BUY</button>')+
+        (c.market&&!c.market.resolved
+             ?'<button class="mini y" data-act="yes" data-i="'+i+'">Y</button>'+
+              '<button class="mini n" data-act="no" data-i="'+i+'">N</button>':'')+
+      '</div></td></tr>';
+  }).join('');
+}
+
+/* ==================================================================
+   RIGHT RAIL
+================================================================== */
+function rail(){
+  const v=view(), c=v[selected], el=document.getElementById('rail');
+  if(!c){ el.innerHTML='<div class="empty">Select a coin<br><span style="color:var(--ink3);font-size:11px">↑ ↓ to move · Enter to open</span></div>'; return; }
+  const m=c.market;
+  el.innerHTML =
+   '<div class="card">'+
+     '<div class="coin" style="margin-bottom:10px">'+
+       '<div class="av" style="width:36px;height:36px;flex:0 0 36px;border-radius:10px;font-size:12px;background:linear-gradient(135deg,hsl('+hue(c.addr)+',70%,52%),hsl('+((hue(c.addr)+40)%360)+',70%,38%))">'+c.symbol.slice(0,3)+'</div>'+
+       '<div><div class="dsp" style="font-size:15px">'+c.name+'</div>'+
+         '<div class="csym">'+c.symbol+'</div></div></div>'+
+     '<div class="big">'+fmtPrice(c.price)+'</div>'+
+     '<div class="kv"><span>Market cap</span><b>'+fmtUsd(c.mcap)+'</b></div>'+
+     '<div class="kv"><span>Raised</span><b>'+fmtUsd(c.raised,2)+'</b></div>'+
+     '<div class="kv"><span>To graduation</span><b>'+fmtUsd(Math.max(0,GRAD_TARGET-c.raised),0)+'</b></div>'+
+     '<div class="bar" style="width:100%;margin-top:8px"><i style="width:'+c.pct+'%"></i></div>'+
+   '</div>'+
+   (m ? '<div class="card"><h3>Graduation market #'+m.id+'</h3>'+
+     (m.resolved
+       ? '<div class="kv"><span>Settled</span><b class="'+(m.outcome?'up':'dn')+'">'+(m.outcome?'YES':'NO')+'</b></div>'
+       : '<div class="kv"><span>YES</span><b class="up">'+(c.yesBps/100).toFixed(1)+'%</b></div>'+
+         '<div class="kv"><span>NO</span><b class="dn">'+(100-c.yesBps/100).toFixed(1)+'%</b></div>'+
+         '<div class="kv"><span>Pool</span><b>'+fmtUsd(Number(E(m.yes+m.no)),2)+'</b></div>'+
+         '<div class="tug" style="width:100%;height:20px;margin-top:8px">'+
+           '<div class="y" style="width:'+(c.yesBps/100)+'%"></div>'+
+           '<div class="n" style="width:'+(100-c.yesBps/100)+'%"></div></div>'+
+         '<div class="split" style="margin-top:9px">'+
+           '<button class="btn" data-act="yes" data-i="'+selected+'" style="border-color:rgba(48,209,88,.4);color:#8ff0aa">Bet YES $'+betAmt+'</button>'+
+           '<button class="btn" data-act="no" data-i="'+selected+'" style="border-color:rgba(255,69,58,.4);color:#ffada7">Bet NO $'+betAmt+'</button>'+
+         '</div>')+
+     '</div>'
+     : '<div class="card"><h3>Graduation market</h3>'+
+       '<div class="empty" style="padding:14px 4px">No market open on this coin yet.<br>'+
+       '<span style="font-size:11px">Anyone can open one.</span></div></div>')+
+   '<div class="card"><h3>Trade</h3>'+
+     (c.phase===2
+       ? '<div class="empty" style="padding:14px 4px">Graduated — curve is closed.</div>'
+       : '<button class="btn primary" data-act="buy" data-i="'+selected+'">Buy $'+buyAmt+'</button>')+
+     '<a class="btn" style="display:block;text-align:center;text-decoration:none;margin-top:7px" '+
+       'href="'+EXPLORER+'/address/'+c.addr+'" target="_blank" rel="noopener">View on explorer ↗</a>'+
+   '</div>';
+}
+
+/* ==================================================================
+   WALLET + ACTIONS
+================================================================== */
+async function connect(){
+  const inj = window.ethereum;
+  if(!inj){ toast('No EVM wallet detected. Install MetaMask or Rabby.',1); return; }
+  try{
+    const bp=new ethers.BrowserProvider(inj, 'any');
+    await bp.send('eth_requestAccounts',[]);
+    const cid = await inj.request({method:'eth_chainId'});
+    if(parseInt(cid,16)!==CHAIN_ID){
+      try{
+        await inj.request({method:'wallet_switchEthereumChain',params:[{chainId:'0x'+CHAIN_ID.toString(16)}]});
+      }catch(sw){
+        await inj.request({method:'wallet_addEthereumChain',params:[{
+          chainId:'0x'+CHAIN_ID.toString(16), chainName:'Arc Testnet',
+          nativeCurrency:{name:'USDC',symbol:'USDC',decimals:18},
+          rpcUrls:[RPC], blockExplorerUrls:[EXPLORER]
+        }]});
+      }
+    }
+    signer = await bp.getSigner();
+    me = await signer.getAddress();
+    pumpW = new ethers.Contract(PUMP, PUMP_ABI, signer);
+    predW = new ethers.Contract(PRED, PRED_ABI, signer);
+    document.getElementById('connectBtn').textContent = short(me);
+    toast('Connected '+short(me));
+    refreshBalance();
+  }catch(e){ toast('Connect failed: '+String(e.message||e).slice(0,90),1); }
+}
+
+async function doBuy(c){
+  if(!signer) return connect();
+  if(c.phase!==1) return toast('Curve closed — this coin graduated.',1);
+  try{
+    toast('Buying '+c.symbol+' for $'+buyAmt+'…');
+    const val = ethers.parseEther(String(buyAmt));
+    // 3% slippage floor off the on-chain quote
+    let minOut = 0n;
+    try{
+      const q = await pumpR.quoteBuy(c.addr, val*99n/100n);
+      minOut = q*97n/100n;
+    }catch(e){}
+    const tx = await pumpW.buy(c.addr, minOut, {value: val});
+    toast('Sent '+tx.hash.slice(0,12)+'… waiting');
+    await tx.wait();
+    toast('Bought '+c.symbol+' ✓');
+    load();
+  }catch(e){ toast('Buy failed: '+String(e.shortMessage||e.message||e).slice(0,100),1); }
+}
+
+async function doBet(c, yes){
+  if(!signer) return connect();
+  if(!c.market || c.market.resolved) return toast('No open market on this coin.',1);
+  try{
+    toast('Betting '+(yes?'YES':'NO')+' $'+betAmt+' on '+c.symbol+'…');
+    const tx = await predW.bet(c.market.id, yes, {value: ethers.parseEther(String(betAmt))});
+    toast('Sent '+tx.hash.slice(0,12)+'… waiting');
+    await tx.wait();
+    toast('Bet placed ✓');
+    load();
+  }catch(e){ toast('Bet failed: '+String(e.shortMessage||e.message||e).slice(0,100),1); }
+}
+
+/* ==================================================================
+   FUNDING — Circle App Kit Bridge (CCTP v2) + Unified Balance (Gateway)
+
+   Why this exists: Arc's gas token IS USDC. A user with a zero balance can't
+   buy, can't bet, can't even pay for a revert. Every other funnel fix is
+   downstream of this one. So the terminal watches the balance and physically
+   nags when it's empty.
+
+   App Kit is npm-only and its dependency graph is large, so it's imported
+   lazily from an ESM CDN the first time the panel opens — the terminal itself
+   boots on ethers alone and never waits for it.
+================================================================== */
+const SRC_CHAINS = [
+  ['Ethereum_Sepolia','Ethereum Sepolia'],
+  ['Base_Sepolia','Base Sepolia'],
+  ['Arbitrum_Sepolia','Arbitrum Sepolia'],
+  ['Optimism_Sepolia','OP Sepolia'],
+  ['Avalanche_Fuji','Avalanche Fuji'],
+  ['Polygon_Amoy_Testnet','Polygon Amoy'],
+  ['Unichain_Sepolia','Unichain Sepolia'],
+  ['Sei_Testnet','Sei Testnet'],
+  ['Sonic_Testnet','Sonic Testnet'],
+  ['World_Chain_Sepolia','World Chain Sepolia'],
+  ['HyperEVM_Testnet','HyperEVM Testnet']
+];
+const CDN = 'https://esm.sh';
+let kit=null, mkAdapter=null, kitLoading=null;
+
+function logTo(id, msg, cls){
+  const el=document.getElementById(id); el.hidden=false;
+  el.innerHTML += '<div'+(cls?' class="'+cls+'"':'')+'>'+msg+'</div>';
+  el.scrollTop = el.scrollHeight;
+}
+
+/** Lazy-load App Kit. Big graph — first call can take a while. */
+async function loadKit(logId){
+  if(kit) return kit;
+  if(kitLoading) return kitLoading;
+  kitLoading = (async()=>{
+    if(logId) logTo(logId,'loading Circle App Kit…');
+    const [ak, av] = await Promise.all([
+      import(`${CDN}/@circle-fin/app-kit`),
+      import(`${CDN}/@circle-fin/adapter-viem-v2`)
+    ]);
+    const AppKit = ak.AppKit || (ak.default && ak.default.AppKit);
+    mkAdapter = av.createViemAdapterFromProvider || (av.default && av.default.createViemAdapterFromProvider);
+    if(!AppKit || !mkAdapter) throw new Error('App Kit exports not found — check SDK version');
+    kit = new AppKit();
+    kit.on('*', p=>{
+      const v=p && p.values; if(!v) return;
+      const cls = v.state==='success' ? 'ok' : (v.state==='error' ? 'bad' : '');
+      let line = '<b>'+(v.name||p.method||'step')+'</b> '+(v.state||'');
+      if(v.explorerUrl) line += ' <a href="'+v.explorerUrl+'" target="_blank" rel="noopener" style="color:var(--cyan)">tx ↗</a>';
+      logTo(logId||'brLog', line, cls);
+    });
+    if(logId) logTo(logId,'app kit ready','ok');
+    return kit;
+  })();
+  return kitLoading;
+}
+
+async function adapter(){
+  const inj=window.ethereum;
+  if(!inj) throw new Error('No EVM wallet detected');
+  await inj.request({method:'eth_requestAccounts'});
+  return await mkAdapter({provider: inj});
+}
+
+/** Arc USDC balance drives the nag state. */
+async function refreshBalance(){
+  const pill=document.getElementById('balPill'), fb=document.getElementById('fundBtn');
+  if(!me){ pill.textContent='not connected'; pill.className='pill'; fb.classList.remove('pulse'); return; }
+  try{
+    const b = await retry(()=>provider.getBalance(me));
+    const v = Number(E(b));
+    pill.textContent = v.toFixed(v<1?4:2)+' USDC';
+    const empty = v < 0.05;                    // can't even cover gas
+    pill.className = 'pill'+(empty?' warn':'');
+    fb.classList.toggle('pulse', empty);
+    if(empty) pill.title='Too low to trade — Arc charges gas in USDC. Use Fund to bridge some in.';
+  }catch(e){ pill.textContent='—'; }
+}
+
+function openFund(mode){
+  document.getElementById('fundModal').classList.add('on');
+  if(mode) document.querySelector('.seg[data-mode="'+mode+'"]').click();
+}
+function closeFund(){ document.getElementById('fundModal').classList.remove('on'); }
+
+async function doBridge(){
+  const amt=(document.getElementById('brAmt').value||'').trim();
+  const from=document.getElementById('srcChain').value;
+  if(!(Number(amt)>0)) return toast('Enter an amount',1);
+  const btn=document.getElementById('doBridge');
+  btn.disabled=true; btn.textContent='Bridging…';
+  try{
+    const k=await loadKit('brLog');
+    const ad=await adapter();
+    logTo('brLog','bridging <b>'+amt+' USDC</b> '+from+' → Arc_Testnet');
+    let res=await k.bridge({from:{adapter:ad,chain:from},to:{adapter:ad,chain:'Arc_Testnet'},amount:amt});
+    if(res.state==='error'){
+      logTo('brLog','first attempt failed, retrying…','bad');
+      res=await k.retryBridge(res,{from:ad,to:ad});
+    }
+    if(res.state==='error'){ logTo('brLog','bridge failed','bad'); toast('Bridge failed',1); }
+    else { logTo('brLog','bridge complete','ok'); toast('Bridged '+amt+' USDC to Arc ✓'); refreshBalance(); }
+  }catch(e){
+    logTo('brLog','error: '+String(e.message||e).slice(0,160),'bad');
+    toast('Bridge error: '+String(e.message||e).slice(0,80),1);
+  }
+  btn.disabled=false; btn.textContent='Bridge to Arc';
+}
+
+async function doDeposit(){
+  const amt=(document.getElementById('ubDep').value||'').trim();
+  const from=document.getElementById('ubChain').value;
+  if(!(Number(amt)>0)) return toast('Enter an amount',1);
+  const btn=document.getElementById('doDeposit'); btn.disabled=true; btn.textContent='Depositing…';
+  try{
+    const k=await loadKit('ubLog');
+    const ad=await adapter();
+    logTo('ubLog','depositing <b>'+amt+' USDC</b> from '+from);
+    await k.unifiedBalance.deposit({from:{adapter:ad,chain:from},amount:amt,token:'USDC'});
+    logTo('ubLog','deposit complete','ok'); toast('Deposited to unified balance ✓');
+  }catch(e){
+    logTo('ubLog','error: '+String(e.message||e).slice(0,160),'bad');
+    toast('Deposit failed: '+String(e.message||e).slice(0,80),1);
+  }
+  btn.disabled=false; btn.textContent='Deposit to unified balance';
+}
+
+async function doSpend(){
+  const amt=(document.getElementById('ubSpend').value||'').trim();
+  if(!(Number(amt)>0)) return toast('Enter an amount',1);
+  if(!me) return connect();
+  const btn=document.getElementById('doSpend'); btn.disabled=true; btn.textContent='Spending…';
+  try{
+    const k=await loadKit('ubLog');
+    const ad=await adapter();
+    logTo('ubLog','spending <b>'+amt+' USDC</b> onto Arc');
+    await k.unifiedBalance.spend({amount:amt,from:{adapter:ad},
+      to:{adapter:ad,chain:'Arc_Testnet',recipientAddress:me}});
+    logTo('ubLog','spend complete','ok'); toast('Landed on Arc ✓'); refreshBalance();
+  }catch(e){
+    logTo('ubLog','error: '+String(e.message||e).slice(0,160),'bad');
+    toast('Spend failed: '+String(e.message||e).slice(0,80),1);
+  }
+  btn.disabled=false; btn.textContent='Spend onto Arc';
+}
+
+// populate chain pickers + wire the panel
+(function initFund(){
+  const opts=SRC_CHAINS.map(([v,l])=>'<option value="'+v+'">'+l+'</option>').join('');
+  document.getElementById('srcChain').innerHTML=opts;
+  document.getElementById('ubChain').innerHTML=opts;
+  document.getElementById('fundBtn').addEventListener('click',()=>openFund());
+  document.getElementById('fundClose').addEventListener('click',closeFund);
+  document.getElementById('fundModal').addEventListener('click',e=>{
+    if(e.target.id==='fundModal') closeFund();
+  });
+  document.querySelectorAll('.seg').forEach(s=>s.addEventListener('click',()=>{
+    document.querySelectorAll('.seg').forEach(x=>x.classList.remove('on'));
+    document.querySelectorAll('.pane').forEach(x=>x.classList.remove('on'));
+    s.classList.add('on');
+    document.getElementById('pane-'+s.dataset.mode).classList.add('on');
+  }));
+  document.getElementById('doBridge').addEventListener('click',doBridge);
+  document.getElementById('doDeposit').addEventListener('click',doDeposit);
+  document.getElementById('doSpend').addEventListener('click',doSpend);
+})();
+
+/* ==================================================================
+   LIVE TAPE — recent Bought/Sold/Created from logs
+================================================================== */
+async function tape(){
+  const el=document.getElementById('tape');
+  try{
+    const head = await retry(()=>provider.getBlockNumber());
+    const from = Math.max(0, head-4000);
+    const logs = await retry(()=>provider.getLogs({address:PUMP, fromBlock:from, toBlock:head}));
+    const iface = new ethers.Interface(PUMP_ABI);
+    const evs=[];
+    for(const lg of logs.slice(-14).reverse()){
+      try{
+        const p=iface.parseLog(lg); if(!p) continue;
+        const k=(p.args[0]||'').toLowerCase?.() ? p.args[0].toLowerCase() : '';
+        const sym=(meta[k]&&meta[k].symbol)||'???';
+        if(p.name==='Bought') evs.push('<span class="ev"><span class="up">BUY</span> '+sym+' $'+Number(E(p.args[2])).toFixed(2)+'</span>');
+        else if(p.name==='Sold') evs.push('<span class="ev"><span class="dn">SELL</span> '+sym+' $'+Number(E(p.args[3])).toFixed(2)+'</span>');
+        else if(p.name==='TokenCreated') evs.push('<span class="ev"><span style="color:var(--cyan)">NEW</span> '+p.args[3]+'</span>');
+      }catch(e){}
+    }
+    el.innerHTML = evs.length ? evs.join('') : '<span class="ev">no recent activity</span>';
+  }catch(e){ el.innerHTML='<span class="ev">tape unavailable</span>'; }
+}
+
+/* ==================================================================
+   EVENTS
+================================================================== */
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  t.classList.add('on'); filter=t.dataset.f; selected=-1; render(); rail();
+}));
+document.querySelectorAll('.chip[data-amt]').forEach(c=>c.addEventListener('click',()=>{
+  document.querySelectorAll('.chip[data-amt]').forEach(x=>x.classList.remove('on'));
+  c.classList.add('on'); buyAmt=Number(c.dataset.amt); rail();
+}));
+document.querySelectorAll('.chip[data-bet]').forEach(c=>c.addEventListener('click',()=>{
+  document.querySelectorAll('.chip[data-bet]').forEach(x=>x.classList.remove('on'));
+  c.classList.add('on'); betAmt=Number(c.dataset.bet); rail();
+}));
+document.getElementById('q').addEventListener('input',()=>{selected=-1;render();rail();});
+document.getElementById('connectBtn').addEventListener('click',connect);
+document.getElementById('refreshBtn').addEventListener('click',()=>{load();tape();});
+
+document.body.addEventListener('click',e=>{
+  const b=e.target.closest('[data-act]');
+  if(b){
+    e.stopPropagation();
+    const c=view()[Number(b.dataset.i)];
+    if(!c) return;
+    if(b.dataset.act==='buy') doBuy(c);
+    if(b.dataset.act==='yes') doBet(c,true);
+    if(b.dataset.act==='no')  doBet(c,false);
+    return;
+  }
+  const tr=e.target.closest('tr[data-i]');
+  if(tr){ selected=Number(tr.dataset.i); render(); rail(); }
+});
+
+// keyboard: / focus search, j/k or arrows move, Enter open, b buy, y/n bet
+document.addEventListener('keydown',e=>{
+  const inSearch = document.activeElement===document.getElementById('q');
+  if(e.key==='/' && !inSearch){ e.preventDefault(); document.getElementById('q').focus(); return; }
+  if(e.key==='Escape'){ closeFund(); document.getElementById('q').blur(); return; }
+  if(e.key==='f' && !inSearch){ e.preventDefault(); openFund(); return; }
+  if(inSearch) return;
+  const v=view();
+  if(e.key==='j'||e.key==='ArrowDown'){ e.preventDefault(); selected=Math.min(v.length-1,selected+1); render(); rail(); }
+  if(e.key==='k'||e.key==='ArrowUp'){ e.preventDefault(); selected=Math.max(0,selected-1); render(); rail(); }
+  const c=v[selected]; if(!c) return;
+  if(e.key==='b') doBuy(c);
+  if(e.key==='y') doBet(c,true);
+  if(e.key==='n') doBet(c,false);
+});
+
+/* ==================================================================
+   BOOT
+================================================================== */
+load().then(tape);
+setInterval(load, 20000);
+setInterval(tape, 30000);
+setInterval(refreshBalance, 25000);
+// If a wallet is already authorised, pick it up silently so the balance nag works.
+(async()=>{ try{
+  if(window.ethereum){
+    const accts = await window.ethereum.request({method:'eth_accounts'});
+    if(accts && accts.length) await connect();
+  }
+}catch(e){} })();
+</script>
+</body>
+</html>
