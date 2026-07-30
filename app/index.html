@@ -510,6 +510,11 @@
       <button class="nav-link" data-tab="launch" onclick="enterApp('launch')">Launch</button>
       <button class="nav-link" data-tab="trade" onclick="enterApp('trade')">Trade</button>
       <button class="nav-link" data-tab="predict" onclick="enterApp('predict')">Predict</button>
+      <a class="nav-link" href="terminal.html" style="text-decoration:none;display:inline-flex;align-items:center;gap:5px">
+        Terminal
+        <span style="font-size:9px;font-weight:700;letter-spacing:.07em;padding:2px 5px;border-radius:4px;
+                     background:rgba(34,211,238,.16);color:#22d3ee">NEW</span>
+      </a>
       <button class="nav-link" onclick="goLanding(); setTimeout(()=>document.getElementById('sceneGame').scrollIntoView({behavior:'smooth'}),40)">Play</button>
     </div>
     <button id="soundToggle" class="sound-btn" onclick="toggleSound()" title="Toggle sound" aria-label="Toggle sound">♪</button>
@@ -786,6 +791,11 @@ const PUMP_ABI = [
   'function curves(address) view returns (address,uint64,uint64,uint8,uint256,uint256,bool)',
   'function tokenCount() view returns (uint256)',
   'function allTokens(uint256) view returns (address)',
+  // v0.3 batched read. Absent on the v0.2 deployment — loadTokens() probes once
+  // and falls back to parallel per-token reads if it isn't there.
+  'function page(uint256,uint256) view returns (address[],uint8[],uint256[],uint256[],address[])',
+  'function redeem(address,uint256) returns (uint256)',
+  'function redemptionOpen(address) view returns (bool)',
   'event TokenCreated(address indexed token, address indexed creator, string name, string symbol)'
 ];
 const TOKEN_ABI = [
@@ -1674,33 +1684,64 @@ async function createToken() {
 }
 
 /* ================= trade list ================= */
-async function loadTokens() {
-  const el = document.getElementById('tokenList');
-  try {
-    const n = Number(await pumpR.tokenCount());
-    if (n===0) { el.innerHTML = '<div class="empty">No coins yet. Be the first to launch.</div>'; return; }
-    el.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div>';
-    let html = ''; let idx = 0;
-    for (let i=n-1; i>=0 && i>n-21; i--) {
-      const addr = await pumpR.allTokens(i); await sleep(60);
-      if (!tokenMeta[addr]) {
-        const t = new ethers.Contract(addr, TOKEN_ABI, readProvider);
-        const nm = await t.name(); await sleep(60);
-        const sy = await t.symbol(); await sleep(60);
-        tokenMeta[addr] = {name:nm, symbol:sy};
-      }
-      const m = tokenMeta[addr];
-      const price = await pumpR.spotPrice(addr); await sleep(60);
-      const c = await pumpR.curves(addr); await sleep(60);
-      const raised = Number(E(c[5]));
-      const grad = Number(c[3])===2;
-      const pct = Math.min(100, raised/GRAD*100);
-      const mcap = Number(E(price)) * 1e9;
-      html += `
-      <div class="row" style="animation-delay:${idx*0.07}s" onclick="openToken('${addr}')">
-        <div class="avatar" style="background:hsl(${hue(addr)},68%,48%)">${m.symbol.slice(0,3)}</div>
+/* ---- token list loading -------------------------------------------------
+   The original implementation made 5 SERIAL RPC calls per token
+   (allTokens, name, symbol, spotPrice, curves) with a 60ms sleep between
+   each — 100 round-trips and ~6s of artificial delay for 20 tokens, per
+   user, per page view, against a rate-limited public RPC. It would have
+   made the launchpad unusable at a few hundred tokens.
+
+   This version:
+     1. uses the v0.3 `page()` view when the deployed contract has it —
+        one call for the whole page instead of one call per token;
+     2. otherwise falls back to a bounded-concurrency pool (no serial sleeps);
+     3. permanently caches name/symbol in localStorage — they're immutable,
+        so repeat visits never re-fetch them;
+     4. derives spot price locally from curve state instead of a separate
+        RPC call, using the same formula the contract uses.
+   Net: 5 calls/token serial  ->  1 call/page (v0.3) or 2 calls/token
+   parallel (v0.2), and 0 metadata calls once warm.                     */
+
+const PAGE_SIZE = 20;
+let pageOffset = 0, listExhausted = false;
+
+const V_USDC   = 3000n * 10n**18n;          // VIRTUAL_USDC
+const V_TOKENS = 1080000000n * 10n**18n;    // VIRTUAL_TOKENS
+function localSpotPrice(realUsdc, soldTokens) {
+  const tR = V_TOKENS - soldTokens;
+  if (tR <= 0n) return 0n;
+  return ((V_USDC + realUsdc) * 10n**18n) / tR;
+}
+
+const META_KEY = 'ark_token_meta';
+try { Object.assign(tokenMeta, JSON.parse(localStorage.getItem(META_KEY) || '{}')); } catch(e){}
+function saveMeta() { try { localStorage.setItem(META_KEY, JSON.stringify(tokenMeta)); } catch(e){} }
+
+/** Run tasks with at most `limit` in flight. Replaces serial awaits + sleep(). */
+async function pool(items, limit, fn) {
+  const out = new Array(items.length);
+  let next = 0;
+  await Promise.all(Array.from({length: Math.min(limit, items.length)}, async () => {
+    while (true) {
+      const i = next++;
+      if (i >= items.length) return;
+      try { out[i] = await fn(items[i], i); } catch (e) { out[i] = null; }
+    }
+  }));
+  return out;
+}
+
+function rowHtml(d, idx) {
+  const raised = Number(E(d.realUsdc));
+  const price  = localSpotPrice(d.realUsdc, d.soldTokens);
+  const pct    = Math.min(100, raised / GRAD * 100);
+  const mcap   = Number(E(price)) * 1e9;
+  const grad   = d.phase === 2;
+  return `
+      <div class="row" style="animation-delay:${Math.min(idx,12)*0.07}s" onclick="openToken('${d.addr}')">
+        <div class="avatar" style="background:hsl(${hue(d.addr)},68%,48%)">${d.symbol.slice(0,3)}</div>
         <div class="row-main">
-          <div class="row-title">${m.name} <span style="color:var(--ink-3);font-weight:400">· ${m.symbol}</span></div>
+          <div class="row-title">${d.name} <span style="color:var(--ink-3);font-weight:400">· ${d.symbol}</span></div>
           <div class="row-sub">mcap $${fmt(mcap,0)} · raised $${fmt(raised,0)}</div>
           <div class="progress" style="max-width:280px"><i style="width:${pct}%"></i></div>
         </div>
@@ -1709,9 +1750,80 @@ async function loadTokens() {
           <span class="pill ${grad?'grad':'live'}">${grad?'graduated':'live'}</span>
         </div>
       </div>`;
-      idx++;
+}
+
+/** Fetch one page of curves. Prefers the single-call v0.3 `page()` view. */
+let hasPageView = null; // null = untested, false = v0.2 contract, true = v0.3
+async function fetchPage(offset, limit) {
+  // --- fast path: v0.3 batched read, one RPC call for the whole page.
+  //     Probed at most once per session so v0.2 never pays a wasted call.
+  if (hasPageView !== false) {
+    try {
+      const [tokens, phases, sold, raised] = await pumpR.page(offset, limit);
+      hasPageView = true;
+      return tokens.map((addr, i) => ({
+        addr, phase: Number(phases[i]), soldTokens: sold[i], realUsdc: raised[i]
+      }));
+    } catch (e) { hasPageView = false; /* contract predates page(); fall through */ }
+  }
+  // --- fallback: v0.2, parallel with bounded concurrency instead of serial+sleep
+  const idxs = [];
+  for (let i = 0; i < limit; i++) idxs.push(offset + i);
+  const addrs = (await pool(idxs, 5, i => pumpR.allTokens(i))).filter(Boolean);
+  const curves = await pool(addrs, 5, a => pumpR.curves(a));
+  return addrs.map((addr, i) => curves[i] && ({
+    addr, phase: Number(curves[i][3]), soldTokens: curves[i][4], realUsdc: curves[i][5]
+  })).filter(Boolean);
+}
+
+/** Resolve name/symbol for any address not already cached. */
+async function fillMeta(rows) {
+  const missing = rows.filter(r => !tokenMeta[r.addr]);
+  if (missing.length) {
+    await pool(missing, 5, async r => {
+      const t = new ethers.Contract(r.addr, TOKEN_ABI, readProvider);
+      const [nm, sy] = await Promise.all([t.name(), t.symbol()]);
+      tokenMeta[r.addr] = { name: nm, symbol: sy };
+    });
+    saveMeta();
+  }
+  rows.forEach(r => Object.assign(r, tokenMeta[r.addr] || { name: '—', symbol: '—' }));
+  return rows;
+}
+
+async function loadTokens(append) {
+  const el = document.getElementById('tokenList');
+  try {
+    if (!append) { pageOffset = 0; listExhausted = false; }
+    const n = Number(await pumpR.tokenCount());
+    if (n === 0) { el.innerHTML = '<div class="empty">No coins yet. Be the first to launch.</div>'; return; }
+    if (!append) el.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div>';
+
+    // newest first: walk the array backwards a page at a time
+    const end = Math.max(0, n - pageOffset);
+    const start = Math.max(0, end - PAGE_SIZE);
+    if (end <= 0) { listExhausted = true; return; }
+
+    let rows = await fetchPage(start, end - start);
+    rows = await fillMeta(rows);
+    rows.reverse(); // newest first within the page
+
+    const html = rows.map((d, i) => rowHtml(d, i)).join('');
+    if (append) {
+      document.getElementById('loadMoreWrap')?.remove();
+      el.insertAdjacentHTML('beforeend', html);
+    } else {
+      el.innerHTML = html;
     }
-    el.innerHTML = html;
+    pageOffset += rows.length;
+    if (pageOffset >= n) listExhausted = true;
+
+    if (!listExhausted) {
+      el.insertAdjacentHTML('beforeend',
+        `<div id="loadMoreWrap" style="text-align:center;padding:18px 0">
+           <button class="btn ghost" onclick="loadTokens(true)">Load more (${n - pageOffset} left)</button>
+         </div>`);
+    }
   } catch (e) { el.innerHTML = '<div class="empty">Could not load tokens. '+errMsg(e)+'</div>'; }
 }
 
