@@ -402,15 +402,27 @@ const predR = new ethers.Contract(PRED, PRED_ABI, provider);
 
 let signer=null, me=null, pumpW=null, predW=null;
 
-async function retry(fn, tries=5){
+/** ethers has no request timeout — a stalled RPC hangs forever and the caller's
+ *  catch never runs, which is what leaves the table on skeletons. Race every
+ *  call against a deadline so failure is always observable. */
+function deadline(p, ms, label){
+  return Promise.race([
+    p,
+    new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout after '+ms+'ms'+(label?' ('+label+')':''))), ms))
+  ]);
+}
+async function retry(fn, tries=4, ms=9000){
+  let last;
   for(let i=0;i<tries;i++){
-    try{ return await fn(); }
+    try{ return await deadline(Promise.resolve(fn()), ms); }
     catch(e){
+      last = e;
       const m = String(e && (e.message||e));
-      if(i===tries-1) throw e;
-      await sleep(m.includes('limit') ? 900*(i+1) : 350*(i+1));
+      if(i===tries-1) break;
+      await sleep(/limit|429|-32011/i.test(m) ? 1000*(i+1) : 400*(i+1));
     }
   }
+  throw last;
 }
 const sleep = ms => new Promise(r=>setTimeout(r,ms));
 
@@ -547,8 +559,25 @@ async function load(){
     document.getElementById('lastSync').textContent =
       'synced '+new Date().toLocaleTimeString()+' · '+coins.length+' coins · 2 rpc calls';
   }catch(e){
-    tb.innerHTML='<tr><td colspan="9" class="empty">Could not load. '+
-      String(e.message||e).slice(0,120)+'</td></tr>';
+    // Never leave skeletons up forever. The public Arc RPC rate-limits (-32011)
+    // and a silent permanent "loading" state is worse than an honest error:
+    // the user can't tell if it's broken, slow, or their connection.
+    const msg = String(e && (e.shortMessage||e.message||e));
+    const rateLimited = /limit|429|-32011/i.test(msg);
+    tb.innerHTML =
+      '<tr><td colspan="9" class="empty">'+
+        '<div style="font-size:13px;color:var(--ink2);margin-bottom:6px">'+
+          (rateLimited ? 'Arc RPC is rate-limiting right now.' : 'Could not reach the Arc RPC.')+
+        '</div>'+
+        '<div style="font-size:11.5px;color:var(--ink3);margin-bottom:14px">'+
+          (rateLimited
+            ? 'The public endpoint throttles bursts. Retrying automatically every 20s.'
+            : msg.slice(0,120))+
+        '</div>'+
+        '<button class="btn" onclick="load()">Retry now</button>'+
+      '</td></tr>';
+    document.getElementById('lastSync').textContent =
+      (rateLimited?'rate-limited':'offline')+' · retrying · '+new Date().toLocaleTimeString();
   }
 }
 
