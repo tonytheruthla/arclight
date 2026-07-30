@@ -1,0 +1,68 @@
+{
+  "version": "0.3",
+  "network": "arc-testnet",
+  "chainId": 5042002,
+  "note": "Testnet rehearsal instance. deploymentFee and graduationUsdc are deliberately small (0.1 / 2 USDC) so the full launch -> trade -> graduate lifecycle is affordable with faucet funds. Production values remain 1 / 8000 USDC.",
+  "deployer": "0x4208614338aF544c5152E38c8C8DA41d3710C8F1",
+  "treasury": "0xE48B47D0fC1f427D38e82d38D2aEad8001E0AB5D",
+  "deployerNote": "Fresh key, generated for v0.3. The v0.2 burner 0x8c9926...f661c is explicitly blocked by deploy-v3.js and was NOT reused.",
+  "contracts": {
+    "ArclightPumpV3": {
+      "address": "0xe6e185c2b77AB49C63774f24a53e87B7A17826E1",
+      "deployTx": "0xe03415e8fe19e22e38ad05563a195311177a88ec591287f0f318ee7a81bd990a",
+      "deployGas": 2676914,
+      "codeSize": 11808,
+      "params": { "deploymentFee": "0.1 USDC", "graduationTarget": "2 USDC", "tradeFee": "1%", "migrationGrace": "7 days" }
+    },
+    "ArclightPredictV3": {
+      "address": "0x1DC7fAe3157b9Ef003903599762fe8842478bE0b",
+      "deployTx": "0x83aae38f61d8c5749fa58c95bf9a6f15d003a778a10c8bd4ada243782aea151b",
+      "deployGas": 1737839,
+      "feeBps": 200,
+      "resolution": "oracle-free; YES only if graduatedAt <= deadline"
+    },
+    "firstToken": {
+      "name": "Arklight V3 Genesis",
+      "symbol": "ARKV3",
+      "address": "0x68FC1a6D6bE5A55ed2a1D0E21E2Ee7CC25302f27",
+      "createTx": "0x8d1fce84d5b5b497d485733bd7c5203d726876ee8a9b1ec5f2d9450182d87983",
+      "buyTx": "0x8374dcfd52ef1da3f999cde4062c1e6e9aaade984fb767884e0b285d8f2c3b8b",
+      "graduated": true,
+      "raisedUsdc": "2.178",
+      "redeemPoolFrozen": "2.178",
+      "redeemSupplyFrozen": "783511.170889933907982805"
+    },
+    "firstMarket": {
+      "id": 1,
+      "token": "0x68FC1a6D6bE5A55ed2a1D0E21E2Ee7CC25302f27",
+      "createTx": "0x63dcd91be91cc2500adc37dc0d38f1a529e0824115a7c8bfb160c53b6e614199",
+      "yesPool": "0.3",
+      "noPool": "0.2",
+      "impliedYesAtOpen": "60%",
+      "resolveTx": "0x40aa158650081ef09916b33b0846f039864faf6e6a86cfcc36d097e7c22dcf1f",
+      "outcome": "YES",
+      "winnerPayout": "0.49 USDC (0.5 pot less 2% rake)"
+    }
+  },
+  "ownershipHandoff": {
+    "acceptTx": "0xae763c5e51e2bca5cd26c2e3b0cd68628300fd6b15648d5d0ee4d4aaea42be8e",
+    "finalOwner": "0xE48B47D0fC1f427D38e82d38D2aEad8001E0AB5D",
+    "oldOwnerLockedOut": true,
+    "note": "Two-step transfer rehearsed end-to-end. On mainnet the destination must be a Safe multisig, not an EOA."
+  },
+  "liveVerification": {
+    "constructorState": "owner, treasury, deployFee, gradTarget, migrationGrace all correct",
+    "graduationFreezesRedeemPool": "PASS - redeemPool/redeemSupply set at graduation",
+    "redeemBlockedDuringGrace": "PASS - reverts",
+    "migrateBlockedWithoutLpVault": "PASS - reverts",
+    "pauseBlocksCreateToken": "PASS",
+    "exitsNotPausable": "by design - resolve/claim/redeem have no whenNotPaused",
+    "feesRouteToFixedTreasury": "PASS - 0.122 USDC received, reserves untouched at 2.178",
+    "solvencyInvariantHeld": "PASS",
+    "oracleFreeResolution": "PASS - resolved YES, keeper view resolvable() returned true",
+    "batchedPageView": "PASS - whole list in one call",
+    "twoStepOwnership": "PASS - owner unchanged until accept; old owner locked out after",
+    "NOT_verifiable_live": "redeem() payout after the 7-day grace lapses - cannot fast-forward a real chain. Covered by the local EVM harness (test-v3.js) with time travel."
+  },
+  "timestamp": "2026-07-28"
+}

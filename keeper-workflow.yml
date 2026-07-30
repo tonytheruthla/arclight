@@ -1,0 +1,59 @@
+# Arklight market keeper — runs on GitHub Actions, no VPS required.
+#
+# INSTALL
+#   1. Save this file to  .github/workflows/keeper.yml  in the repo.
+#   2. Repo → Settings → Secrets and variables → Actions → New repository secret
+#        Name:  KEEPER_KEY
+#        Value: private key of a DEDICATED hot EOA that holds gas and nothing else
+#   3. Fund that address with a few USDC on Arc.
+#   4. Actions tab → "Market keeper" → Run workflow (to test it once by hand).
+#
+# WHY A SEPARATE KEY
+#   This key lives in GitHub's secret store and is used by an automated job. Treat
+#   it as compromised-in-principle. It must never be the deployer, the admin, or
+#   the treasury — if it leaks, the worst case is someone spends your gas calling
+#   a permissionless function that anyone could already call.
+#
+# COST
+#   resolve() is ~80k gas. Even a busy day is cents. GitHub Actions is free for
+#   public repos.
+#
+# CAVEAT
+#   GitHub's scheduler is best-effort and can lag under load, sometimes by 10-15
+#   minutes. That's fine here: resolution has no deadline, it just needs to happen.
+#   If you later need tighter latency, move this to a cron on any small VPS —
+#   the script is identical.
+
+name: Market keeper
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'      # every 15 minutes
+  workflow_dispatch:             # and on demand from the Actions tab
+
+# Don't let a slow run overlap the next one.
+concurrency:
+  group: arklight-keeper
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install ethers
+        run: npm install --no-audit --no-fund ethers@6
+
+      - name: Resolve expired markets
+        env:
+          KEEPER_KEY: ${{ secrets.KEEPER_KEY }}
+          PREDICT: '0x1DC7fAe3157b9Ef003903599762fe8842478bE0b'
+          RPC: 'https://rpc.testnet.arc.network'
+          ONCE: '1'
+        run: node keeper.js
