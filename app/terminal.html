@@ -484,8 +484,13 @@ const net = new ethers.Network('arc', BigInt(CHAIN_ID));
 const provider = new ethers.JsonRpcProvider(RPC, net, {
   staticNetwork: net, batchMaxCount: 1, batchStallTime: 0
 });
-const pumpR = new ethers.Contract(PUMP, PUMP_ABI, provider);
-const predR = new ethers.Contract(PRED, PRED_ABI, provider);
+/* There is no Arclite launchpad on mainnet, so PUMP/PRED are undefined in
+   scanner mode. `new ethers.Contract(undefined, ...)` throws synchronously,
+   which would kill the whole script at evaluation time and leave every
+   subsequent `let` permanently in the temporal dead zone — a blank page with
+   no error in the console. Guard the construction instead. */
+const pumpR = PUMP ? new ethers.Contract(PUMP, PUMP_ABI, provider) : null;
+const predR = PRED ? new ethers.Contract(PRED, PRED_ABI, provider) : null;
 
 let signer=null, me=null, pumpW=null, predW=null;
 
@@ -960,7 +965,13 @@ function render(){
         '<div class="bar"><i style="width:'+c.pct+'%"></i></div></div></td>'+
       '<td>'+oddsCell(c)+'</td>'+
       '<td><div class="acts">'+
-        (grad?'<span class="dim" style="font-size:10.5px">graduated</span>'
+        /* Scanner rows are Uniswap pools, not our curve — we have no router
+           wired, so offer the pool rather than a buy button that would call
+           a launchpad that doesn't exist on this chain. */
+        (c.scanner
+          ? '<a class="mini" style="text-decoration:none" target="_blank" rel="noopener" href="'+
+              EXPLORER+'/address/'+c.pool+'">POOL</a>'
+          : grad?'<span class="dim" style="font-size:10.5px">graduated</span>'
              :'<button class="mini buy" data-act="buy" data-i="'+i+'">BUY</button>')+
         (c.market&&!c.market.resolved
              ?'<button class="mini y" data-act="yes" data-i="'+i+'">Y</button>'+
@@ -1254,6 +1265,9 @@ async function doSpend(){
 ================================================================== */
 async function tape(){
   const el=document.getElementById('tape');
+  // No launchpad on mainnet — without an address, getLogs would sweep the whole
+  // chain. Uniswap swap events need the indexer; say so rather than fake it.
+  if(!PUMP){ el.innerHTML='<span class="ev">live trade feed needs the indexer — coming</span>'; return; }
   try{
     const head = await retry(()=>provider.getBlockNumber());
     const from = Math.max(0, head-4000);
