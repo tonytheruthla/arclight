@@ -202,6 +202,33 @@ td.l{text-align:left}
 .sheetFoot{margin-top:14px;padding-top:12px;border-top:1px solid var(--hair);font-size:11px;color:var(--ink3)}
 .sheetFoot a{color:var(--cyan);text-decoration:none}
 .pill.warn{color:var(--amber);border-color:rgba(255,214,10,.4);background:rgba(255,214,10,.08)}
+
+/* ---- network switcher ---- */
+.netsw{display:flex;gap:2px;padding:2px;background:var(--panel2);
+  border:1px solid var(--hair);border-radius:9px;margin-right:8px}
+.netopt{padding:5px 11px;border-radius:7px;font-size:11.5px;font-weight:600;
+  color:var(--ink3);cursor:pointer;user-select:none;transition:.12s;white-space:nowrap}
+.netopt:hover{color:var(--ink2)}
+.netopt.on{background:var(--panel);color:var(--ink);
+  box-shadow:0 1px 3px rgba(0,0,0,.4)}
+.netopt.on[data-net="mainnet"]{color:var(--green)}
+
+/* ---- portfolio ---- */
+.pf{padding:18px 20px}
+.pfhead{display:flex;align-items:baseline;gap:14px;margin-bottom:18px;flex-wrap:wrap}
+.pfval{font-size:29px;font-weight:660;letter-spacing:-.7px}
+.pfsub{font-size:12px;color:var(--ink3)}
+.pfgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+  gap:12px;margin-bottom:22px}
+.pfcard{background:var(--panel2);border:1px solid var(--hair);border-radius:11px;padding:14px}
+.pfcard .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;
+  color:var(--ink3);margin-bottom:5px}
+.pfcard .v{font-size:19px;font-weight:620;letter-spacing:-.3px}
+.pfsec{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);
+  font-weight:620;margin:20px 0 10px}
+.pfempty{color:var(--ink3);font-size:13px;padding:22px;text-align:center;
+  border:1px dashed var(--hair2);border-radius:11px}
+.scanmore{display:flex;justify-content:center;padding:16px}
 #fundBtn.pulse{border-color:var(--amber);color:var(--amber);animation:pulse 2s infinite}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,214,10,.35)}50%{box-shadow:0 0 0 6px rgba(255,214,10,0)}}
 .toast{position:fixed;bottom:44px;left:50%;transform:translateX(-50%) translateY(20px);
@@ -230,6 +257,10 @@ td.l{text-align:left}
       <kbd>/</kbd>
     </div>
     <div class="spacer"></div>
+    <div class="netsw" id="netsw" title="Arc mainnet is live (chain 5042). Mainnet mode scans Uniswap V3; testnet mode reads the Arclite launchpad.">
+      <div class="netopt" data-net="mainnet">Mainnet</div>
+      <div class="netopt" data-net="testnet">Testnet</div>
+    </div>
     <div class="pill" id="balPill" title="Your USDC balance on Arc — this is both your gas and your buying power">—</div>
     <button class="btn" id="fundBtn">Fund ↓</button>
     <button class="btn" id="refreshBtn">Refresh</button>
@@ -243,6 +274,7 @@ td.l{text-align:left}
     <div class="tab" data-f="near">Near grad <span class="n" id="c-near">0</span></div>
     <div class="tab" data-f="grad">Graduated <span class="n" id="c-grad">0</span></div>
     <div class="tab" data-f="odds">Best odds <span class="n" id="c-odds">0</span></div>
+    <div class="tab" data-f="portfolio">Portfolio</div>
     <div class="vr"></div>
     <div class="presets">
       <span class="lbl">Buy</span>
@@ -360,12 +392,67 @@ td.l{text-align:left}
 /* ==================================================================
    CONFIG
 ================================================================== */
-const CHAIN_ID = 5042002;
-const RPC      = 'https://rpc.testnet.arc.network';
-const EXPLORER = 'https://testnet.arcscan.app';
-// v0.3 contracts (see deployment-v3.json)
-const PUMP = '0xe6e185c2b77AB49C63774f24a53e87B7A17826E1';
-const PRED = '0x1DC7fAe3157b9Ef003903599762fe8842478bE0b';
+/* ---------------------------------------------------------------
+   NETWORKS
+   Arc mainnet (5042) went live 2026-05-12. Circle has not opened a
+   public RPC, so we route through our own proxy.
+
+   The two modes are genuinely different products:
+     testnet  — reads OUR launchpad. Curve, graduation, odds.
+     mainnet  — reads UNISWAP V3. There is no Arclite launchpad on
+                mainnet yet, so mainnet is a pure scanner. That is
+                deliberate: the scanner is the wedge, and it needs
+                no audit to be useful.
+--------------------------------------------------------------- */
+const NETWORKS = {
+  testnet: {
+    label:'Testnet', chainId:5042002,
+    rpc:'https://rpc.testnet.arc.network',
+    explorer:'https://testnet.arcscan.app',
+    mode:'launchpad',
+    pump:'0xe6e185c2b77AB49C63774f24a53e87B7A17826E1',
+    pred:'0x1DC7fAe3157b9Ef003903599762fe8842478bE0b',
+  },
+  mainnet: {
+    label:'Mainnet', chainId:5042,
+    rpc:'https://rpc.arclite.fun',
+    explorer:'https://arcscan.app',
+    mode:'scanner',
+    // Uniswap V3, resolved from SwapRouter.factory() on chain 5042
+    v3Factory:'0xf0db7b58379503491d857db50ac9ece64c653918',
+    quoter:'0x7dfd4f31be6814d2906bde155c3e1b146eac1468',
+    // ERC-20 USDC — SIX decimals. Native gas USDC is EIGHTEEN.
+    // Mixing these up is a 10^12 error. See AUDIT.md §2.1.
+    usdc:'0x3600000000000000000000000000000000000000',
+    usdcDecimals:6,
+  },
+};
+
+/* Sticky across reloads so a mainnet user isn't dropped back to testnet. */
+let NET = NETWORKS[(function(){
+  try{
+    const q=new URLSearchParams(location.search).get('net');
+    if(q && NETWORKS[q]) return q;
+    const s=localStorage.getItem('ark_net');
+    return (s && NETWORKS[s]) ? s : 'testnet';
+  }catch(e){ return 'testnet'; }
+})()];
+
+let CHAIN_ID = NET.chainId;
+let RPC      = NET.rpc;
+let EXPLORER = NET.explorer;
+let PUMP     = NET.pump;
+let PRED     = NET.pred;
+
+/* eth_getLogs is capped at a 10,000-block range on Arc, and head is ~13.5M.
+   Full history from a browser would be ~1,350 requests, so we scan a recent
+   window by default and let the user go deeper. Historical chunks are
+   immutable, so the RPC proxy caches them permanently — the second scan of
+   any range is free. */
+const LOG_CHUNK = 9500;
+let   SCAN_CHUNKS = 6;                       // ~57k blocks ≈ 8 hours
+const POOL_CREATED_TOPIC =
+  '0x783cca1c0412dd0d695e784568c96da2e9c22ff989357a2e8b1d9b2b4e6b7118';
 
 const V_USDC   = 3000n * 10n**18n;        // VIRTUAL_USDC
 const V_TOKENS = 1080000000n * 10n**18n;  // VIRTUAL_TOKENS
@@ -491,9 +578,143 @@ async function pool(items, limit, fn){
 /* ==================================================================
    LOAD — two batched page() calls, not one call per token
 ================================================================== */
+/* ==================================================================
+   MAINNET SCANNER  (Uniswap V3 on Arc chain 5042)
+
+   There is no Arclite launchpad on mainnet, so mainnet mode reads
+   Uniswap directly. Every pool paired against the ERC-20 USDC is a
+   tradeable Arc token, whoever launched it. That is the scanner —
+   useful without our contracts, and therefore useful before an audit.
+================================================================== */
+const V3_FACTORY_ABI = [
+  'event PoolCreated(address indexed token0,address indexed token1,uint24 indexed fee,int24 tickSpacing,address pool)'
+];
+const V3_POOL_ABI = [
+  'function slot0() view returns (uint160 sqrtPriceX96,int24 tick,uint16,uint16,uint16,uint8,bool)',
+  'function liquidity() view returns (uint128)',
+  'function token0() view returns (address)',
+  'function token1() view returns (address)',
+  'function fee() view returns (uint24)'
+];
+
+/** Uniswap sqrtPriceX96 -> price of token1 in token0, decimal-adjusted.
+ *  This is where the 6dp/18dp trap actually bites: get `dec0`/`dec1`
+ *  wrong and the price is out by a factor of 10^12. */
+function priceFromSqrt(sqrtX96, dec0, dec1){
+  const q96 = 2n**96n;
+  const num = sqrtX96 * sqrtX96;                   // price = (sqrt)^2 / 2^192
+  // scale to keep precision through the integer division
+  const scaled = (num * 10n**18n) / (q96 * q96);
+  return Number(scaled) / 1e18 * Math.pow(10, dec0 - dec1);
+}
+
+async function scanMainnet(){
+  const tb=document.getElementById('rows');
+  const factory = new ethers.Contract(NET.v3Factory, V3_FACTORY_ABI, provider);
+  const head = await retry(()=>provider.getBlockNumber());
+  const usdc = NET.usdc.toLowerCase();
+
+  const found = new Map();
+  let scanned = 0;
+  for(let i=0;i<SCAN_CHUNKS;i++){
+    const to   = head - i*LOG_CHUNK;
+    const from = Math.max(0, to - LOG_CHUNK + 1);
+    if(to<0) break;
+    let logs=[];
+    try{
+      logs = await retry(()=>provider.getLogs({
+        address:NET.v3Factory, topics:[POOL_CREATED_TOPIC], fromBlock:from, toBlock:to
+      }), 3, 12000);
+    }catch(e){ break; }                 // range failed — stop, show what we have
+    scanned += (to-from+1);
+    for(const lg of logs){
+      let p; try{ p = factory.interface.parseLog(lg); }catch{ continue; }
+      const t0=p.args.token0.toLowerCase(), t1=p.args.token1.toLowerCase();
+      if(t0!==usdc && t1!==usdc) continue;          // only USDC-paired
+      const token = t0===usdc ? p.args.token1 : p.args.token0;
+      if(found.has(token.toLowerCase())) continue;
+      found.set(token.toLowerCase(), {
+        token, pool:p.args.pool, fee:Number(p.args.fee),
+        usdcIsToken0: t0===usdc, block: lg.blockNumber
+      });
+    }
+    document.getElementById('lastSync').textContent =
+      'scanning… '+found.size+' pools · '+scanned.toLocaleString()+' blocks';
+  }
+
+  // enrich: metadata + price + liquidity
+  const out=[];
+  for(const info of Array.from(found.values()).slice(0,60)){
+    const meta = await tokenMeta(info.token);
+    let price=0, liq=0;
+    try{
+      const pool = new ethers.Contract(info.pool, V3_POOL_ABI, provider);
+      const s0 = await retry(()=>pool.slot0(), 2, 8000);
+      const L  = await retry(()=>pool.liquidity(), 2, 8000);
+      liq = Number(L)/1e18;
+      const dec0 = info.usdcIsToken0 ? NET.usdcDecimals : (meta.decimals||18);
+      const dec1 = info.usdcIsToken0 ? (meta.decimals||18) : NET.usdcDecimals;
+      const p = priceFromSqrt(s0.sqrtPriceX96, dec0, dec1);
+      price = info.usdcIsToken0 ? (p ? 1/p : 0) : p;
+    }catch(e){ /* pool unreadable; still list it */ }
+    out.push({
+      addr:info.token, name:meta.name, symbol:meta.symbol,
+      phase:1, price, liq, pool:info.pool, fee:info.fee, block:info.block,
+      raised:0, sold:0, pct:0, market:null, scanner:true
+    });
+  }
+  return out;
+}
+
+/** name/symbol/decimals with a persistent cache — these never change. */
+const METACACHE = (function(){ try{ return JSON.parse(localStorage.getItem('ark_meta_v2')||'{}'); }catch{ return {}; } })();
+async function tokenMeta(addr){
+  const k=addr.toLowerCase();
+  if(METACACHE[k]) return METACACHE[k];
+  const c=new ethers.Contract(addr,[
+    'function name() view returns (string)',
+    'function symbol() view returns (string)',
+    'function decimals() view returns (uint8)'],provider);
+  const m={name:'—',symbol:'—',decimals:18};
+  try{ m.name=await retry(()=>c.name(),3,8000); }catch{}
+  try{ m.symbol=await retry(()=>c.symbol(),3,8000); }catch{}
+  try{ m.decimals=Number(await retry(()=>c.decimals(),2,8000)); }catch{}
+  if(m.name!=='—'){ METACACHE[k]=m; try{ localStorage.setItem('ark_meta_v2',JSON.stringify(METACACHE)); }catch{} }
+  return m;
+}
+
 async function load(){
   const tb=document.getElementById('rows');
   if(!coins.length) tb.innerHTML = Array.from({length:9},()=>'<tr><td colspan="9" class="skel"></td></tr>').join('');
+
+  // ---- mainnet: scanner mode, no launchpad contracts involved
+  if(NET.mode==='scanner'){
+    try{
+      coins = await scanMainnet();
+      render();
+      document.getElementById('lastSync').textContent =
+        coins.length
+          ? 'synced '+new Date().toLocaleTimeString()+' · '+coins.length+' USDC pairs · Uniswap V3'
+          : 'no USDC pairs in the scanned range';
+      if(!coins.length){
+        tb.innerHTML='<tr><td colspan="9" class="empty">'+
+          '<div style="font-size:13px;color:var(--ink2);margin-bottom:6px">No Uniswap V3 USDC pairs in the last '+
+          (SCAN_CHUNKS*LOG_CHUNK).toLocaleString()+' blocks.</div>'+
+          '<div style="font-size:11.5px;color:var(--ink3);margin-bottom:14px">'+
+          'Arc mainnet is live but quiet. eth_getLogs caps at 10k blocks, so we scan a window.</div>'+
+          '<button class="btn" onclick="scanDeeper()">Scan deeper</button></td></tr>';
+      }
+    }catch(e){
+      const msg=String(e&&(e.shortMessage||e.message||e));
+      tb.innerHTML='<tr><td colspan="9" class="empty">'+
+        '<div style="font-size:13px;color:var(--ink2);margin-bottom:6px">Could not reach the Arc mainnet RPC.</div>'+
+        '<div style="font-size:11.5px;color:var(--ink3);margin-bottom:14px">'+msg.slice(0,120)+'</div>'+
+        '<button class="btn" onclick="load()">Retry</button></td></tr>';
+      document.getElementById('lastSync').textContent='offline · '+new Date().toLocaleTimeString();
+    }
+    return;
+  }
+
   try{
     GRAD_TARGET = Number(E(await retry(()=>pumpR.graduationUsdc())));
 
@@ -621,8 +842,105 @@ function oddsCell(c){
     '<span class="oddsv dn">'+nn.toFixed(0)+'</span></div>';
 }
 
+/* ==================================================================
+   PORTFOLIO
+   Holdings, trades and launches for the connected wallet. Reads the
+   chain directly — no backend, no account, nothing stored by us.
+================================================================== */
+async function renderPortfolio(){
+  const tb=document.getElementById('rows');
+  const cell = html => tb.innerHTML='<tr><td colspan="9" style="padding:0">'+html+'</td></tr>';
+
+  if(!account){
+    cell('<div class="pf"><div class="pfempty">Connect a wallet to see your holdings, trades and launches.<br>'+
+         '<button class="btn primary" style="margin-top:14px" onclick="connect()">Connect wallet</button></div></div>');
+    return;
+  }
+
+  cell('<div class="pf"><div class="pfempty">Reading your positions…</div></div>');
+
+  let native=0n;
+  try{ native = await retry(()=>provider.getBalance(account)); }catch{}
+
+  // Holdings: balanceOf across the coins already on screen. Cheap, because
+  // the coin list is loaded and metadata is cached.
+  const holdings=[];
+  for(const c of coins.slice(0,40)){
+    try{
+      const t=new ethers.Contract(c.addr,['function balanceOf(address) view returns (uint256)'],provider);
+      const b=await retry(()=>t.balanceOf(account),2,8000);
+      if(b>0n){
+        const meta = c.decimals ? {decimals:c.decimals} : await tokenMeta(c.addr);
+        const amt=Number(ethers.formatUnits(b, meta.decimals||18));
+        holdings.push({...c, amt, value:amt*(c.price||0)});
+      }
+    }catch{}
+  }
+  holdings.sort((a,b)=>b.value-a.value);
+
+  const tokenValue = holdings.reduce((s,h)=>s+h.value,0);
+  const cash = Number(ethers.formatEther(native));
+
+  // Launches: tokens created by this wallet (launchpad mode only —
+  // on mainnet there is no Arclite factory to ask).
+  let launches=[];
+  if(NET.mode==='launchpad'){
+    launches = coins.filter(c=>c.creator && c.creator.toLowerCase()===account.toLowerCase());
+  }
+
+  const money = n => '$'+n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+  const rowsHtml = arr => arr.map(h=>
+    '<div style="display:flex;align-items:center;gap:11px;padding:11px 0;border-bottom:1px solid var(--hair)">'+
+      '<div class="av" style="width:30px;height:30px;font-size:10px;background:linear-gradient(135deg,hsl('+hue(h.addr)+',70%,52%),hsl('+((hue(h.addr)+40)%360)+',70%,38%))">'+
+        (h.symbol||'—').slice(0,3)+'</div>'+
+      '<div style="flex:1;min-width:0"><div style="font-size:13px">'+h.name+'</div>'+
+        '<div style="font-size:10.5px;color:var(--ink3)" class="mono">'+short(h.addr)+'</div></div>'+
+      '<div style="text-align:right"><div class="mono" style="font-size:13px">'+money(h.value)+'</div>'+
+        '<div class="mono" style="font-size:10.5px;color:var(--ink3)">'+
+          h.amt.toLocaleString(undefined,{maximumFractionDigits:2})+' '+(h.symbol||'')+'</div></div>'+
+    '</div>').join('');
+
+  cell(
+    '<div class="pf">'+
+      '<div class="pfhead">'+
+        '<div class="pfval mono">'+money(cash+tokenValue)+'</div>'+
+        '<div class="pfsub">total on Arc '+NET.label.toLowerCase()+'</div>'+
+      '</div>'+
+      '<div class="pfgrid">'+
+        '<div class="pfcard"><div class="k">USDC (gas + cash)</div><div class="v mono">'+money(cash)+'</div></div>'+
+        '<div class="pfcard"><div class="k">Token value</div><div class="v mono">'+money(tokenValue)+'</div></div>'+
+        '<div class="pfcard"><div class="k">Holdings</div><div class="v mono">'+holdings.length+'</div></div>'+
+        '<div class="pfcard"><div class="k">Launched by you</div><div class="v mono">'+
+          (NET.mode==='launchpad'?launches.length:'—')+'</div></div>'+
+      '</div>'+
+
+      '<div class="pfsec">Holdings</div>'+
+      (holdings.length ? rowsHtml(holdings)
+        : '<div class="pfempty">No token balances among the '+coins.length+' coins on screen.</div>')+
+
+      '<div class="pfsec">Launched by you</div>'+
+      (NET.mode!=='launchpad'
+        ? '<div class="pfempty">Launches are tracked on testnet, where the Arclite launchpad lives. '+
+          'There is no Arclite factory on mainnet yet.</div>'
+        : launches.length ? rowsHtml(launches.map(l=>({...l,amt:0,value:0})))
+        : '<div class="pfempty">You haven’t launched a coin yet.</div>')+
+
+      '<div class="pfsec">Trades</div>'+
+      '<div class="pfempty">Trade history needs an indexer — eth_getLogs caps at 10k blocks, '+
+        'so we can’t reconstruct your full history from the browser. It’s the next thing we’re building.</div>'+
+    '</div>'
+  );
+}
+
+function scanDeeper(){
+  SCAN_CHUNKS = Math.min(SCAN_CHUNKS*3, 60);
+  document.getElementById('lastSync').textContent='scanning deeper…';
+  load();
+}
+
 function render(){
   counts();
+  if(filter==='portfolio'){ renderPortfolio(); return; }
   const v=view(), tb=document.getElementById('rows');
   if(!v.length){ tb.innerHTML='<tr><td colspan="9" class="empty">Nothing here yet.</td></tr>'; return; }
   tb.innerHTML=v.map((c,i)=>{
@@ -964,6 +1282,34 @@ document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
   t.classList.add('on'); filter=t.dataset.f; selected=-1; render(); rail();
 }));
+
+/* ---- network switching ------------------------------------------------
+   A full reload is deliberate. Provider, contracts, cached coin list and
+   the wallet's own chain are all bound to one network; rebuilding them in
+   place is exactly the sort of half-swapped state that shows mainnet
+   prices against testnet balances. */
+function paintNet(){
+  document.querySelectorAll('.netopt').forEach(o=>
+    o.classList.toggle('on', NETWORKS[o.dataset.net] && NETWORKS[o.dataset.net].chainId===NET.chainId));
+  // Launchpad-only controls make no sense in scanner mode.
+  const scanner = NET.mode==='scanner';
+  document.querySelectorAll('.tab[data-f="near"],.tab[data-f="grad"],.tab[data-f="odds"]')
+    .forEach(t=>t.style.display = scanner ? 'none' : '');
+  const betGroup = document.querySelector('.chip[data-bet]');
+  if(betGroup && betGroup.parentElement)
+    betGroup.parentElement.style.display = scanner ? 'none' : '';
+  if(scanner && ['near','grad','odds'].includes(filter)){
+    filter='new';
+    document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on', x.dataset.f==='new'));
+  }
+}
+document.querySelectorAll('.netopt').forEach(o=>o.addEventListener('click',()=>{
+  const key=o.dataset.net;
+  if(!NETWORKS[key] || NETWORKS[key].chainId===NET.chainId) return;
+  try{ localStorage.setItem('ark_net', key); }catch{}
+  location.search = '?net='+key;
+}));
+paintNet();
 document.querySelectorAll('.chip[data-amt]').forEach(c=>c.addEventListener('click',()=>{
   document.querySelectorAll('.chip[data-amt]').forEach(x=>x.classList.remove('on'));
   c.classList.add('on'); buyAmt=Number(c.dataset.amt); rail();
