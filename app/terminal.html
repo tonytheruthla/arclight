@@ -856,7 +856,7 @@ async function renderPortfolio(){
   const tb=document.getElementById('rows');
   const cell = html => tb.innerHTML='<tr><td colspan="9" style="padding:0">'+html+'</td></tr>';
 
-  if(!account){
+  if(!me){
     cell('<div class="pf"><div class="pfempty">Connect a wallet to see your holdings, trades and launches.<br>'+
          '<button class="btn primary" style="margin-top:14px" onclick="connect()">Connect wallet</button></div></div>');
     return;
@@ -865,7 +865,7 @@ async function renderPortfolio(){
   cell('<div class="pf"><div class="pfempty">Reading your positions…</div></div>');
 
   let native=0n;
-  try{ native = await retry(()=>provider.getBalance(account)); }catch{}
+  try{ native = await retry(()=>provider.getBalance(me)); }catch{}
 
   // Holdings: balanceOf across the coins already on screen. Cheap, because
   // the coin list is loaded and metadata is cached.
@@ -873,7 +873,7 @@ async function renderPortfolio(){
   for(const c of coins.slice(0,40)){
     try{
       const t=new ethers.Contract(c.addr,['function balanceOf(address) view returns (uint256)'],provider);
-      const b=await retry(()=>t.balanceOf(account),2,8000);
+      const b=await retry(()=>t.balanceOf(me),2,8000);
       if(b>0n){
         const meta = c.decimals ? {decimals:c.decimals} : await tokenMeta(c.addr);
         const amt=Number(ethers.formatUnits(b, meta.decimals||18));
@@ -890,7 +890,7 @@ async function renderPortfolio(){
   // on mainnet there is no Arclite factory to ask).
   let launches=[];
   if(NET.mode==='launchpad'){
-    launches = coins.filter(c=>c.creator && c.creator.toLowerCase()===account.toLowerCase());
+    launches = coins.filter(c=>c.creator && c.creator.toLowerCase()===me.toLowerCase());
   }
 
   const money = n => '$'+n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -933,8 +933,117 @@ async function renderPortfolio(){
       '<div class="pfsec">Trades</div>'+
       '<div class="pfempty">Trade history needs an indexer — eth_getLogs caps at 10k blocks, '+
         'so we can’t reconstruct your full history from the browser. It’s the next thing we’re building.</div>'+
+
+      '<div class="pfsec">Referrals</div>'+
+      '<div id="pfRef"><div class="pfempty">Reading the referral graph…</div></div>'+
     '</div>'
   );
+
+  // Referral panel fills in after the main render so a slow RPC can't block the page.
+  (async ()=>{
+    const el = document.getElementById('pfRef');
+    if(!el) return;
+    if(!refAddr()){
+      el.innerHTML='<div class="pfempty">The referral contract is deployed on Arc testnet. '+
+        'Switch to Testnet to use it — it isn’t on mainnet yet.</div>';
+      return;
+    }
+    const s = await myReferralStats();
+    if(!s){ el.innerHTML='<div class="pfempty">Couldn’t reach the referral contract.</div>'; return; }
+    const zero = '0x0000000000000000000000000000000000000000';
+    el.innerHTML =
+      '<div class="pfgrid" style="margin-bottom:12px">'+
+        '<div class="pfcard"><div class="k">People you referred</div>'+
+          '<div class="v mono">'+s.count+'</div></div>'+
+        '<div class="pfcard"><div class="k">Referred by</div>'+
+          '<div class="v mono" style="font-size:14px">'+
+            (s.referrer && s.referrer!==zero ? short(s.referrer) : 'nobody')+'</div></div>'+
+      '</div>'+
+      '<button class="btn" onclick="copyRefLink()">Copy your referral link</button>'+
+      '<div style="font-size:11.5px;color:var(--ink3);margin-top:10px;line-height:1.5">'+
+        'The graph is on-chain and permanent — '+
+        '<a href="'+EXPLORER+'/address/'+refAddr()+'" target="_blank" rel="noopener" '+
+        'style="color:var(--light)">read the contract</a>. It has no owner and no admin functions, '+
+        'so nobody can edit who referred whom. Points are computed from trade volume once the '+
+        'indexer ships — the graph is live now, the scoring isn’t.</div>';
+  })();
+}
+
+/* ==================================================================
+   REFERRALS  -  ArcliteReferrals, on-chain, no admin functions
+
+   Live on Arc testnet at 0x69631D92...f957. The graph is permanent and
+   permissionless: you bind yourself, once, forever, and nobody
+   (including us) can edit it afterwards.
+
+   Deliberately NOT automatic. Binding is a real transaction that costs
+   real gas and can never be undone - prompting for it behind the user's
+   back would be exactly the kind of thing this contract exists to make
+   impossible. We ask.
+================================================================== */
+const REFERRALS = { 5042002:'0x69631D926954b3bB72efb9C70AbC428BE0d7f957' };
+const REF_ABI = [
+  'function bindReferrer(address)',
+  'function referrerOf(address) view returns (address)',
+  'function referralCount(address) view returns (uint256)',
+  'function hasReferrer(address) view returns (bool)'
+];
+const refAddr = () => REFERRALS[NET.chainId] || null;
+
+function pendingRef(){
+  try{
+    const q = new URLSearchParams(location.search).get('ref');
+    if(q && /^0x[0-9a-fA-F]{40}$/.test(q)){ localStorage.setItem('ark_ref', q); return q; }
+    return localStorage.getItem('ark_ref');
+  }catch(e){ return null; }
+}
+
+async function maybeBindReferrer(){
+  const addr = refAddr();
+  const ref  = pendingRef();
+  if(!addr || !ref || !me) return;
+  if(ref.toLowerCase() === me.toLowerCase()) return;
+  try{
+    const c = new ethers.Contract(addr, REF_ABI, provider);
+    if(await retry(()=>c.hasReferrer(me), 2, 8000)) return;
+    const who = short(ref);
+    if(!confirm(
+      'Someone referred you to Arclite.\n\n'+
+      'Link your wallet to '+who+' on-chain?\n\n'+
+      '- Costs about $0.002 in gas\n'+
+      '- PERMANENT: it can never be changed or undone\n'+
+      '- Records who referred you, nothing else\n\n'+
+      'You can decline and use Arclite normally.'
+    )) return;
+    const cw = new ethers.Contract(addr, REF_ABI, signer);
+    const tx = await cw.bindReferrer(ref);
+    toast('Binding referral...');
+    await tx.wait();
+    localStorage.removeItem('ark_ref');
+    toast('Referral bound to '+who);
+  }catch(e){
+    toast('Referral not bound: '+String(e.shortMessage||e.message||e).slice(0,70), 1);
+  }
+}
+
+async function myReferralStats(){
+  const addr = refAddr();
+  if(!addr || !me) return null;
+  try{
+    const c = new ethers.Contract(addr, REF_ABI, provider);
+    return {
+      referrer: await retry(()=>c.referrerOf(me), 2, 8000),
+      count: Number(await retry(()=>c.referralCount(me), 2, 8000))
+    };
+  }catch(e){ return null; }
+}
+
+function copyRefLink(){
+  if(!me){ toast('Connect a wallet first',1); return; }
+  const link = location.origin + '/app/terminal.html?ref=' + me;
+  navigator.clipboard.writeText(link)
+    .then(()=>toast('Referral link copied'))
+    .catch(()=>toast('Copy failed - link: '+link, 1));
 }
 
 function scanDeeper(){
@@ -1040,7 +1149,7 @@ async function connect(){
         await inj.request({method:'wallet_switchEthereumChain',params:[{chainId:'0x'+CHAIN_ID.toString(16)}]});
       }catch(sw){
         await inj.request({method:'wallet_addEthereumChain',params:[{
-          chainId:'0x'+CHAIN_ID.toString(16), chainName:'Arc Testnet',
+          chainId:'0x'+CHAIN_ID.toString(16), chainName:NET.chainId===5042?'Arc':'Arc Testnet',
           nativeCurrency:{name:'USDC',symbol:'USDC',decimals:18},
           rpcUrls:[RPC], blockExplorerUrls:[EXPLORER]
         }]});
@@ -1048,11 +1157,13 @@ async function connect(){
     }
     signer = await bp.getSigner();
     me = await signer.getAddress();
-    pumpW = new ethers.Contract(PUMP, PUMP_ABI, signer);
-    predW = new ethers.Contract(PRED, PRED_ABI, signer);
+    // Launchpad contracts only exist on testnet; guard like the read-only pair.
+    pumpW = PUMP ? new ethers.Contract(PUMP, PUMP_ABI, signer) : null;
+    predW = PRED ? new ethers.Contract(PRED, PRED_ABI, signer) : null;
     document.getElementById('connectBtn').textContent = short(me);
     toast('Connected '+short(me));
     refreshBalance();
+    maybeBindReferrer();
   }catch(e){ toast('Connect failed: '+String(e.message||e).slice(0,90),1); }
 }
 
