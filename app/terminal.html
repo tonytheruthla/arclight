@@ -203,6 +203,12 @@ td.l{text-align:left}
 .sheetFoot a{color:var(--cyan);text-decoration:none}
 .pill.warn{color:var(--amber);border-color:rgba(255,214,10,.4);background:rgba(255,214,10,.08)}
 
+/* ---- X link ---- */
+.xlink{display:inline-grid;place-items:center;width:30px;height:30px;border-radius:8px;
+  color:var(--ink3);border:1px solid var(--hair);background:var(--panel2);
+  margin-right:8px;transition:.14s;text-decoration:none;flex:0 0 auto}
+.xlink:hover{color:var(--ink);border-color:var(--hair2);background:var(--panel)}
+
 /* ---- network switcher ---- */
 .netsw{display:flex;gap:2px;padding:2px;background:var(--panel2);
   border:1px solid var(--hair);border-radius:9px;margin-right:8px}
@@ -257,6 +263,12 @@ td.l{text-align:left}
       <kbd>/</kbd>
     </div>
     <div class="spacer"></div>
+    <a class="xlink" href="https://x.com/ArcLiteFun" target="_blank" rel="noopener"
+       title="@ArcLiteFun on X" aria-label="Arclite on X">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">
+        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+      </svg>
+    </a>
     <div class="netsw" id="netsw" title="Arc mainnet is live (chain 5042). Mainnet mode scans Uniswap V3; testnet mode reads the Arclite launchpad.">
       <div class="netopt" data-net="mainnet">Mainnet</div>
       <div class="netopt" data-net="testnet">Testnet</div>
@@ -970,14 +982,14 @@ async function renderPortfolio(){
 }
 
 /* ==================================================================
-   REFERRALS  -  ArcliteReferrals, on-chain, no admin functions
+   REFERRALS  —  ArcliteReferrals, on-chain, no admin functions
 
-   Live on Arc testnet at 0x69631D92...f957. The graph is permanent and
+   Live on Arc testnet at 0x69631D92…f957. The graph is permanent and
    permissionless: you bind yourself, once, forever, and nobody
    (including us) can edit it afterwards.
 
    Deliberately NOT automatic. Binding is a real transaction that costs
-   real gas and can never be undone - prompting for it behind the user's
+   real gas and can never be undone — prompting for it behind the user's
    back would be exactly the kind of thing this contract exists to make
    impossible. We ask.
 ================================================================== */
@@ -1002,22 +1014,22 @@ async function maybeBindReferrer(){
   const addr = refAddr();
   const ref  = pendingRef();
   if(!addr || !ref || !me) return;
-  if(ref.toLowerCase() === me.toLowerCase()) return;
+  if(ref.toLowerCase() === me.toLowerCase()) return;         // self-referral reverts anyway
   try{
     const c = new ethers.Contract(addr, REF_ABI, provider);
-    if(await retry(()=>c.hasReferrer(me), 2, 8000)) return;
+    if(await retry(()=>c.hasReferrer(me), 2, 8000)) return;   // already bound, permanently
     const who = short(ref);
     if(!confirm(
       'Someone referred you to Arclite.\n\n'+
       'Link your wallet to '+who+' on-chain?\n\n'+
-      '- Costs about $0.002 in gas\n'+
-      '- PERMANENT: it can never be changed or undone\n'+
-      '- Records who referred you, nothing else\n\n'+
+      '• Costs about $0.002 in gas\n'+
+      '• PERMANENT — it can never be changed or undone\n'+
+      '• Records who referred you, nothing else\n\n'+
       'You can decline and use Arclite normally.'
     )) return;
     const cw = new ethers.Contract(addr, REF_ABI, signer);
     const tx = await cw.bindReferrer(ref);
-    toast('Binding referral...');
+    toast('Binding referral…');
     await tx.wait();
     localStorage.removeItem('ark_ref');
     toast('Referral bound to '+who);
@@ -1043,7 +1055,7 @@ function copyRefLink(){
   const link = location.origin + '/app/terminal.html?ref=' + me;
   navigator.clipboard.writeText(link)
     .then(()=>toast('Referral link copied'))
-    .catch(()=>toast('Copy failed - link: '+link, 1));
+    .catch(()=>toast('Copy failed — link: '+link, 1));
 }
 
 function scanDeeper(){

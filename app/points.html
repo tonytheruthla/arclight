@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Arclite Points — earn your share</title>
+<meta name="description" content="Earn Arclite points. On-chain referrals, weekly $500 creator bounty, live leaderboard.">
+<style>
+:root{
+  --bg:#07080c; --bg2:#0b0d13; --panel:#0e1118; --panel2:#12161f;
+  --hair:#1c2230; --hair2:#252c3b;
+  --ink:#e8ecf4; --ink2:#8b93a7; --ink3:#5a6377;
+  --blue:#0a84ff; --cyan:#22d3ee; --light:#7dd3fc;
+  --green:#30d158; --red:#ff453a; --amber:#ffd60a; --violet:#8b7dff;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);
+  font:14px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;
+  -webkit-font-smoothing:antialiased;padding:0 20px 90px}
+a{color:var(--light);text-decoration:none}a:hover{text-decoration:underline}
+.wrap{max-width:940px;margin:0 auto}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+
+header{display:flex;align-items:center;justify-content:space-between;
+  padding:20px 0;border-bottom:1px solid var(--hair);margin-bottom:44px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:650;letter-spacing:-.2px}
+.mark{width:22px;height:22px;border-radius:6px;
+  background:linear-gradient(135deg,var(--cyan),var(--blue));
+  box-shadow:0 0 18px rgba(34,211,238,.35)}
+nav{display:flex;gap:20px;font-size:13px;color:var(--ink2)}
+
+/* hero */
+.hero{text-align:center;margin-bottom:46px}
+.tag{display:inline-flex;align-items:center;gap:8px;font-size:11.5px;font-weight:600;
+  letter-spacing:.4px;text-transform:uppercase;padding:7px 14px;border-radius:999px;
+  border:1px solid rgba(48,209,88,.35);background:rgba(48,209,88,.08);
+  color:var(--green);margin-bottom:20px}
+.tag .dot{width:6px;height:6px;border-radius:50%;background:var(--green);
+  box-shadow:0 0 8px var(--green)}
+h1{font-size:52px;line-height:1.05;letter-spacing:-1.8px;font-weight:700;margin-bottom:16px}
+h1 em{font-style:normal;background:linear-gradient(100deg,var(--cyan),var(--light));
+  -webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{color:var(--ink2);font-size:16.5px;max-width:580px;margin:0 auto 28px}
+
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  gap:12px;max-width:700px;margin:0 auto}
+.stat{background:var(--panel);border:1px solid var(--hair);border-radius:13px;padding:16px}
+.stat .v{font-size:26px;font-weight:680;letter-spacing:-.6px}
+.stat .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);margin-top:3px}
+
+section{margin-bottom:44px}
+h2{font-size:22px;letter-spacing:-.5px;font-weight:660;margin-bottom:8px}
+.lede{color:var(--ink2);margin-bottom:22px;max-width:620px}
+
+/* tasks */
+.tasks{display:grid;gap:11px}
+.task{display:flex;align-items:center;gap:15px;background:var(--panel);
+  border:1px solid var(--hair);border-radius:13px;padding:16px 18px;transition:.15s}
+.task:hover{border-color:var(--hair2);transform:translateY(-1px)}
+.task .ic{width:38px;height:38px;flex:0 0 38px;border-radius:10px;display:grid;place-items:center;
+  font-size:16px;background:var(--panel2);border:1px solid var(--hair2)}
+.task .body{flex:1;min-width:0}
+.task .t{font-weight:600;font-size:14.5px;margin-bottom:2px}
+.task .d{font-size:12.5px;color:var(--ink3);line-height:1.45}
+.task .pts{font-weight:680;font-size:15px;color:var(--cyan);white-space:nowrap;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.task.auto{border-left:2px solid var(--green)}
+.task.manual{border-left:2px solid var(--amber)}
+
+.legend{display:flex;gap:18px;flex-wrap:wrap;font-size:11.5px;color:var(--ink3);margin-top:14px}
+.legend i{display:inline-block;width:8px;height:2px;vertical-align:middle;margin-right:6px}
+
+/* bounty */
+.bounty{background:linear-gradient(135deg,rgba(34,211,238,.07),rgba(10,132,255,.05));
+  border:1px solid var(--hair2);border-radius:16px;padding:26px}
+.bamt{font-size:44px;font-weight:700;letter-spacing:-1.4px;
+  background:linear-gradient(100deg,var(--cyan),var(--light));
+  -webkit-background-clip:text;background-clip:text;color:transparent;line-height:1}
+.rules{display:grid;gap:9px;margin:18px 0}
+.rule{display:flex;gap:11px;font-size:13.5px;color:var(--ink2)}
+.rule b{color:var(--ink);font-weight:600}
+.rule .n{color:var(--cyan);font-weight:680;flex:0 0 20px}
+
+.form{display:grid;gap:11px;margin-top:20px}
+.form input{background:var(--bg2);border:1px solid var(--hair);border-radius:10px;
+  padding:13px 15px;color:var(--ink);font:inherit;font-size:14px;width:100%}
+.form input:focus{outline:none;border-color:var(--blue)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  background:var(--blue);color:#fff;border:0;border-radius:10px;padding:13px 22px;
+  font-size:14.5px;font-weight:600;cursor:pointer;font-family:inherit;transition:.15s}
+.btn:hover{filter:brightness(1.12)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.ghost{background:var(--panel2);color:var(--ink);border:1px solid var(--hair2)}
+
+/* leaderboard */
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.7px;
+  color:var(--ink3);font-weight:600;padding:0 0 10px}
+td{padding:12px 0;border-top:1px solid var(--hair)}
+.rank{width:38px;font-weight:680;color:var(--ink3);font-family:ui-monospace,monospace}
+.rank.top{color:var(--amber)}
+.av{width:28px;height:28px;border-radius:8px;display:inline-grid;place-items:center;
+  font-size:9.5px;font-weight:700;color:#000;vertical-align:middle;margin-right:9px}
+
+.note{border-left:2px solid var(--amber);padding-left:14px;color:var(--ink2);
+  font-size:13px;margin-top:16px;line-height:1.6}
+.ok{border-left-color:var(--green)}
+footer{margin-top:48px;padding-top:22px;border-top:1px solid var(--hair);
+  color:var(--ink3);font-size:12.5px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(80px);
+  background:var(--panel2);border:1px solid var(--hair2);border-radius:10px;padding:11px 20px;
+  font-size:13.5px;opacity:0;transition:.25s;pointer-events:none;z-index:99}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+@media(max-width:640px){h1{font-size:36px}.bamt{font-size:34px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <a class="brand" href="/"><span class="mark"></span> Arclite</a>
+  <nav>
+    <a href="/app/terminal.html">Terminal</a>
+    <a href="/app/">Launch</a>
+    <a href="/app/rpc.html">RPC</a>
+    <a href="/app/points.html" style="color:var(--ink)">Points</a>
+  </nav>
+</header>
+
+<div class="hero">
+  <div class="tag"><span class="dot"></span> Referrals live on-chain</div>
+  <h1>Points you can<br><em>actually verify</em>.</h1>
+  <p class="sub">
+    Most points programmes are a number in someone's database. Ours sit on a contract with
+    no owner and no admin functions — we couldn't edit your score if we wanted to.
+  </p>
+  <div class="stats">
+    <div class="stat"><div class="v mono" id="sReferrals">—</div><div class="k">Referrals bound</div></div>
+    <div class="stat"><div class="v mono" id="sPeople">—</div><div class="k">Participants</div></div>
+    <div class="stat"><div class="v mono">$500</div><div class="k">Weekly bounty</div></div>
+    <div class="stat"><div class="v mono" id="sYou">—</div><div class="k">Your referrals</div></div>
+  </div>
+</div>
+
+<section>
+  <h2>How to earn</h2>
+  <p class="lede">Two kinds of task. We're explicit about which is which, because it changes
+     how much you should trust the number.</p>
+
+  <div class="tasks">
+    <div class="task auto">
+      <div class="ic">🔗</div>
+      <div class="body">
+        <div class="t">Refer someone</div>
+        <div class="d">They bind to you on-chain, permanently. Verifiable by anyone, editable by nobody.</div>
+      </div>
+      <div class="pts">100</div>
+    </div>
+    <div class="task auto">
+      <div class="ic">🚀</div>
+      <div class="body">
+        <div class="t">Launch a coin that graduates</div>
+        <div class="d">Rewarded on graduation, not creation — creating is cheap, graduating takes real buy pressure.</div>
+      </div>
+      <div class="pts">500</div>
+    </div>
+    <div class="task auto">
+      <div class="ic">📈</div>
+      <div class="body">
+        <div class="t">Trade volume</div>
+        <div class="d">1 point per $1 traded. Computed from on-chain events — needs our indexer, shipping soon.</div>
+      </div>
+      <div class="pts">1 / $1</div>
+    </div>
+    <div class="task manual">
+      <div class="ic">✍️</div>
+      <div class="body">
+        <div class="t">Post about Arclite and tag us</div>
+        <div class="d">Original posts only. Submit the link below. Reviewed by a human — duplicates and bots rejected.</div>
+      </div>
+      <div class="pts">200</div>
+    </div>
+    <div class="task manual">
+      <div class="ic">💬</div>
+      <div class="body">
+        <div class="t">Join the community</div>
+        <div class="d">One-time, verified manually alongside your first submission.</div>
+      </div>
+      <div class="pts">20</div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <span><i style="background:var(--green)"></i> Verified on-chain — we can't fake or withhold it</span>
+    <span><i style="background:var(--amber)"></i> Reviewed by a human — slower, and we can get it wrong</span>
+  </div>
+
+  <div class="note">
+    <b>Being straight with you:</b> only referrals are fully live right now. Trade volume and
+    graduation points need our indexer, which isn't finished — we're showing them so you know
+    what's coming, not pretending they're running. Nothing is being silently accrued.
+  </div>
+</section>
+
+<section>
+  <h2>Weekly creator bounty</h2>
+  <p class="lede">Every week we split a pot between the people who made the best case for Arclite.</p>
+
+  <div class="bounty">
+    <div class="bamt">$500 / week</div>
+    <div class="rules">
+      <div class="rule"><span class="n">01</span><span><b>Make something original</b> — a post, thread, video, meme, or teardown mentioning Arclite and tagging <b>@arclitefun</b>.</span></div>
+      <div class="rule"><span class="n">02</span><span><b>Submit the link below</b> with the wallet you want paid.</span></div>
+      <div class="rule"><span class="n">03</span><span><b>We pick winners every Monday</b> and publish the full list — who won, what they made, what they were paid.</span></div>
+      <div class="rule"><span class="n">04</span><span><b>Quality over reach.</b> A sharp thread from an account with 40 followers beats a lazy repost from one with 40,000.</span></div>
+      <div class="rule"><span class="n">05</span><span><b>Criticism is eligible.</b> If you find a real flaw and write it up well, that's worth more to us than praise.</span></div>
+    </div>
+
+    <div class="form">
+      <input id="bLink" type="url" placeholder="Link to your post (https://x.com/…)" autocomplete="off">
+      <input id="bWallet" type="text" placeholder="Wallet address for payment (0x…)" autocomplete="off">
+      <input id="bHandle" type="text" placeholder="Your X handle (optional)" autocomplete="off">
+      <button class="btn" id="bSubmit">Submit for review</button>
+    </div>
+
+    <div class="note" id="bNote">
+      Submissions open when the bounty goes live. Nothing is stored until then — this form
+      isn't wired to a backend yet, and we'd rather say so than take your details into a void.
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Referral leaderboard</h2>
+  <p class="lede">
+    Read live from <span class="mono" id="refLink">the referral contract</span> — every row here is
+    a <span class="mono">ReferralBound</span> event you can verify yourself.
+  </p>
+  <table>
+    <thead><tr><th class="rank">#</th><th>Address</th><th style="text-align:right">Referrals</th></tr></thead>
+    <tbody id="lb"><tr><td colspan="3" style="color:var(--ink3);padding:22px 0">Reading the chain…</td></tr></tbody>
+  </table>
+  <div class="note ok">
+    This leaderboard is computed from on-chain events, not a database. If we vanished tomorrow
+    you could rebuild it from Arc with a single <span class="mono">eth_getLogs</span> call.
+  </div>
+</section>
+
+<section>
+  <h2>Your referral link</h2>
+  <p class="lede">Anyone who opens this and binds is permanently linked to you. One click, no signup.</p>
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <button class="btn" id="connectBtn">Connect wallet</button>
+    <button class="btn ghost" id="copyBtn" disabled>Copy referral link</button>
+  </div>
+  <div class="note" style="border-left-color:var(--hair2)">
+    Binding costs about <b>$0.002</b> in gas and is <b>permanent</b> — it can never be changed or
+    undone, including by us. That's the point: if it were editable, whoever wrote last before a
+    snapshot would take everything.
+  </div>
+</section>
+
+<footer>
+  <span>Arclite · points you can check</span>
+  <span><a href="/app/terminal.html">Terminal</a> · <a href="https://x.com/ArcLiteFun" target="_blank" rel="noopener">@arclitefun</a></span>
+</footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.2/ethers.umd.min.js"></script>
+<script>
+/* ------------------------------------------------------------------
+   Everything here reads the chain directly. No backend, no account,
+   nothing about you stored by us.
+------------------------------------------------------------------ */
+const CHAIN_ID = 5042002;
+const RPC      = 'https://rpc.testnet.arc.network';
+const EXPLORER = 'https://testnet.arcscan.app';
+const REF      = '0x69631D926954b3bB72efb9C70AbC428BE0d7f957';
+const BOUND_TOPIC = ethers.id('ReferralBound(address,address,uint256)');
+
+const net = new ethers.Network('arc', CHAIN_ID);
+const provider = new ethers.JsonRpcProvider(RPC, net, {staticNetwork:net, batchMaxCount:1});
+let me = null, signer = null;
+
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('on');
+  clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('on'),2800);}
+const short=a=>a.slice(0,6)+'…'+a.slice(-4);
+const hue=a=>parseInt(a.slice(2,8),16)%360;
+
+/* ethers has no request timeout; race everything so failure is visible. */
+function deadline(p,ms){return Promise.race([p,new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),ms))]);}
+async function retry(fn,n=4,ms=9000){let last;for(let i=0;i<n;i++){
+  try{return await deadline(Promise.resolve(fn()),ms);}catch(e){last=e;await new Promise(r=>setTimeout(r,500*(i+1)));}}
+  throw last;}
+
+document.getElementById('refLink').innerHTML =
+  '<a href="'+EXPLORER+'/address/'+REF+'" target="_blank" rel="noopener">'+short(REF)+'</a>';
+
+/* ---- leaderboard, built from ReferralBound events -------------- */
+async function loadBoard(){
+  const tb=document.getElementById('lb');
+  try{
+    const head=await retry(()=>provider.getBlockNumber());
+    // Arc caps getLogs at 10k blocks. The contract is young, so a few
+    // windows covers its whole life; widen as it ages.
+    let logs=[];
+    for(let i=0;i<4;i++){
+      const to=head-i*9500, from=Math.max(0,to-9499);
+      if(to<0) break;
+      try{ logs=logs.concat(await retry(()=>provider.getLogs({address:REF,topics:[BOUND_TOPIC],fromBlock:from,toBlock:to}),2,10000)); }
+      catch(e){ break; }
+    }
+    const counts={}, people=new Set();
+    for(const lg of logs){
+      const referee='0x'+lg.topics[1].slice(26);
+      const referrer='0x'+lg.topics[2].slice(26);
+      counts[referrer]=(counts[referrer]||0)+1;
+      people.add(referee.toLowerCase()); people.add(referrer.toLowerCase());
+    }
+    const rows=Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,20);
+    document.getElementById('sReferrals').textContent=logs.length;
+    document.getElementById('sPeople').textContent=people.size;
+    if(!rows.length){
+      tb.innerHTML='<tr><td colspan="3" style="color:var(--ink3);padding:22px 0">'+
+        'No referrals bound yet. Be the first.</td></tr>';
+      return;
+    }
+    tb.innerHTML=rows.map(([a,n],i)=>
+      '<tr><td class="rank'+(i<3?' top':'')+'">'+(i+1)+'</td>'+
+      '<td><span class="av" style="background:linear-gradient(135deg,hsl('+hue(a)+',70%,58%),hsl('+((hue(a)+40)%360)+',70%,44%))">'+
+        a.slice(2,4).toUpperCase()+'</span>'+
+        '<a class="mono" href="'+EXPLORER+'/address/'+a+'" target="_blank" rel="noopener">'+short(a)+'</a></td>'+
+      '<td style="text-align:right" class="mono">'+n+'</td></tr>').join('');
+  }catch(e){
+    tb.innerHTML='<tr><td colspan="3" style="color:var(--ink3);padding:22px 0">'+
+      'Couldn\'t reach Arc. <a href="#" onclick="loadBoard();return false">Retry</a></td></tr>';
+  }
+}
+
+/* ---- wallet ---------------------------------------------------- */
+async function connect(){
+  if(!window.ethereum){ toast('No EVM wallet detected'); return; }
+  try{
+    const bp=new ethers.BrowserProvider(window.ethereum,'any');
+    await bp.send('eth_requestAccounts',[]);
+    signer=await bp.getSigner(); me=await signer.getAddress();
+    document.getElementById('connectBtn').textContent=short(me);
+    document.getElementById('copyBtn').disabled=false;
+    const c=new ethers.Contract(REF,['function referralCount(address) view returns (uint256)'],provider);
+    document.getElementById('sYou').textContent=Number(await retry(()=>c.referralCount(me)));
+    document.getElementById('bWallet').value=me;
+    toast('Connected '+short(me));
+  }catch(e){ toast('Connect failed'); }
+}
+document.getElementById('connectBtn').onclick=connect;
+document.getElementById('copyBtn').onclick=()=>{
+  if(!me) return;
+  const link=location.origin+'/app/terminal.html?ref='+me;
+  navigator.clipboard.writeText(link).then(()=>toast('Referral link copied'))
+    .catch(()=>toast('Copy failed: '+link));
+};
+
+/* ---- bounty form ----------------------------------------------
+   Deliberately inert until BOUNTY_ENDPOINT is set. Collecting
+   submissions with nowhere to put them would be worse than saying
+   it isn't ready.                                                 */
+const BOUNTY_ENDPOINT = '';
+document.getElementById('bSubmit').onclick=async()=>{
+  const link=document.getElementById('bLink').value.trim();
+  const wallet=document.getElementById('bWallet').value.trim();
+  if(!/^https?:\/\//.test(link)){ toast('Paste a link to your post'); return; }
+  if(!ethers.isAddress(wallet)){ toast('Enter a valid wallet address'); return; }
+  if(!BOUNTY_ENDPOINT){
+    toast('Submissions aren\'t open yet — nothing was sent');
+    document.getElementById('bNote').innerHTML=
+      '<b>Nothing was submitted.</b> This form has no backend yet, so we discarded what you typed '+
+      'rather than pretend. Follow <a href="https://x.com/ArcLiteFun" target="_blank" rel="noopener">@arclitefun</a> '+
+      'and we\'ll announce the moment it opens.';
+    return;
+  }
+  try{
+    const r=await fetch(BOUNTY_ENDPOINT,{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({link,wallet,handle:document.getElementById('bHandle').value.trim()})});
+    toast(r.ok?'Submitted — we review every Monday':'Submission failed, try again');
+  }catch(e){ toast('Submission failed'); }
+};
+
+loadBoard();
+setInterval(loadBoard, 45000);
+</script>
+</body>
+</html>

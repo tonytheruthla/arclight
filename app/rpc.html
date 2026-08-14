@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Arc RPC — free public endpoint · Arclite</title>
+<meta name="description" content="A free, cached, failover JSON-RPC endpoint for Arc mainnet (chain 5042). One click to add it to your wallet. No logging.">
+<style>
+:root{
+  --bg:#07080c; --bg2:#0b0d13; --panel:#0e1118; --panel2:#12161f;
+  --hair:#1c2230; --hair2:#252c3b;
+  --ink:#e8ecf4; --ink2:#8b93a7; --ink3:#5a6377;
+  --blue:#0a84ff; --cyan:#22d3ee; --light:#7dd3fc;
+  --green:#30d158; --red:#ff453a; --amber:#ffd60a;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);
+  font:14px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Inter,sans-serif;
+  -webkit-font-smoothing:antialiased;padding:0 20px 80px}
+a{color:var(--light);text-decoration:none}
+a:hover{text-decoration:underline}
+.wrap{max-width:760px;margin:0 auto}
+
+header{display:flex;align-items:center;justify-content:space-between;
+  padding:20px 0;border-bottom:1px solid var(--hair);margin-bottom:48px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:650;letter-spacing:-.2px}
+.mark{width:22px;height:22px;border-radius:6px;
+  background:linear-gradient(135deg,var(--cyan),var(--blue));
+  box-shadow:0 0 18px rgba(34,211,238,.35)}
+nav{display:flex;gap:20px;font-size:13px;color:var(--ink2)}
+
+h1{font-size:38px;line-height:1.15;letter-spacing:-1.1px;font-weight:680;margin-bottom:14px}
+h1 em{font-style:normal;background:linear-gradient(100deg,var(--cyan),var(--light));
+  -webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{color:var(--ink2);font-size:16px;max-width:560px;margin-bottom:32px}
+
+.status{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;
+  padding:6px 12px;border:1px solid var(--hair2);border-radius:999px;
+  background:var(--panel);margin-bottom:26px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--ink3)}
+.dot.up{background:var(--green);box-shadow:0 0 10px var(--green)}
+.dot.down{background:var(--red);box-shadow:0 0 10px var(--red)}
+
+.card{background:var(--panel);border:1px solid var(--hair);border-radius:14px;
+  padding:22px;margin-bottom:18px}
+.card h2{font-size:13px;text-transform:uppercase;letter-spacing:.8px;
+  color:var(--ink3);font-weight:620;margin-bottom:16px}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;
+  background:var(--blue);color:#fff;border:0;border-radius:10px;
+  padding:13px 22px;font-size:14.5px;font-weight:600;cursor:pointer;
+  font-family:inherit;transition:filter .15s,transform .1s}
+.btn:hover{filter:brightness(1.12)}
+.btn:active{transform:translateY(1px)}
+.btn.ghost{background:var(--panel2);color:var(--ink);border:1px solid var(--hair2)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btnrow{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+
+.field{display:flex;gap:8px;align-items:stretch;margin-bottom:8px}
+.field code{flex:1;background:var(--bg2);border:1px solid var(--hair);
+  border-radius:9px;padding:12px 14px;font-size:13px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  color:var(--light);overflow-x:auto;white-space:nowrap}
+
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+td{padding:9px 0;border-bottom:1px solid var(--hair)}
+tr:last-child td{border-bottom:0}
+td:first-child{color:var(--ink2);width:42%}
+td:last-child{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink)}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px}
+.stat{background:var(--bg2);border:1px solid var(--hair);border-radius:11px;padding:15px}
+.stat .k{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--ink3);margin-bottom:6px}
+.stat .v{font-size:21px;font-weight:640;letter-spacing:-.4px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+
+.why{color:var(--ink2);font-size:14px}
+.why p{margin-bottom:12px}
+.why strong{color:var(--ink);font-weight:600}
+.why ul{margin:12px 0 12px 20px}
+.why li{margin-bottom:7px}
+
+.note{border-left:2px solid var(--amber);padding-left:14px;color:var(--ink2);
+  font-size:13.5px;margin-top:16px}
+footer{margin-top:44px;padding-top:22px;border-top:1px solid var(--hair);
+  color:var(--ink3);font-size:12.5px;display:flex;justify-content:space-between;
+  flex-wrap:wrap;gap:10px}
+.toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(80px);
+  background:var(--panel2);border:1px solid var(--hair2);border-radius:10px;
+  padding:11px 20px;font-size:13.5px;opacity:0;transition:.25s;pointer-events:none}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+@media(max-width:560px){h1{font-size:29px}.field code{font-size:11.5px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <a class="brand" href="/"><span class="mark"></span> Arclite</a>
+  <nav>
+    <a href="/app/terminal.html">Terminal</a>
+    <a href="/app/">Launch</a>
+    <a href="/app/rpc.html" style="color:var(--ink)">RPC</a>
+  </nav>
+</header>
+
+<div class="status">
+  <span class="dot" id="dot"></span>
+  <span id="statusText">checking endpoint…</span>
+</div>
+
+<h1>A free Arc RPC<br>that <em>stays up</em>.</h1>
+<p class="sub">
+  Circle hasn't opened a public endpoint for Arc mainnet, so most of the ecosystem is
+  routed through a single proxy that falls over under load. This one caches
+  aggressively, fails over between providers, and doesn't log you.
+</p>
+
+<div class="card">
+  <h2>Add to your wallet</h2>
+  <div class="btnrow" style="margin-bottom:18px">
+    <button class="btn" id="addBtn">Add Arc to MetaMask</button>
+    <button class="btn ghost" id="copyBtn">Copy RPC URL</button>
+  </div>
+  <div class="field"><code id="rpcUrl">https://rpc.arclite.fun</code></div>
+  <table>
+    <tr><td>Network name</td><td>Arc</td></tr>
+    <tr><td>Chain ID</td><td>5042 <span style="color:var(--ink3)">(0x13b2)</span></td></tr>
+    <tr><td>Currency symbol</td><td>USDC</td></tr>
+    <tr><td>Decimals</td><td>18</td></tr>
+    <tr><td>Block explorer</td><td>https://arcscan.app</td></tr>
+  </table>
+  <div class="note">
+    Gas on Arc is paid in <strong>USDC at 18 decimals</strong>, not ETH. If your tooling
+    assumes 6 decimals — the figure used by the ERC-20 USDC at
+    <code style="font-size:12px">0x3600…0000</code> — every fee estimate will be wrong by
+    a factor of a trillion.
+  </div>
+</div>
+
+<div class="card">
+  <h2>Live</h2>
+  <div class="grid">
+    <div class="stat"><div class="k">Head block</div><div class="v" id="mHead">—</div></div>
+    <div class="stat"><div class="k">Cache hit rate</div><div class="v" id="mCache">—</div></div>
+    <div class="stat"><div class="k">Upstreams healthy</div><div class="v" id="mUp">—</div></div>
+    <div class="stat"><div class="k">Uptime</div><div class="v" id="mUptime">—</div></div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Why we run this</h2>
+  <div class="why">
+    <p>
+      We build a launchpad and a terminal on Arc. Both were unusable while the only
+      available endpoints were rate-limiting under mild load — our terminal spent weeks
+      showing skeletons because a stalled RPC never returns an error, it just never returns.
+    </p>
+    <p>
+      Fixing that for ourselves meant caching, timeouts and failover. Running it for
+      everyone else costs us almost nothing more, and a chain where nobody can reliably
+      read state is a chain where nothing gets built. So it's free, with no key and no
+      sign-up.
+    </p>
+    <p><strong>What we log: nothing.</strong></p>
+    <ul>
+      <li>No request bodies. We never see or store which contracts you call.</li>
+      <li>No wallet addresses.</li>
+      <li>No IP addresses. IPs are hashed with a random salt that exists only in memory
+          for rate limiting, and is destroyed when the process restarts.</li>
+      <li>No database. There is nowhere for data to accumulate.</li>
+    </ul>
+    <p>
+      That's checkable, not a promise —
+      <a href="/app/rpc.html" id="privacyLink">read the live policy endpoint</a> and
+      <a href="https://github.com/tonytheruthla/arclight" target="_blank" rel="noopener">the source</a>.
+    </p>
+    <div class="note">
+      An RPC provider is in a position to see a lot. If you're doing something where that
+      matters, don't take our word for it — run your own node, or use an endpoint you
+      control. That advice is against our interest and it's still the right advice.
+    </div>
+  </div>
+</div>
+
+<footer>
+  <span>Arclite · free public infrastructure for Arc</span>
+  <span><a href="/app/terminal.html">Terminal</a> · <a href="https://x.com/ArcLiteFun" target="_blank" rel="noopener">@arclitefun</a></span>
+</footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const RPC_URL   = 'https://rpc.arclite.fun';
+const CHAIN_HEX = '0x13b2';                 // 5042
+const EXPLORER  = 'https://arcscan.app';
+
+document.getElementById('rpcUrl').textContent = RPC_URL;
+document.getElementById('privacyLink').href   = RPC_URL + '/privacy';
+
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('on');
+  clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('on'),2600);
+}
+
+document.getElementById('copyBtn').onclick=async()=>{
+  try{ await navigator.clipboard.writeText(RPC_URL); toast('RPC URL copied'); }
+  catch{ toast('Copy failed — select the URL manually'); }
+};
+
+/* Adds the network. The wallet shows its own confirmation prompt; nothing is
+   added without the user explicitly approving it there. */
+document.getElementById('addBtn').onclick=async()=>{
+  if(!window.ethereum){ toast('No EVM wallet detected in this browser'); return; }
+  const btn=document.getElementById('addBtn');
+  btn.disabled=true; const label=btn.textContent; btn.textContent='Check your wallet…';
+  try{
+    await window.ethereum.request({
+      method:'wallet_addEthereumChain',
+      params:[{
+        chainId:CHAIN_HEX,
+        chainName:'Arc',
+        nativeCurrency:{name:'USDC',symbol:'USDC',decimals:18},
+        rpcUrls:[RPC_URL],
+        blockExplorerUrls:[EXPLORER]
+      }]
+    });
+    toast('Arc added — you’re connected');
+  }catch(e){
+    toast(e && e.code===4001 ? 'Cancelled' : 'Could not add: '+((e&&e.message)||'unknown'));
+  }finally{ btn.disabled=false; btn.textContent=label; }
+};
+
+/* Health + stats. Deliberately fails loudly rather than showing a hopeful dash —
+   an uptime page that can't tell you it's down is worse than no uptime page. */
+async function refresh(){
+  const dot=document.getElementById('dot'), txt=document.getElementById('statusText');
+  const withTimeout=(p,ms)=>Promise.race([p,new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),ms))]);
+  try{
+    const h=await withTimeout(fetch(RPC_URL+'/health').then(r=>r.json()),6000);
+    dot.className='dot '+(h.ok?'up':'down');
+    txt.textContent=h.ok
+      ? 'endpoint live · chain '+h.chainId+' · block '+h.head.toLocaleString()
+      : 'degraded — no healthy upstream';
+    document.getElementById('mHead').textContent=h.head?h.head.toLocaleString():'—';
+    document.getElementById('mUp').textContent=h.upstreams?(h.upstreams.healthy+'/'+h.upstreams.total):'—';
+    const s=h.uptimeSec||0;
+    document.getElementById('mUptime').textContent=
+      s>86400?Math.floor(s/86400)+'d':s>3600?Math.floor(s/3600)+'h':Math.floor(s/60)+'m';
+    try{
+      const st=await withTimeout(fetch(RPC_URL+'/stats').then(r=>r.json()),6000);
+      document.getElementById('mCache').textContent=st.cacheHitRate||'—';
+    }catch{}
+  }catch(e){
+    dot.className='dot down';
+    txt.textContent='endpoint unreachable — '+((e&&e.message)||'error');
+  }
+}
+refresh(); setInterval(refresh,20000);
+</script>
+</body>
+</html>
