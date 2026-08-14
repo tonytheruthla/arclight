@@ -570,11 +570,24 @@
       <button class="nav-link" data-tab="launch" onclick="enterApp('launch')">Launch</button>
       <button class="nav-link" data-tab="trade" onclick="enterApp('trade')">Trade</button>
       <button class="nav-link" data-tab="predict" onclick="enterApp('predict')">Predict</button>
+      <a class="nav-link" href="https://x.com/ArcLiteFun" target="_blank" rel="noopener"
+         title="@ArcLiteFun on X" aria-label="Arclite on X"
+         style="text-decoration:none;display:inline-flex;align-items:center">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">
+          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+        </svg>
+      </a>
       <a class="nav-link" href="/app/terminal.html" style="text-decoration:none;display:inline-flex;align-items:center;gap:5px">
         Terminal
         <span style="font-size:9px;font-weight:700;letter-spacing:.07em;padding:2px 5px;border-radius:4px;
                      background:rgba(34,211,238,.16);color:#22d3ee">NEW</span>
       </a>
+      <a class="nav-link" href="/app/points.html" style="text-decoration:none;display:inline-flex;align-items:center;gap:5px">
+        Points
+        <span style="font-size:9px;font-weight:700;letter-spacing:.07em;padding:2px 5px;border-radius:4px;
+                     background:rgba(48,209,88,.16);color:#30d158">NEW</span>
+      </a>
+      <a class="nav-link" href="/app/rpc.html" style="text-decoration:none">RPC</a>
       <button class="nav-link" onclick="goLanding(); setTimeout(()=>document.getElementById('sceneGame').scrollIntoView({behavior:'smooth'}),40)">Play</button>
     </div>
     <button id="soundToggle" class="sound-btn" onclick="toggleSound()" title="Toggle sound" aria-label="Toggle sound">♪</button>
@@ -731,17 +744,18 @@
       <div class="tt-shot">
         <img src="/app/terminal-preview.png" alt="Arclite Terminal — dense coin table with live graduation odds" loading="lazy">
         <div class="tt-scrim"></div>
-        <span class="tt-badge">Coming soon</span>
+        <span class="tt-badge">Live on Arc mainnet</span>
       </div>
       <div class="tt-body">
         <div class="tt-head">
           <h3>Terminal</h3>
-          <span class="tt-arrow">Preview →</span>
+          <span class="tt-arrow">Open →</span>
         </div>
-        <p>A dense trading terminal with one column no other launchpad can render —
-           <b>live graduation odds on every coin</b>. One-click buys, keyboard-first, two RPC calls a refresh.</p>
+        <p>Scan every USDC pair on <b>Arc mainnet</b>, or switch to testnet for
+           <b>live graduation odds</b> — a column no other launchpad can render.
+           Keyboard-first, two RPC calls a refresh, no account.</p>
         <div class="tt-tags">
-          <span>Live odds</span><span>One-click buy</span><span>Keyboard-first</span><span>Bridge from any chain</span>
+          <span>Arc mainnet</span><span>Live odds</span><span>Portfolio</span><span>Free RPC</span>
         </div>
       </div>
     </a>
@@ -809,7 +823,8 @@
   Arclite · Arc Testnet (chain 5042002) · contracts:
   <a id="fPump" target="_blank" class="mono">Pump</a> ·
   <a id="fPredict" target="_blank" class="mono">Predict</a> ·
-  <a href="https://github.com/tonytheruthla/arclight" target="_blank">GitHub</a>
+  <a href="https://github.com/tonytheruthla/arclight" target="_blank">GitHub</a> ·
+  <a href="https://x.com/ArcLiteFun" target="_blank" rel="noopener">@ArcLiteFun</a>
   <div style="margin-top:8px;">Testnet software. Nothing here is financial advice.</div>
 </footer>
 
