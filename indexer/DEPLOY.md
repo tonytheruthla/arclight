@@ -85,6 +85,35 @@ Same pattern as every other change this session: copy the updated `arclight/` fo
 
 Depending on `START_BLOCK`, the first catch-up to the chain head could take a while — each `[chunk]` log line covers ~9,500 blocks, and Arc's RPC is rate-limited, so the retry/backoff logic will slow things down under load rather than fail outright. That's expected. Once logs show it's caught up (`lastBlock` stops jumping by full chunks and starts polling instead), the API has real, live data.
 
+## RPC quota — the thing that will actually bite you
+
+Observed live on 2026-09-05: with the free Infura tier, `eth_call` started returning
+
+```json
+{"error":{"code":-32600,"message":"project ID exceeded quota"}}
+```
+
+while `eth_getLogs` and `eth_blockNumber` kept working. That asymmetry is nasty, because
+the indexer *looks* healthy — chunks keep advancing, swaps keep landing — but every token's
+`name`, `symbol` and `decimals` read fails, since those need `eth_call`.
+
+Two consequences the code now handles rather than hides:
+
+- A token discovered during a quota outage is stored with `meta_ok = false`. The API returns
+  `price: null` for it instead of a price computed from guessed 18 decimals (which can be
+  wrong by 10^12 — that's where the nonsense `1613319207434.85` came from).
+- The worker retries those tokens (`backfillMeta`) whenever it's caught up, so they repair
+  themselves once quota frees up. No manual intervention, no re-scan.
+
+To actually fix the underlying limit, in rough order of effort:
+
+1. **Raise the plan** on whichever provider you use, or switch to one with a bigger free tier.
+2. **Route through `arclite-rpc`** — it caches `eth_getCode`, `eth_chainId` and friends hard,
+   which is exactly the repeat traffic that burns quota. Set `RPC_URL` to the proxy instead of
+   the provider once it's deployed.
+3. **Set `START_BLOCK`** to the earliest block that actually matters, so a fresh backfill
+   doesn't re-scan millions of empty blocks.
+
 ## What to check when something looks wrong
 
 - **Worker logs show repeated `[error]` lines** → almost always the RPC. Re-run the step 0 curl check against `RPC_URL` exactly as set in Railway's Variables tab (a copy-paste typo here is the single most common failure).

@@ -67,12 +67,16 @@ async function listTokens(db, { sort = 'new', limit = 50, offset = 0 } = {}) {
     )
     SELECT
       t.address, t.name, t.symbol, t.decimals, t.dex, t.pool_ref, t.first_seen_block, t.first_seen_at,
-      COALESCE(lp.price, 0)      AS price,
+      t.meta_ok,
+      -- Every price is decimal-adjusted, so it is only meaningful once decimals
+      -- was really read from the token. Until then report NULL rather than a
+      -- confidently wrong number.
+      CASE WHEN t.meta_ok THEN COALESCE(lp.price, 0) ELSE NULL END AS price,
       COALESCE(v.vol, 0)         AS volume_24h,
       COALESCE(v.txns, 0)        AS txns_24h,
       COALESCE(v.traders, 0)     AS traders_24h,
       COALESCE(h.holders, 0)     AS holders,
-      chg.pct                    AS change_24h
+      CASE WHEN t.meta_ok THEN chg.pct ELSE NULL END AS change_24h
     FROM tokens t
     LEFT JOIN latest_price lp ON lp.token_address = t.address
     LEFT JOIN vol24 v         ON v.token_address = t.address
@@ -97,7 +101,9 @@ async function getToken(db, address) {
       WHERE balance > 0 AND holder NOT IN ('${ZERO}', '${DEAD}') GROUP BY token_address
     )
     SELECT t.address, t.name, t.symbol, t.decimals, t.dex, t.pool_ref, t.first_seen_block, t.first_seen_at,
-      COALESCE(lp.price,0) price, COALESCE(v.vol,0) volume_24h, COALESCE(v.txns,0) txns_24h,
+      t.meta_ok,
+      CASE WHEN t.meta_ok THEN COALESCE(lp.price,0) ELSE NULL END price,
+      COALESCE(v.vol,0) volume_24h, COALESCE(v.txns,0) txns_24h,
       COALESCE(v.traders,0) traders_24h, COALESCE(h.holders,0) holders
     FROM tokens t
     LEFT JOIN latest_price lp ON lp.token_address = t.address

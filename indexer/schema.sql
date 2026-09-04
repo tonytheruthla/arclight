@@ -14,7 +14,15 @@ CREATE TABLE IF NOT EXISTS tokens (
   fee               INTEGER,            -- v3 fee tier in hundredths of a bip; null for v4 (read from Initialize per-pool if needed later)
   usdc_is_token0    BOOLEAN NOT NULL,
   first_seen_block  BIGINT NOT NULL,
-  first_seen_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+  first_seen_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  -- false until name/symbol/decimals were ALL read successfully from the chain.
+  -- Discovery happens from a log, but metadata needs eth_call, which fails
+  -- independently (rate limits, quota, non-standard tokens). When it fails we
+  -- still record the token — a token with a blank name is better than a missing
+  -- one — but decimals is then only a GUESS, which makes every price derived
+  -- from it wrong. So we flag it, retry it later (worker backfillMeta), and the
+  -- API refuses to publish a price until this is true.
+  meta_ok           BOOLEAN NOT NULL DEFAULT false
 );
 
 CREATE TABLE IF NOT EXISTS swaps (

@@ -6,7 +6,7 @@ require('dotenv').config();
 const { ethers } = require('ethers');
 const { ARC, TOPICS } = require('./chain');
 const { decodePoolCreatedV3, decodeInitializeV4, decodeSwapV3, decodeSwapV4, decodeTransfer } = require('./process');
-const { getState, setState, upsertToken, getKnownTokens, insertSwap, applyTransfer, takeSnapshot } = require('./store');
+const { getState, setState, upsertToken, getKnownTokens, getTokensMissingMeta, updateTokenMeta, insertSwap, applyTransfer, takeSnapshot } = require('./store');
 const { listTokens } = require('./queries');
 const { makePool } = require('./db');
 
@@ -29,18 +29,50 @@ async function retry(fn, tries = 5, baseMs = 1000) {
   throw last;
 }
 
+/** Reads name/symbol/decimals via eth_call. These fail independently of log
+ *  scanning — an exhausted provider quota rejects eth_call while still serving
+ *  eth_getLogs, which is exactly how tokens ended up recorded with blank names
+ *  and a guessed 18 decimals. `ok` reports whether decimals is REAL: every price
+ *  is decimal-adjusted, so a guessed 18 on a 6-decimal token is off by 10^12.
+ *  Callers must not publish a price when ok is false. */
 async function tokenMeta(provider, addr) {
   const c = new ethers.Contract(addr, [
     'function name() view returns (string)',
     'function symbol() view returns (string)',
     'function decimals() view returns (uint8)',
   ], provider);
+  const FAIL = Symbol('fail');
   const [name, symbol, decimals] = await Promise.all([
-    retry(() => c.name()).catch(() => ''),
-    retry(() => c.symbol()).catch(() => ''),
-    retry(() => c.decimals()).catch(() => 18),
+    retry(() => c.name()).catch(() => FAIL),
+    retry(() => c.symbol()).catch(() => FAIL),
+    retry(() => c.decimals()).catch(() => FAIL),
   ]);
-  return { name, symbol, decimals: Number(decimals) };
+  // name/symbol are cosmetic and some legitimate tokens return bytes32 or omit
+  // them entirely; decimals is the one that must be real for prices to mean
+  // anything, so it alone gates ok.
+  return {
+    name: name === FAIL ? '' : name,
+    symbol: symbol === FAIL ? '' : symbol,
+    decimals: decimals === FAIL ? 18 : Number(decimals),
+    ok: decimals !== FAIL,
+  };
+}
+
+/** Re-read metadata for tokens we couldn't read at discovery time. Without this
+ *  a token discovered during a quota outage stays nameless and mispriced
+ *  forever, because upsertToken is ON CONFLICT DO NOTHING. Small batch per tick
+ *  so it can't itself become the thing that burns the quota. */
+async function backfillMeta(db, provider, limit = 5) {
+  const addrs = await getTokensMissingMeta(db, limit);
+  let fixed = 0;
+  for (const addr of addrs) {
+    const meta = await tokenMeta(provider, addr);
+    if (!meta.ok) continue;              // still unreadable; leave it for next tick
+    await updateTokenMeta(db, addr, meta);
+    fixed++;
+    console.log(`[meta] ${meta.symbol || '?'} ${addr} decimals=${meta.decimals}`);
+  }
+  return fixed;
 }
 
 /** Fetch block timestamps once per unique block number touched in a chunk,
@@ -67,14 +99,14 @@ async function processChunk(db, provider, fromBlock, toBlock) {
     const info = decodePoolCreatedV3(log, ARC.usdc);
     if (!info) continue;
     const meta = await tokenMeta(provider, info.token);
-    await upsertToken(db, { address: info.token, ...meta, dex: 'v3', poolRef: info.poolRef, fee: info.fee, usdcIsToken0: info.usdcIsToken0, block: info.block });
+    await upsertToken(db, { address: info.token, ...meta, dex: 'v3', poolRef: info.poolRef, fee: info.fee, usdcIsToken0: info.usdcIsToken0, block: info.block, metaOk: meta.ok });
     console.log(`[discover v3] ${meta.symbol || '?'} ${info.token}`);
   }
   for (const log of initLogs) {
     const info = decodeInitializeV4(log, ARC.usdc);
     if (!info) continue;
     const meta = await tokenMeta(provider, info.token);
-    await upsertToken(db, { address: info.token, ...meta, dex: 'v4', poolRef: info.poolRef, fee: info.fee, usdcIsToken0: info.usdcIsToken0, block: info.block });
+    await upsertToken(db, { address: info.token, ...meta, dex: 'v4', poolRef: info.poolRef, fee: info.fee, usdcIsToken0: info.usdcIsToken0, block: info.block, metaOk: meta.ok });
     console.log(`[discover v4] ${meta.symbol || '?'} ${info.token}`);
   }
 
@@ -170,6 +202,10 @@ async function main() {
         console.log(`[chunk] ${lastBlock + 1}-${to} · +${stats.discovered} tokens · ${stats.swaps} swaps`);
         lastBlock = to;
       } else {
+        // Caught up. Use the idle time to repair tokens whose metadata reads
+        // failed earlier — this is when the RPC is least busy and most likely
+        // to answer eth_call.
+        await backfillMeta(db, provider);
         if (Date.now() - lastSnapshot > SNAPSHOT_INTERVAL_MS) {
           await takeSnapshots(db);
           lastSnapshot = Date.now();

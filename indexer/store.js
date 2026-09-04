@@ -19,11 +19,28 @@ async function setState(db, chainId, block) {
 
 async function upsertToken(db, t) {
   await db.query(
-    `INSERT INTO tokens (address, name, symbol, decimals, dex, pool_ref, fee, usdc_is_token0, first_seen_block)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+    `INSERT INTO tokens (address, name, symbol, decimals, dex, pool_ref, fee, usdc_is_token0, first_seen_block, meta_ok)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
      ON CONFLICT (address) DO NOTHING`,
     [t.address.toLowerCase(), t.name || '', t.symbol || '', t.decimals || 18,
-     t.dex, t.poolRef, t.fee, t.usdcIsToken0, t.block]
+     t.dex, t.poolRef, t.fee, t.usdcIsToken0, t.block, t.metaOk === true]
+  );
+}
+
+/** Tokens whose name/symbol/decimals we never managed to read. Retried by the
+ *  worker so a transient RPC failure doesn't leave a token permanently blank. */
+async function getTokensMissingMeta(db, limit = 10) {
+  const r = await db.query(
+    'SELECT address FROM tokens WHERE meta_ok = false ORDER BY first_seen_block LIMIT $1',
+    [limit]
+  );
+  return r.rows.map(x => x.address);
+}
+
+async function updateTokenMeta(db, address, meta) {
+  await db.query(
+    `UPDATE tokens SET name = $2, symbol = $3, decimals = $4, meta_ok = true WHERE address = $1`,
+    [address.toLowerCase(), meta.name || '', meta.symbol || '', meta.decimals]
   );
 }
 
@@ -70,4 +87,4 @@ async function takeSnapshot(db, tokenAddress, price, at) {
   );
 }
 
-module.exports = { getState, setState, upsertToken, getKnownTokens, insertSwap, applyTransfer, takeSnapshot, ZERO, DEAD };
+module.exports = { getState, setState, upsertToken, getKnownTokens, getTokensMissingMeta, updateTokenMeta, insertSwap, applyTransfer, takeSnapshot, ZERO, DEAD };

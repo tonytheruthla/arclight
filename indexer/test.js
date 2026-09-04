@@ -98,11 +98,11 @@ function fakeLog(iface, eventName, args, overrides = {}) {
 
   console.log('\n=== schema + store.js against pg-mem ===');
   const db = freshDb();
-  await store.upsertToken(db, { address: token, name: 'Test Coin', symbol: 'TST', decimals: 18, dex: 'v3', poolRef: v3PoolAddr, fee: 3000, usdcIsToken0: true, block: 100 });
+  await store.upsertToken(db, { address: token, name: 'Test Coin', symbol: 'TST', decimals: 18, dex: 'v3', poolRef: v3PoolAddr, fee: 3000, usdcIsToken0: true, block: 100, metaOk: true });
   const known = await store.getKnownTokens(db, 'v3');
   ok(known.length === 1 && known[0].symbol === 'TST', 'upsertToken + getKnownTokens round-trip');
 
-  await store.upsertToken(db, { address: token, name: 'dup', symbol: 'DUP', decimals: 18, dex: 'v3', poolRef: v3PoolAddr, fee: 3000, usdcIsToken0: true, block: 100 });
+  await store.upsertToken(db, { address: token, name: 'dup', symbol: 'DUP', decimals: 18, dex: 'v3', poolRef: v3PoolAddr, fee: 3000, usdcIsToken0: true, block: 100, metaOk: true });
   const known2 = await store.getKnownTokens(db, 'v3');
   ok(known2.length === 1 && known2[0].symbol === 'TST', 'upsertToken is idempotent on the primary key (ON CONFLICT DO NOTHING)');
 
@@ -138,6 +138,34 @@ function fakeLog(iface, eventName, args, overrides = {}) {
 
   const single = await getToken(db, token);
   ok(single && single.symbol === 'TST', 'getToken single-lookup uses the same aggregation and returns the right row');
+
+  // --- meta_ok gating: a token whose decimals we never read must not publish a price ---
+  console.log('\n=== meta_ok gating (unverified decimals must not produce a price) ===');
+  const ghost = A(0x9f9f);
+  await store.upsertToken(db, { address: ghost, name: '', symbol: '', decimals: 18, dex: 'v3', poolRef: A(0x9e9e), fee: 3000, usdcIsToken0: true, block: 101, metaOk: false });
+  await store.insertSwap(db, ghost, { block: 101, blockTime: new Date(), txHash: '0xfeed', logIndex: 1, trader: A(0x2222), side: 'buy', usdcAmount: 10, tokenAmount: 5, price: 999 });
+
+  const missing = await store.getTokensMissingMeta(db, 10);
+  ok(missing.length === 1 && missing[0].toLowerCase() === ghost.toLowerCase(),
+     'getTokensMissingMeta finds only the token with unread metadata');
+
+  const rowsGated = await listTokens(db, { sort: 'new', limit: 10, offset: 0 });
+  const ghostRow = rowsGated.find(r => r.address.toLowerCase() === ghost.toLowerCase());
+  ok(ghostRow && ghostRow.price === null,
+     'price is NULL while decimals is unverified, not a confidently wrong number: got ' + (ghostRow && ghostRow.price));
+
+  const goodRow = rowsGated.find(r => r.address.toLowerCase() === token.toLowerCase());
+  ok(goodRow && Number(goodRow.price) === 2.5,
+     'a verified token still reports its real price alongside: got ' + (goodRow && goodRow.price));
+
+  await store.updateTokenMeta(db, ghost, { name: 'Late Coin', symbol: 'LATE', decimals: 6 });
+  const afterFix = (await listTokens(db, { sort: 'new', limit: 10, offset: 0 }))
+    .find(r => r.address.toLowerCase() === ghost.toLowerCase());
+  ok(afterFix && afterFix.symbol === 'LATE' && Number(afterFix.decimals) === 6 && Number(afterFix.price) === 999,
+     'once metadata is backfilled the token gains its symbol, real decimals and a published price');
+
+  ok((await store.getTokensMissingMeta(db, 10)).length === 0,
+     'backfilled token no longer appears in the missing-metadata queue');
 
   console.log('\n' + '='.repeat(52));
   console.log(`${pass} passed, ${fail} failed`);
