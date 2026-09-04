@@ -177,7 +177,7 @@ async function main() {
         await sleep(POLL_INTERVAL_MS);
       }
     } catch (e) {
-      console.error('[error]', e.message || e);
+      console.error('[error]', e.stack || e.message || e);
       await sleep(POLL_INTERVAL_MS);
     }
   }
