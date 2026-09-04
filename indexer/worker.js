@@ -147,7 +147,7 @@ async function main() {
   const provider = new ethers.JsonRpcProvider(
     process.env.RPC_URL,
     new ethers.Network('arc', BigInt(ARC.chainId)),
-    { staticNetwork: true }
+    { staticNetwork: true, batchMaxCount: 1 } // Infura rejects batched JSON-RPC
   );
 
   let lastBlock = await getState(db, ARC.chainId);
