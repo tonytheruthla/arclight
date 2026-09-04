@@ -35,17 +35,19 @@ async function retry(fn, tries = 5, baseMs = 1000) {
  *  and a guessed 18 decimals. `ok` reports whether decimals is REAL: every price
  *  is decimal-adjusted, so a guessed 18 on a 6-decimal token is off by 10^12.
  *  Callers must not publish a price when ok is false. */
-async function tokenMeta(provider, addr) {
+async function tokenMeta(provider, addr, tries = 5) {
   const c = new ethers.Contract(addr, [
     'function name() view returns (string)',
     'function symbol() view returns (string)',
     'function decimals() view returns (uint8)',
   ], provider);
   const FAIL = Symbol('fail');
+  let lastErr = '';
+  const grab = fn => retry(fn, tries).catch(e => { lastErr = String(e && (e.message || e)); return FAIL; });
   const [name, symbol, decimals] = await Promise.all([
-    retry(() => c.name()).catch(() => FAIL),
-    retry(() => c.symbol()).catch(() => FAIL),
-    retry(() => c.decimals()).catch(() => FAIL),
+    grab(() => c.name()),
+    grab(() => c.symbol()),
+    grab(() => c.decimals()),
   ]);
   // name/symbol are cosmetic and some legitimate tokens return bytes32 or omit
   // them entirely; decimals is the one that must be real for prices to mean
@@ -55,8 +57,14 @@ async function tokenMeta(provider, addr) {
     symbol: symbol === FAIL ? '' : symbol,
     decimals: decimals === FAIL ? 18 : Number(decimals),
     ok: decimals !== FAIL,
+    err: lastErr,
   };
 }
+
+/** True for errors that mean "the provider is refusing everyone right now", as
+ *  opposed to "this particular contract has no decimals()". Retrying the former
+ *  across a whole batch just burns more of the quota that's already gone. */
+const isProviderLimit = msg => /quota|rate limit|too many requests|429|-32005|-32600/i.test(String(msg || ''));
 
 /** Re-read metadata for tokens we couldn't read at discovery time. Without this
  *  a token discovered during a quota outage stays nameless and mispriced
@@ -66,8 +74,16 @@ async function backfillMeta(db, provider, limit = 5) {
   const addrs = await getTokensMissingMeta(db, limit);
   let fixed = 0;
   for (const addr of addrs) {
-    const meta = await tokenMeta(provider, addr);
-    if (!meta.ok) continue;              // still unreadable; leave it for next tick
+    // tries=1: this runs on a loop anyway, so burning 5 retries per field against
+    // a provider that's already refusing calls just wastes quota.
+    const meta = await tokenMeta(provider, addr, 1);
+    if (!meta.ok) {
+      if (isProviderLimit(meta.err)) {
+        console.log('[meta] provider is refusing calls; pausing backfill this cycle');
+        break;                           // whole batch would fail the same way
+      }
+      continue;                          // this one token is odd; try the rest
+    }
     await updateTokenMeta(db, addr, meta);
     fixed++;
     console.log(`[meta] ${meta.symbol || '?'} ${addr} decimals=${meta.decimals}`);
@@ -191,6 +207,7 @@ async function main() {
   }
 
   let lastSnapshot = 0;
+  let chunksSinceMeta = 0;
 
   while (true) {
     try {
@@ -201,6 +218,11 @@ async function main() {
         await setState(db, ARC.chainId, to);
         console.log(`[chunk] ${lastBlock + 1}-${to} · +${stats.discovered} tokens · ${stats.swaps} swaps`);
         lastBlock = to;
+        // Repair metadata during the backfill too, not just once caught up. A
+        // cold start is millions of blocks behind, so gating this on "caught up"
+        // meant every token discovered on the way stayed nameless and unpriced
+        // for the entire catch-up. Every 25th chunk keeps it cheap.
+        if (++chunksSinceMeta >= 25) { chunksSinceMeta = 0; await backfillMeta(db, provider); }
       } else {
         // Caught up. Use the idle time to repair tokens whose metadata reads
         // failed earlier — this is when the RPC is least busy and most likely
