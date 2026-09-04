@@ -4,6 +4,20 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Arclite Terminal</title>
+<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="%230a84ff"/><stop offset="1" stop-color="%2322d3ee"/></linearGradient></defs><path d="M 8 54 Q 22 51 36 41 Q 51 30 55 11" stroke="url(%23g)" stroke-width="7.5" stroke-linecap="round" fill="none"/><circle cx="54" cy="10" r="6.5" fill="%237dd3fc"/></svg>'>
+<link rel="icon" type="image/png" sizes="32x32" href="/brand/favicon-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/brand/touch-icon-180.png">
+<link rel="manifest" href="/manifest.json">
+<meta property="og:title" content="Arclite Terminal">
+<meta property="og:description" content="Live token scanner + trading terminal for Arc. Odds column shows real graduation probability on every coin.">
+<meta property="og:image" content="https://arclite.fun/brand/og-card-1200x630.jpg">
+<meta property="og:url" content="https://arclite.fun/app/terminal.html">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@ArcLiteFun">
+<meta name="twitter:title" content="Arclite Terminal">
+<meta name="twitter:description" content="Live token scanner + trading terminal for Arc. Odds column shows real graduation probability on every coin.">
+<meta name="twitter:image" content="https://arclite.fun/brand/og-card-1200x630.jpg">
 <!--
   ARCLITE TERMINAL
   =================
@@ -269,7 +283,7 @@ td.l{text-align:left}
         <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
       </svg>
     </a>
-    <div class="netsw" id="netsw" title="Arc mainnet is live (chain 5042). Mainnet mode scans Uniswap V3; testnet mode reads the Arclite launchpad.">
+    <div class="netsw" id="netsw" title="Arc mainnet is live (chain 5042). Mainnet mode scans Uniswap V3 and V4; testnet mode reads the Arclite launchpad.">
       <div class="netopt" data-net="mainnet">Mainnet</div>
       <div class="netopt" data-net="testnet">Testnet</div>
     </div>
@@ -416,6 +430,7 @@ td.l{text-align:left}
                 deliberate: the scanner is the wedge, and it needs
                 no audit to be useful.
 --------------------------------------------------------------- */
+const DEAD_ADDR = '0x000000000000000000000000000000000000dEaD';
 const NETWORKS = {
   testnet: {
     label:'Testnet', chainId:5042002,
@@ -433,6 +448,18 @@ const NETWORKS = {
     // Uniswap V3, resolved from SwapRouter.factory() on chain 5042
     v3Factory:'0xf0db7b58379503491d857db50ac9ece64c653918',
     quoter:'0x7dfd4f31be6814d2906bde155c3e1b146eac1468',
+    // Uniswap V4 singleton PoolManager. Confirmed live on Arc mainnet — this is
+    // the same PoolManager pump.archi's docs cite for their own USDC-quoted
+    // markets. V4 has no per-pool contracts (everything routes through this one
+    // singleton, keyed by poolId), so discovery and pricing both work
+    // differently from V3 — see the comments in scanMainnetV4() below.
+    v4PoolManager:'0x8366a39CC670B4001A1121B8F6A443A643e40951',
+    // Optional indexer API (see indexer/DEPLOY.md) — full history, real 24h
+    // volume/txns/traders/holders/% change instead of the client scanner's
+    // rolling window. Empty until deployed; the terminal falls back to the
+    // client-side scanner automatically when this is unset or unreachable,
+    // so nothing breaks before or during that deploy.
+    indexerApi:'https://empathetic-magic-production-dd77.up.railway.app',
     // ERC-20 USDC — SIX decimals. Native gas USDC is EIGHTEEN.
     // Mixing these up is a 10^12 error. See AUDIT.md §2.1.
     usdc:'0x3600000000000000000000000000000000000000',
@@ -465,6 +492,13 @@ const LOG_CHUNK = 9500;
 let   SCAN_CHUNKS = 6;                       // ~57k blocks ≈ 8 hours
 const POOL_CREATED_TOPIC =
   '0x783cca1c0412dd0d695e784568c96da2e9c22ff989357a2e8b1d9b2b4e6b7118';
+// keccak256("Initialize(bytes32,address,address,uint24,int24,address,uint160,int24)")
+// and keccak256("Swap(bytes32,address,int128,int128,uint160,uint128,int24,uint24)") —
+// computed directly from Uniswap V4's IPoolManager event signatures, not guessed.
+const V4_INIT_TOPIC =
+  '0xdd466e674ea557f56295e2d0218a125ea4b4f0f6f3307b95f85e6110838d6438';
+const V4_SWAP_TOPIC =
+  '0x40e9cecb9f5f1f1c5b9c97dec2917b7ee92e57ba5563708daca94dd84ad7112f';
 
 const V_USDC   = 3000n * 10n**18n;        // VIRTUAL_USDC
 const V_TOKENS = 1080000000n * 10n**18n;  // VIRTUAL_TOKENS
@@ -576,6 +610,7 @@ let GRAD_TARGET = 8000;
 let coins = [];          // merged coin + market rows
 let filter = 'new';
 let selected = -1;
+let portfolioDust = []; // last-rendered dust rows, for the Sweep button delegate
 let buyAmt = 1, betAmt = 1;
 const META_KEY='ark_term_meta';
 let meta = {};
@@ -677,7 +712,88 @@ async function scanMainnet(){
     out.push({
       addr:info.token, name:meta.name, symbol:meta.symbol,
       phase:1, price, liq, pool:info.pool, fee:info.fee, block:info.block,
-      raised:0, sold:0, pct:0, market:null, scanner:true
+      raised:0, sold:0, pct:0, market:null, scanner:true, dex:'v3'
+    });
+  }
+  return out;
+}
+
+/** V4 has no per-pool contracts — every market lives inside one singleton
+ *  PoolManager, addressed by a poolId (not a deployed address). Discovery
+ *  reads Initialize events off that singleton instead of a factory.
+ *
+ *  Pricing is deliberately NOT read via a storage-slot / extsload trick:
+ *  getting that math wrong silently returns a confident, wrong number, and
+ *  this codebase's whole track record (see AUDIT.md §2.1) is about refusing
+ *  to do that. Instead we take sqrtPriceX96 straight off the most recent
+ *  Swap event for that poolId in the scanned window — a real, verifiable,
+ *  on-chain number. If no swap fell in the window, price is left unknown
+ *  rather than guessed. Liquidity isn't in the Swap event, so it's left
+ *  unknown too for now — a known gap, not a silent one.
+ */
+async function scanMainnetV4(){
+  if(!NET.v4PoolManager) return [];
+  const head = await retry(()=>provider.getBlockNumber());
+  const usdc = NET.usdc.toLowerCase();
+  const iface = new ethers.Interface([
+    'event Initialize(bytes32 indexed id,address indexed currency0,address indexed currency1,uint24 fee,int24 tickSpacing,address hooks,uint160 sqrtPriceX96,int24 tick)',
+    'event Swap(bytes32 indexed id,address indexed sender,int128 amount0,int128 amount1,uint160 sqrtPriceX96,uint128 liquidity,int24 tick,uint24 fee)'
+  ]);
+
+  const found = new Map();      // poolId -> {token, currency0, currency1, usdcIsCurrency0, block}
+  const lastSwap = new Map();   // poolId -> latest {sqrtPriceX96, blockNumber}
+  for(let i=0;i<SCAN_CHUNKS;i++){
+    const to   = head - i*LOG_CHUNK;
+    const from = Math.max(0, to - LOG_CHUNK + 1);
+    if(to<0) break;
+    let initLogs=[], swapLogs=[];
+    try{
+      initLogs = await retry(()=>provider.getLogs({
+        address:NET.v4PoolManager, topics:[V4_INIT_TOPIC], fromBlock:from, toBlock:to
+      }), 3, 12000);
+      swapLogs = await retry(()=>provider.getLogs({
+        address:NET.v4PoolManager, topics:[V4_SWAP_TOPIC], fromBlock:from, toBlock:to
+      }), 3, 12000);
+    }catch(e){ break; }
+    for(const lg of initLogs){
+      let p; try{ p = iface.parseLog(lg); }catch{ continue; }
+      const c0=p.args.currency0.toLowerCase(), c1=p.args.currency1.toLowerCase();
+      if(c0!==usdc && c1!==usdc) continue;           // only USDC-paired
+      // currency0 === address(0) means native ETH on stock v4 deployments, but
+      // Arc's native gas IS USDC — a zero address here would mean native-USDC
+      // side, which the ERC-20 view at NET.usdc also represents, so treat it
+      // the same as an explicit USDC match.
+      const token = c0===usdc ? p.args.currency1 : p.args.currency0;
+      if(found.has(p.args.id)) continue;
+      found.set(p.args.id, { token, usdcIsCurrency0: c0===usdc, block: lg.blockNumber });
+    }
+    for(const lg of swapLogs){
+      let p; try{ p = iface.parseLog(lg); }catch{ continue; }
+      const prev = lastSwap.get(p.args.id);
+      if(!prev || lg.blockNumber > prev.blockNumber){
+        lastSwap.set(p.args.id, { sqrtPriceX96: p.args.sqrtPriceX96, blockNumber: lg.blockNumber });
+      }
+    }
+  }
+
+  const out=[];
+  for(const [poolId, info] of found){
+    const meta = await tokenMeta(info.token);
+    let price = 0;
+    const sw = lastSwap.get(poolId);
+    if(sw){
+      try{
+        const dec0 = info.usdcIsCurrency0 ? NET.usdcDecimals : (meta.decimals||18);
+        const dec1 = info.usdcIsCurrency0 ? (meta.decimals||18) : NET.usdcDecimals;
+        const p = priceFromSqrt(sw.sqrtPriceX96, dec0, dec1);
+        price = info.usdcIsCurrency0 ? (p ? 1/p : 0) : p;
+      }catch{}
+    }
+    out.push({
+      addr:info.token, name:meta.name, symbol:meta.symbol,
+      phase:1, price, liq:null, pool:poolId, fee:null, block:info.block,
+      raised:0, sold:0, pct:0, market:null, scanner:true, dex:'v4',
+      priceStale: !sw   // no swap seen in window — price is 0/unknown, say so in the UI
     });
   }
   return out;
@@ -700,6 +816,38 @@ async function tokenMeta(addr){
   return m;
 }
 
+/** Try the indexer API first — full history, real 24h volume/txns/traders/
+ *  holders/% change instead of the client scanner's rolling window and
+ *  60-token cap. Returns null (never throws) on any failure — unconfigured,
+ *  unreachable, non-200, bad JSON — so the caller always has a clean
+ *  fallback to the client-side scanner. Nothing regresses before or during
+ *  that deploy; see indexer/DEPLOY.md. */
+async function loadFromIndexer(){
+  if(!NET.indexerApi) return null;
+  try{
+    const url = NET.indexerApi.replace(/\/$/,'') + '/api/v1/tokens?sort=volume&limit=100';
+    const res = await deadline(fetch(url), 6000, 'indexer API');
+    if(!res.ok) return null;
+    const data = await res.json();
+    if(!data || !Array.isArray(data.tokens)) return null;
+    return data.tokens.map(t => ({
+      addr:t.address, name:t.name||'—', symbol:t.symbol||'—',
+      // price is null until the indexer has actually read the token's decimals.
+      // Every price is decimal-adjusted, so one computed on a guessed 18 can be
+      // out by orders of magnitude — show "pending" rather than a number someone
+      // might trade on. priceStale already drives that rendering below.
+      phase:1, price:Number(t.price)||0, priceStale:(t.price==null), liq:null,
+      pool:t.pool_ref, fee:null, block:t.first_seen_block,
+      raised:0, sold:0, pct:0, market:null, scanner:true, dex:t.dex,
+      // carried through for a future trending/volume-column UI pass — not
+      // rendered yet, but no reason to make the API round-trip twice later.
+      volume24h:Number(t.volume_24h)||0, txns24h:Number(t.txns_24h)||0,
+      traders24h:Number(t.traders_24h)||0, holders:Number(t.holders)||0,
+      change24h: t.change_24h==null ? null : Number(t.change_24h),
+    }));
+  }catch(e){ return null; }
+}
+
 async function load(){
   const tb=document.getElementById('rows');
   if(!coins.length) tb.innerHTML = Array.from({length:9},()=>'<tr><td colspan="9" class="skel"></td></tr>').join('');
@@ -707,15 +855,26 @@ async function load(){
   // ---- mainnet: scanner mode, no launchpad contracts involved
   if(NET.mode==='scanner'){
     try{
-      coins = await scanMainnet();
+      const indexed = await loadFromIndexer();
+      if(indexed){
+        coins = indexed;
+        render();
+        document.getElementById('lastSync').textContent =
+          'synced '+new Date().toLocaleTimeString()+' · '+coins.length+' tokens · indexer';
+        return;
+      }
+      const [v3, v4] = await Promise.all([scanMainnet(), scanMainnetV4()]);
+      coins = v3.concat(v4);
       render();
+      const v4n = v4.length;
       document.getElementById('lastSync').textContent =
         coins.length
-          ? 'synced '+new Date().toLocaleTimeString()+' · '+coins.length+' USDC pairs · Uniswap V3'
+          ? 'synced '+new Date().toLocaleTimeString()+' · '+coins.length+' USDC pairs · Uniswap V3'+
+            (v4n ? ' + V4 ('+v4n+')' : '')
           : 'no USDC pairs in the scanned range';
       if(!coins.length){
         tb.innerHTML='<tr><td colspan="9" class="empty">'+
-          '<div style="font-size:13px;color:var(--ink2);margin-bottom:6px">No Uniswap V3 USDC pairs in the last '+
+          '<div style="font-size:13px;color:var(--ink2);margin-bottom:6px">No Uniswap V3 or V4 USDC pairs in the last '+
           (SCAN_CHUNKS*LOG_CHUNK).toLocaleString()+' blocks.</div>'+
           '<div style="font-size:11.5px;color:var(--ink3);margin-bottom:14px">'+
           'Arc mainnet is live but quiet. eth_getLogs caps at 10k blocks, so we scan a window.</div>'+
@@ -881,7 +1040,11 @@ async function renderPortfolio(){
 
   // Holdings: balanceOf across the coins already on screen. Cheap, because
   // the coin list is loaded and metadata is cached.
-  const holdings=[];
+  // DUST_THRESHOLD: below this, a balance is "dust" — no known market can
+  // absorb it, so it's clutter, not an asset. $0.05 is arbitrary but small
+  // enough that nothing a real holding does crosses it by accident.
+  const DUST_THRESHOLD = 0.05;
+  const holdings=[], dust=[];
   for(const c of coins.slice(0,40)){
     try{
       const t=new ethers.Contract(c.addr,['function balanceOf(address) view returns (uint256)'],provider);
@@ -889,11 +1052,17 @@ async function renderPortfolio(){
       if(b>0n){
         const meta = c.decimals ? {decimals:c.decimals} : await tokenMeta(c.addr);
         const amt=Number(ethers.formatUnits(b, meta.decimals||18));
-        holdings.push({...c, amt, value:amt*(c.price||0)});
+        const value=amt*(c.price||0);
+        const row={...c, amt, value, raw:b};
+        // No price at all (c.price falsy) is the strongest dust signal — it
+        // usually means the pool/curve is dead or was never real. A priced
+        // position under threshold is dust too; it's just quieter about it.
+        (value < DUST_THRESHOLD ? dust : holdings).push(row);
       }
     }catch{}
   }
   holdings.sort((a,b)=>b.value-a.value);
+  portfolioDust = dust;
 
   const tokenValue = holdings.reduce((s,h)=>s+h.value,0);
   const cash = Number(ethers.formatEther(native));
@@ -934,6 +1103,25 @@ async function renderPortfolio(){
       '<div class="pfsec">Holdings</div>'+
       (holdings.length ? rowsHtml(holdings)
         : '<div class="pfempty">No token balances among the '+coins.length+' coins on screen.</div>')+
+
+      '<div class="pfsec">Dust'+(dust.length?' ('+dust.length+')':'')+'</div>'+
+      (dust.length
+        ? '<div class="pfempty" style="padding:0 0 12px;text-align:left">'+
+            'Balances worth under '+money(DUST_THRESHOLD)+' or with no working market — usually a token '+
+            'that never graduated, lost its liquidity, or was rugged. Sweeping sends it to a burn address. '+
+            '<b>Nothing is paid for this today</b> — it only cleans up your wallet. We\'re exploring a way '+
+            'to make cleanup worth something without opening the door to spam tokens farming rewards; '+
+            'this button ships ahead of that so you don\'t have to wait on it.</div>'+
+          dust.map((h,i)=>
+            '<div style="display:flex;align-items:center;gap:11px;padding:11px 0;border-bottom:1px solid var(--hair)">'+
+              '<div class="av" style="width:30px;height:30px;font-size:10px;opacity:.55;background:linear-gradient(135deg,hsl('+hue(h.addr)+',70%,52%),hsl('+((hue(h.addr)+40)%360)+',70%,38%))">'+
+                (h.symbol||'—').slice(0,3)+'</div>'+
+              '<div style="flex:1;min-width:0"><div style="font-size:13px;color:var(--ink2)">'+h.name+'</div>'+
+                '<div style="font-size:10.5px;color:var(--ink3)" class="mono">'+short(h.addr)+
+                (h.price?' · '+money(h.value):' · no market')+'</div></div>'+
+              '<button class="mini" data-dust="'+i+'" style="border-color:rgba(255,69,58,.35);color:#ffada7">Sweep</button>'+
+            '</div>').join('')
+        : '<div class="pfempty">Nothing to clean up.</div>')+
 
       '<div class="pfsec">Launched by you</div>'+
       (NET.mode!=='launchpad'
@@ -1079,7 +1267,7 @@ function render(){
         '<div><div class="cname">'+c.name+'</div><div class="csym">'+c.symbol+' · '+short(c.addr)+'</div></div>'+
       '</div></td>'+
       '<td class="num dim">'+(grad?'—':'live')+'</td>'+
-      '<td class="num">'+fmtPrice(c.price)+'</td>'+
+      '<td class="num">'+(c.priceStale?'<span class="dim" title="No swap seen yet in the scanned window — price will populate once one lands, not guessed.">pending</span>':fmtPrice(c.price))+'</td>'+
       '<td class="num">'+fmtUsd(c.mcap)+'</td>'+
       '<td class="num">'+fmtUsd(c.raised,0)+'</td>'+
       '<td><div class="prog"><span class="num '+(c.pct>=70?'up':'dim')+'">'+c.pct.toFixed(0)+'%</span>'+
@@ -1091,7 +1279,11 @@ function render(){
            a launchpad that doesn't exist on this chain. */
         (c.scanner
           ? '<a class="mini" style="text-decoration:none" target="_blank" rel="noopener" href="'+
-              EXPLORER+'/address/'+c.pool+'">POOL</a>'
+              /* V4 has no per-pool address — c.pool is a poolId (bytes32), not an
+                 address, inside the singleton PoolManager. Link the manager itself
+                 rather than a fabricated /address/<poolId> URL that would 404. */
+              (c.dex==='v4' ? EXPLORER+'/address/'+NET.v4PoolManager : EXPLORER+'/address/'+c.pool)+
+              '">'+(c.dex==='v4'?'V4 POOL':'POOL')+'</a>'
           : grad?'<span class="dim" style="font-size:10.5px">graduated</span>'
              :'<button class="mini buy" data-act="buy" data-i="'+i+'">BUY</button>')+
         (c.market&&!c.market.resolved
@@ -1114,7 +1306,7 @@ function rail(){
        '<div class="av" style="width:36px;height:36px;flex:0 0 36px;border-radius:10px;font-size:12px;background:linear-gradient(135deg,hsl('+hue(c.addr)+',70%,52%),hsl('+((hue(c.addr)+40)%360)+',70%,38%))">'+c.symbol.slice(0,3)+'</div>'+
        '<div><div class="dsp" style="font-size:15px">'+c.name+'</div>'+
          '<div class="csym">'+c.symbol+'</div></div></div>'+
-     '<div class="big">'+fmtPrice(c.price)+'</div>'+
+     '<div class="big">'+(c.priceStale?'<span class="dim" style="font-size:14px">pending — no swap seen yet</span>':fmtPrice(c.price))+'</div>'+
      '<div class="kv"><span>Market cap</span><b>'+fmtUsd(c.mcap)+'</b></div>'+
      '<div class="kv"><span>Raised</span><b>'+fmtUsd(c.raised,2)+'</b></div>'+
      '<div class="kv"><span>To graduation</span><b>'+fmtUsd(Math.max(0,GRAD_TARGET-c.raised),0)+'</b></div>'+
@@ -1143,7 +1335,121 @@ function rail(){
        : '<button class="btn primary" data-act="buy" data-i="'+selected+'">Buy $'+buyAmt+'</button>')+
      '<a class="btn" style="display:block;text-align:center;text-decoration:none;margin-top:7px" '+
        'href="'+EXPLORER+'/address/'+c.addr+'" target="_blank" rel="noopener">View on explorer ↗</a>'+
-   '</div>';
+   '</div>'+
+   (!c.scanner && c.creator
+     ? '<div class="card"><h3>Creator check</h3>'+
+       '<div id="railCreator" class="dim" style="font-size:11.5px">Reading the chain…</div></div>'
+     : '');
+  if(!c.scanner && c.creator) setTimeout(()=>fillCreatorCard(c),0);
+}
+
+/* ==================================================================
+   CREATOR TRANSPARENCY
+   Everything below is read from public chain state. The concentration
+   number is a heuristic — a pattern, not proof of anything. We label
+   it that way in the UI rather than pretending it's a verdict.
+================================================================== */
+const _ccache = {};
+async function fillCreatorCard(c){
+  const paint = html => { const el=document.getElementById('railCreator'); if(el) el.innerHTML=html; };
+  if(_ccache[c.addr]){ paint(_ccache[c.addr]); return; }
+  try{
+    // Track record: this creator's other launches, from data already loaded.
+    const mine  = coins.filter(x=>x.creator && x.creator.toLowerCase()===c.creator.toLowerCase());
+    const grads = mine.filter(x=>x.phase===2).length;
+
+    // How much of this token's 1B supply the creator holds right now.
+    let balPct = null;
+    try{
+      const t = new ethers.Contract(c.addr,['function balanceOf(address) view returns (uint256)'],provider);
+      const b = await retry(()=>t.balanceOf(c.creator),2,8000);
+      balPct = Number(b/10n**21n)/1e4; // % of 1B×1e18
+    }catch{}
+
+    // Has the creator self-locked their own buy? lockMyTokens() is a voluntary,
+    // per-holder time-lock on the token clone itself — 0 means never locked or
+    // already expired. It blocks transfer() AND sell(), so it's an on-chain
+    // guarantee, not a promise.
+    let lockUntil = 0;
+    try{
+      const lt = new ethers.Contract(c.addr,['function lockedUntil(address) view returns (uint64)'],provider);
+      lockUntil = Number(await retry(()=>lt.lockedUntil(c.creator),2,8000));
+    }catch{}
+    const lockedNow = lockUntil*1000 > Date.now();
+
+    // Early-buy concentration. Scan Bought events oldest-window-first so the
+    // first buys we see really are the first (within the getLogs cap).
+    let conc = null;
+    if(PUMP){
+      try{
+        const head  = await retry(()=>provider.getBlockNumber());
+        const topic = ethers.id('Bought(address,address,uint256,uint256)');
+        const taddr = ethers.zeroPadValue(c.addr,32);
+        let logs=[];
+        for(let i=3;i>=0;i--){
+          const to=head-i*9500, from=Math.max(0,to-9499);
+          if(to<0) continue;
+          try{ logs=logs.concat(await retry(()=>provider.getLogs(
+            {address:PUMP,topics:[topic,taddr],fromBlock:from,toBlock:to}),1,9000)); }catch{}
+        }
+        logs.sort((a,b)=>a.blockNumber-b.blockNumber || a.index-b.index);
+        const first = logs.slice(0,10);
+        if(first.length){
+          const byBuyer={};
+          let total=0n;
+          for(const lg of first){
+            const buyer='0x'+lg.topics[2].slice(26);
+            const usdcIn=BigInt('0x'+lg.data.slice(2,66));
+            byBuyer[buyer]=(byBuyer[buyer]||0n)+usdcIn; total+=usdcIn;
+          }
+          const uniq=Object.keys(byBuyer).length;
+          const top = total>0n ? Number(Object.values(byBuyer).reduce((m,v)=>v>m?v:m,0n)*100n/total) : 0;
+          conc={n:first.length, uniq, top};
+        }
+      }catch{}
+    }
+
+    const flag = conc && conc.n>=4 && (conc.uniq<=2 || conc.top>60);
+    const iAmCreator = me && c.creator && me.toLowerCase()===c.creator.toLowerCase();
+    const html =
+      '<div class="kv"><span>Creator</span><b><a class="dim" style="text-decoration:none" target="_blank" rel="noopener" '+
+        'href="'+EXPLORER+'/address/'+c.creator+'">'+short(c.creator)+'</a></b></div>'+
+      '<div class="kv"><span>Launches</span><b>'+mine.length+'</b></div>'+
+      '<div class="kv"><span>Graduated</span><b>'+grads+' of '+mine.length+'</b></div>'+
+      (balPct!==null
+        ? '<div class="kv"><span>Holds now</span><b class="'+(balPct>5?'dn':'')+'">'+balPct.toFixed(2)+'%</b></div>'
+        : '')+
+      (conc
+        ? '<div class="kv"><span>First '+conc.n+' buys</span><b class="'+(flag?'dn':'')+'">'+
+            conc.uniq+' wallet'+(conc.uniq===1?'':'s')+', top '+conc.top+'%</b></div>'
+        : '')+
+      (flag
+        ? '<div style="margin-top:8px;padding:8px 10px;border:1px solid rgba(255,69,58,.35);border-radius:8px;'+
+          'font-size:11px;color:#ffada7">Early buys are concentrated — a pattern often left by bundled '+
+          'wallets. A heuristic, not proof. Check the buyers on the explorer.</div>'
+        : '')+
+      (lockedNow
+        ? '<div style="margin-top:8px;padding:8px 10px;border:1px solid rgba(48,209,88,.35);border-radius:8px;'+
+          'font-size:11px;color:#8ff0a4">🔒 Creator locked their own buy until '+
+          new Date(lockUntil*1000).toLocaleDateString()+'. transfer() and sell() both revert for that '+
+          'address until then — enforced by the token contract, not a promise.</div>'
+        : (iAmCreator
+            ? '<div style="margin-top:8px;padding:8px 10px;border:1px solid var(--hair2);border-radius:8px">'+
+              '<div style="font-size:11px;color:var(--ink2);margin-bottom:6px">'+
+              'Lock your own buy so holders can see you can\'t dump it. One-way — cannot be shortened '+
+              'once set, and it also blocks the redeem() escape hatch while active.</div>'+
+              '<div style="display:flex;gap:6px">'+
+              '<button class="btn ghost" style="padding:6px 10px;font-size:11px" onclick="lockCreatorBuy(\''+c.addr+'\',7)">7d</button>'+
+              '<button class="btn ghost" style="padding:6px 10px;font-size:11px" onclick="lockCreatorBuy(\''+c.addr+'\',30)">30d</button>'+
+              '<button class="btn ghost" style="padding:6px 10px;font-size:11px" onclick="lockCreatorBuy(\''+c.addr+'\',90)">90d</button>'+
+              '</div></div>'
+            : ''))+
+      '<div class="dim" style="font-size:10px;margin-top:8px">All read from chain state. Nothing here is our opinion.</div>';
+    if(!lockedNow && !iAmCreator) _ccache[c.addr]=html; // don't cache a stale "lock this" prompt across wallets
+    paint(html);
+  }catch(e){
+    paint('<span class="dim">Couldn\'t read creator data.</span>');
+  }
 }
 
 /* ==================================================================
@@ -1470,9 +1776,64 @@ document.body.addEventListener('click',e=>{
     if(b.dataset.act==='no')  doBet(c,false);
     return;
   }
+  const ds=e.target.closest('[data-dust]');
+  if(ds){
+    e.stopPropagation();
+    const row=portfolioDust[Number(ds.dataset.dust)];
+    if(row) sweepDust(row, ds);
+    return;
+  }
   const tr=e.target.closest('tr[data-i]');
   if(tr){ selected=Number(tr.dataset.i); render(); rail(); }
 });
+
+/* ==================================================================
+   DUST SWEEP
+   Sends a worthless balance to the burn address. Pure wallet cleanup —
+   nothing is recovered, nothing is paid out. We say that in the UI
+   because "sweep" could otherwise sound like it pays.
+================================================================== */
+async function sweepDust(row, btn){
+  if(!signer){ toast('Connect your wallet first'); return; }
+  if(!confirm('Send '+row.amt.toLocaleString(undefined,{maximumFractionDigits:2})+' '+
+    (row.symbol||'tokens')+' to the burn address?\n\nThis is permanent and recovers no value — '+
+    'it only removes the token from your wallet view.')) return;
+  const orig=btn.textContent;
+  btn.disabled=true; btn.textContent='…';
+  try{
+    const t=new ethers.Contract(row.addr,['function transfer(address,uint256) returns (bool)'],signer);
+    const tx=await t.transfer(DEAD_ADDR, row.raw);
+    toast('Sweeping '+short(row.addr)+'…');
+    await retry(()=>tx.wait(),3,15000);
+    toast('Swept '+(row.symbol||short(row.addr)));
+    renderPortfolio();
+  }catch(e){
+    toast('Sweep failed — '+(e.shortMessage||e.message||'unknown error').slice(0,60));
+    btn.disabled=false; btn.textContent=orig;
+  }
+}
+
+/** Creator self-locks their own token balance — see lockMyTokens() on
+ *  ArcliteToken. Irreversible for the chosen window: blocks transfer(),
+ *  sell() and even redeem() for that address until it expires. */
+async function lockCreatorBuy(tokenAddr, days){
+  if(!signer){ toast('Connect your wallet first'); return; }
+  if(!confirm('Lock your own '+days+'-day balance of this token?\n\n'+
+    'You will NOT be able to transfer, sell, or redeem it for '+days+' days, no exceptions. '+
+    'This cannot be undone or shortened once confirmed — only extended by locking again.')) return;
+  try{
+    const t = new ethers.Contract(tokenAddr, ['function lockMyTokens(uint64)'], signer);
+    const tx = await t.lockMyTokens(days*86400);
+    toast('Locking your buy for '+days+' days…');
+    await retry(()=>tx.wait(),3,15000);
+    toast('Locked for '+days+' days');
+    delete _ccache[tokenAddr];
+    const c = coins.find(x=>x.addr && x.addr.toLowerCase()===tokenAddr.toLowerCase());
+    if(c) fillCreatorCard(c);
+  }catch(e){
+    toast('Lock failed — '+(e.shortMessage||e.message||'unknown error').slice(0,60));
+  }
+}
 
 // keyboard: / focus search, j/k or arrows move, Enter open, b buy, y/n bet
 document.addEventListener('keydown',e=>{

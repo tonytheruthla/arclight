@@ -5,6 +5,20 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Arclite Points — earn your share</title>
 <meta name="description" content="Earn Arclite points. On-chain referrals, weekly $500 creator bounty, live leaderboard.">
+<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="%230a84ff"/><stop offset="1" stop-color="%2322d3ee"/></linearGradient></defs><path d="M 8 54 Q 22 51 36 41 Q 51 30 55 11" stroke="url(%23g)" stroke-width="7.5" stroke-linecap="round" fill="none"/><circle cx="54" cy="10" r="6.5" fill="%237dd3fc"/></svg>'>
+<link rel="icon" type="image/png" sizes="32x32" href="/brand/favicon-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/brand/touch-icon-180.png">
+<link rel="manifest" href="/manifest.json">
+<meta property="og:title" content="Arclite Points — earn your share">
+<meta property="og:description" content="Earn Arclite points. On-chain referrals, weekly $500 creator bounty, live leaderboard.">
+<meta property="og:image" content="https://arclite.fun/brand/og-card-1200x630.jpg">
+<meta property="og:url" content="https://arclite.fun/app/points.html">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@ArcLiteFun">
+<meta name="twitter:title" content="Arclite Points — earn your share">
+<meta name="twitter:description" content="Earn Arclite points. On-chain referrals, weekly $500 creator bounty, live leaderboard.">
+<meta name="twitter:image" content="https://arclite.fun/brand/og-card-1200x630.jpg">
 <style>
 :root{
   --bg:#07080c; --bg2:#0b0d13; --panel:#0e1118; --panel2:#12161f;
@@ -24,9 +38,7 @@ a{color:var(--light);text-decoration:none}a:hover{text-decoration:underline}
 header{display:flex;align-items:center;justify-content:space-between;
   padding:20px 0;border-bottom:1px solid var(--hair);margin-bottom:44px}
 .brand{display:flex;align-items:center;gap:10px;font-weight:650;letter-spacing:-.2px}
-.mark{width:22px;height:22px;border-radius:6px;
-  background:linear-gradient(135deg,var(--cyan),var(--blue));
-  box-shadow:0 0 18px rgba(34,211,238,.35)}
+.mark{filter:drop-shadow(0 0 6px rgba(34,211,238,.45))}
 nav{display:flex;gap:20px;font-size:13px;color:var(--ink2)}
 
 /* hero */
@@ -118,7 +130,7 @@ footer{margin-top:48px;padding-top:22px;border-top:1px solid var(--hair);
 <div class="wrap">
 
 <header>
-  <a class="brand" href="/"><span class="mark"></span> Arclite</a>
+  <a class="brand" href="/"><svg class="mark" viewBox="0 0 64 64" width="22" height="22" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><linearGradient id="markGrad" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#0a84ff"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs><path d="M 8 54 Q 22 51 36 41 Q 51 30 55 11" stroke="url(#markGrad)" stroke-width="7.5" stroke-linecap="round"/><circle cx="54" cy="10" r="6.5" fill="#7dd3fc"/></svg> Arclite</a>
   <nav>
     <a href="/app/terminal.html">Terminal</a>
     <a href="/app/">Launch</a>
@@ -210,7 +222,7 @@ footer{margin-top:48px;padding-top:22px;border-top:1px solid var(--hair);
     <div class="bamt">$500 / week</div>
     <div class="rules">
       <div class="rule"><span class="n">01</span><span><b>Make something original</b> — a post, thread, video, meme, or teardown mentioning Arclite and tagging <b>@arclitefun</b>.</span></div>
-      <div class="rule"><span class="n">02</span><span><b>Submit the link below</b> with the wallet you want paid.</span></div>
+      <div class="rule"><span class="n">02</span><span><b>Submit it below.</b> The form composes a public entry post on X — timestamped, visible to everyone, impossible for us to lose.</span></div>
       <div class="rule"><span class="n">03</span><span><b>We pick winners every Monday</b> and publish the full list — who won, what they made, what they were paid.</span></div>
       <div class="rule"><span class="n">04</span><span><b>Quality over reach.</b> A sharp thread from an account with 40 followers beats a lazy repost from one with 40,000.</span></div>
       <div class="rule"><span class="n">05</span><span><b>Criticism is eligible.</b> If you find a real flaw and write it up well, that's worth more to us than praise.</span></div>
@@ -220,12 +232,15 @@ footer{margin-top:48px;padding-top:22px;border-top:1px solid var(--hair);
       <input id="bLink" type="url" placeholder="Link to your post (https://x.com/…)" autocomplete="off">
       <input id="bWallet" type="text" placeholder="Wallet address for payment (0x…)" autocomplete="off">
       <input id="bHandle" type="text" placeholder="Your X handle (optional)" autocomplete="off">
-      <button class="btn" id="bSubmit">Submit for review</button>
+      <button class="btn" id="bSubmit">Compose entry post</button>
     </div>
 
-    <div class="note" id="bNote">
-      Submissions open when the bounty goes live. Nothing is stored until then — this form
-      isn't wired to a backend yet, and we'd rather say so than take your details into a void.
+    <div class="note ok" id="bNote">
+      <b>Entries are public, on purpose.</b> This fills in a post on X for you — we don't run a
+      database, so there's nowhere for your entry to quietly disappear to. A public post is
+      timestamped and visible to everyone, including you, which means we can't lose it, drop it,
+      or claim it never arrived. Your wallet address is visible too, so use one you're happy to
+      have public.
     </div>
   </div>
 </section>
@@ -362,29 +377,74 @@ document.getElementById('copyBtn').onclick=()=>{
     .catch(()=>toast('Copy failed: '+link));
 };
 
-/* ---- bounty form ----------------------------------------------
-   Deliberately inert until BOUNTY_ENDPOINT is set. Collecting
-   submissions with nowhere to put them would be worse than saying
-   it isn't ready.                                                 */
+/* ---- bounty submissions ---------------------------------------
+   Submissions go out as a public post on X rather than into a
+   database of ours. That isn't a workaround — it's the same
+   argument as the referral contract. An entry we can silently
+   drop is an entry you have to trust us about; a public post is
+   one you can point at.
+
+   BOUNTY_ENDPOINT is left as a hook. Set it to a URL and the form
+   POSTs JSON there instead (Formspree, a Worker, anything that
+   accepts {link,wallet,handle}). Blank = the public path above.  */
 const BOUNTY_ENDPOINT = '';
+const BOUNTY_TAG      = '@arclitefun';
+
+function entryText(link, wallet, handle){
+  return [
+    'Arclite weekly bounty entry — ' + BOUNTY_TAG,
+    '',
+    'Entry: ' + link,
+    'Pay to: ' + wallet,
+    handle ? 'By: ' + (handle.startsWith('@') ? handle : '@' + handle) : '',
+    '',
+    'Winners published every Monday. arclite.fun/app/points.html'
+  ].filter(Boolean).join('\n');
+}
+
 document.getElementById('bSubmit').onclick=async()=>{
-  const link=document.getElementById('bLink').value.trim();
-  const wallet=document.getElementById('bWallet').value.trim();
-  if(!/^https?:\/\//.test(link)){ toast('Paste a link to your post'); return; }
+  const link  = document.getElementById('bLink').value.trim();
+  const wallet= document.getElementById('bWallet').value.trim();
+  const handle= document.getElementById('bHandle').value.trim();
+  const note  = document.getElementById('bNote');
+
+  if(!/^https?:\/\/.+\..+/.test(link)){ toast('Paste a link to your post'); return; }
   if(!ethers.isAddress(wallet)){ toast('Enter a valid wallet address'); return; }
-  if(!BOUNTY_ENDPOINT){
-    toast('Submissions aren\'t open yet — nothing was sent');
-    document.getElementById('bNote').innerHTML=
-      '<b>Nothing was submitted.</b> This form has no backend yet, so we discarded what you typed '+
-      'rather than pretend. Follow <a href="https://x.com/ArcLiteFun" target="_blank" rel="noopener">@arclitefun</a> '+
-      'and we\'ll announce the moment it opens.';
+
+  /* Private backend, if one is ever configured. */
+  if(BOUNTY_ENDPOINT){
+    try{
+      const r=await fetch(BOUNTY_ENDPOINT,{method:'POST',headers:{'content-type':'application/json'},
+        body:JSON.stringify({link,wallet,handle})});
+      toast(r.ok?'Submitted — we review every Monday':'Submission failed, try again');
+    }catch(e){ toast('Submission failed'); }
     return;
   }
-  try{
-    const r=await fetch(BOUNTY_ENDPOINT,{method:'POST',headers:{'content-type':'application/json'},
-      body:JSON.stringify({link,wallet,handle:document.getElementById('bHandle').value.trim()})});
-    toast(r.ok?'Submitted — we review every Monday':'Submission failed, try again');
-  }catch(e){ toast('Submission failed'); }
+
+  /* Public path. window.open must happen synchronously off the click
+     or Safari treats it as an unrequested popup and blocks it. */
+  const text = entryText(link, wallet, handle);
+  const url  = 'https://x.com/intent/post?text=' + encodeURIComponent(text);
+  const w    = window.open(url, '_blank', 'noopener');
+
+  if(w){
+    toast('Entry composed — post it to enter');
+    note.className='note ok';
+    note.innerHTML='<b>Almost there.</b> We opened X with your entry filled in — it isn\'t '+
+      'submitted until you actually post it. Keep the '+BOUNTY_TAG+' tag in, that\'s how we find it.';
+    return;
+  }
+
+  /* Popup blocked — never leave them with a dead button. */
+  note.className='note';
+  note.innerHTML='<b>Your browser blocked the popup.</b> '+
+    '<a href="'+url+'" target="_blank" rel="noopener">Open your entry on X</a>, or copy it below.'+
+    '<pre style="white-space:pre-wrap;background:var(--bg2);border:1px solid var(--hair);'+
+    'border-radius:9px;padding:12px;margin-top:10px;font-size:12.5px;color:var(--ink2);'+
+    'font-family:ui-monospace,SFMono-Regular,Menlo,monospace">'+
+    text.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</pre>';
+  navigator.clipboard.writeText(text).then(()=>toast('Entry copied to clipboard'))
+    .catch(()=>toast('Copy the entry above'));
 };
 
 loadBoard();

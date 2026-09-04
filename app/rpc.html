@@ -5,6 +5,20 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Arc RPC — free public endpoint · Arclite</title>
 <meta name="description" content="A free, cached, failover JSON-RPC endpoint for Arc mainnet (chain 5042). One click to add it to your wallet. No logging.">
+<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="%230a84ff"/><stop offset="1" stop-color="%2322d3ee"/></linearGradient></defs><path d="M 8 54 Q 22 51 36 41 Q 51 30 55 11" stroke="url(%23g)" stroke-width="7.5" stroke-linecap="round" fill="none"/><circle cx="54" cy="10" r="6.5" fill="%237dd3fc"/></svg>'>
+<link rel="icon" type="image/png" sizes="32x32" href="/brand/favicon-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/brand/touch-icon-180.png">
+<link rel="manifest" href="/manifest.json">
+<meta property="og:title" content="Arc RPC — free public endpoint · Arclite">
+<meta property="og:description" content="A free, cached, failover JSON-RPC endpoint for Arc mainnet (chain 5042). One click to add it to your wallet. No logging.">
+<meta property="og:image" content="https://arclite.fun/brand/og-card-1200x630.jpg">
+<meta property="og:url" content="https://arclite.fun/app/rpc.html">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@ArcLiteFun">
+<meta name="twitter:title" content="Arc RPC — free public endpoint · Arclite">
+<meta name="twitter:description" content="A free, cached, failover JSON-RPC endpoint for Arc mainnet (chain 5042). One click to add it to your wallet. No logging.">
+<meta name="twitter:image" content="https://arclite.fun/brand/og-card-1200x630.jpg">
 <style>
 :root{
   --bg:#07080c; --bg2:#0b0d13; --panel:#0e1118; --panel2:#12161f;
@@ -24,9 +38,7 @@ a:hover{text-decoration:underline}
 header{display:flex;align-items:center;justify-content:space-between;
   padding:20px 0;border-bottom:1px solid var(--hair);margin-bottom:48px}
 .brand{display:flex;align-items:center;gap:10px;font-weight:650;letter-spacing:-.2px}
-.mark{width:22px;height:22px;border-radius:6px;
-  background:linear-gradient(135deg,var(--cyan),var(--blue));
-  box-shadow:0 0 18px rgba(34,211,238,.35)}
+.mark{filter:drop-shadow(0 0 6px rgba(34,211,238,.45))}
 nav{display:flex;gap:20px;font-size:13px;color:var(--ink2)}
 
 h1{font-size:38px;line-height:1.15;letter-spacing:-1.1px;font-weight:680;margin-bottom:14px}
@@ -96,7 +108,7 @@ footer{margin-top:44px;padding-top:22px;border-top:1px solid var(--hair);
 <div class="wrap">
 
 <header>
-  <a class="brand" href="/"><span class="mark"></span> Arclite</a>
+  <a class="brand" href="/"><svg class="mark" viewBox="0 0 64 64" width="22" height="22" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><linearGradient id="markGrad" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#0a84ff"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs><path d="M 8 54 Q 22 51 36 41 Q 51 30 55 11" stroke="url(#markGrad)" stroke-width="7.5" stroke-linecap="round"/><circle cx="54" cy="10" r="6.5" fill="#7dd3fc"/></svg> Arclite</a>
   <nav>
     <a href="/app/terminal.html">Terminal</a>
     <a href="/app/">Launch</a>
