@@ -48,11 +48,11 @@ async function insertSwap(db, tokenAddress, s) {
  *  0x...dead) are tracked as amount flowing to/from those sentinel addresses,
  *  but the holders query (see queries.js) excludes them — a burn address
  *  holding tokens isn't a "holder" for the UI's purposes. */
-async function applyTransfer(db, tokenAddress, t) {
+async function applyTransfer(db, tokenAddress, t) { // $3::numeric - without the cast, 0 - $3 makes Postgres infer integer
   const addr = tokenAddress.toLowerCase();
   await db.query(
-    `INSERT INTO balances (token_address, holder, balance) VALUES ($1,$2, 0 - $3)
-     ON CONFLICT (token_address, holder) DO UPDATE SET balance = balances.balance - $3`,
+    `INSERT INTO balances (token_address, holder, balance) VALUES ($1,$2, 0 - $3::numeric)
+     ON CONFLICT (token_address, holder) DO UPDATE SET balance = balances.balance - $3::numeric`,
     [addr, t.from.toLowerCase(), t.amount]
   );
   await db.query(
