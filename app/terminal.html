@@ -60,10 +60,29 @@ body{
   border-bottom:1px solid var(--hair);background:linear-gradient(180deg,#0d1017,#0a0c11);
 }
 .logo{display:flex;align-items:center;gap:9px;font-weight:700;letter-spacing:.02em;font-size:14px}
-.logo .mk{width:20px;height:20px;position:relative}
-.logo .mk::after{content:'';position:absolute;inset:0;border-radius:50%;
-  background:radial-gradient(circle at 68% 32%,#bfe9ff,var(--cyan) 38%,var(--blue) 72%,transparent 74%);
-  box-shadow:0 0 14px rgba(34,211,238,.55)}
+.logo .mk{width:22px;height:22px;flex:0 0 22px;filter:drop-shadow(0 0 6px rgba(34,211,238,.45))}
+
+/* ---- explorer (scanner mode) ---- */
+.chg{font-family:'JetBrains Mono',monospace;font-weight:600}
+.pend{display:inline-block;padding:2px 8px;border-radius:999px;font-size:10.5px;letter-spacing:.02em;
+  color:var(--ink3);border:1px solid var(--hair2);
+  background:linear-gradient(90deg,#0c0f15,#151a26,#0c0f15);background-size:200% 100%;
+  animation:pend 1.6s linear infinite}
+@keyframes pend{to{background-position:-200% 0}}
+.dexb{display:inline-block;padding:1px 5px;border-radius:4px;font-size:9.5px;font-weight:700;letter-spacing:.06em;
+  color:var(--light);background:rgba(125,211,252,.10);border:1px solid rgba(125,211,252,.22);vertical-align:1px;margin-left:5px}
+.dexb.v4{color:#c4b5fd;background:rgba(139,125,255,.12);border-color:rgba(139,125,255,.28)}
+.unnamed{color:var(--ink2);font-weight:500}
+.star{background:none;border:0;color:var(--ink3);font-size:15px;cursor:pointer;padding:0 4px;line-height:1}
+.star:hover,.star.on{color:var(--amber)}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.stat{background:var(--bg2);border:1px solid var(--hair);border-radius:9px;padding:9px 10px}
+.stat span{display:block;font-size:10.5px;color:var(--ink3);letter-spacing:.03em;text-transform:uppercase}
+.stat b{display:block;font-family:'JetBrains Mono',monospace;font-weight:500;font-size:13px;margin-top:3px}
+.addrrow{display:flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--ink3)}
+.copy{background:none;border:1px solid var(--hair2);border-radius:5px;color:var(--ink2);font-size:10px;padding:1px 6px;cursor:pointer}
+.copy:hover{color:var(--ink);border-color:#3a4761}
+.hint{font-size:11px;color:var(--ink3);line-height:1.5;margin-top:8px}
 .pill{
   font-size:10.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
   padding:4px 9px;border-radius:20px;border:1px solid var(--hair2);color:var(--ink2);
@@ -269,7 +288,7 @@ td.l{text-align:left}
 
   <!-- ================= top bar ================= -->
   <div class="topbar">
-    <div class="logo"><div class="mk"></div>ARCLITE<span style="color:var(--ink3);font-weight:500">/terminal</span></div>
+    <div class="logo"><svg class="mk" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><linearGradient id="markGrad" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#0a84ff"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs><path d="M 8 54 Q 22 51 36 41 Q 51 30 55 11" stroke="url(#markGrad)" stroke-width="7.5" stroke-linecap="round"/><circle cx="54" cy="10" r="6.5" fill="#7dd3fc"/></svg>ARCLITE<span style="color:var(--ink3);font-weight:500">/terminal</span></div>
     <div class="pill live" id="netPill">arc testnet</div>
     <div class="search">
       <span style="color:var(--ink3)">⌕</span>
@@ -295,11 +314,15 @@ td.l{text-align:left}
 
   <!-- ================= toolbar ================= -->
   <div class="toolbar">
+    <div class="tab scan-only" data-f="trending">Trending <span class="n" id="c-trending">0</span></div>
     <div class="tab on" data-f="new">New <span class="n" id="c-new">0</span></div>
-    <div class="tab" data-f="climbing">Climbing <span class="n" id="c-climbing">0</span></div>
-    <div class="tab" data-f="near">Near grad <span class="n" id="c-near">0</span></div>
-    <div class="tab" data-f="grad">Graduated <span class="n" id="c-grad">0</span></div>
-    <div class="tab" data-f="odds">Best odds <span class="n" id="c-odds">0</span></div>
+    <div class="tab scan-only" data-f="gainers">Gainers <span class="n" id="c-gainers">0</span></div>
+    <div class="tab scan-only" data-f="holders">Most held <span class="n" id="c-holders">0</span></div>
+    <div class="tab scan-only" data-f="watch">★ Watchlist <span class="n" id="c-watch">0</span></div>
+    <div class="tab launch-only" data-f="climbing">Climbing <span class="n" id="c-climbing">0</span></div>
+    <div class="tab launch-only" data-f="near">Near grad <span class="n" id="c-near">0</span></div>
+    <div class="tab launch-only" data-f="grad">Graduated <span class="n" id="c-grad">0</span></div>
+    <div class="tab launch-only" data-f="odds">Best odds <span class="n" id="c-odds">0</span></div>
     <div class="tab" data-f="portfolio">Portfolio</div>
     <div class="vr"></div>
     <div class="presets">
@@ -324,7 +347,7 @@ td.l{text-align:left}
   <div class="main">
     <div class="tablewrap">
       <table>
-        <thead><tr>
+        <thead id="thLaunch"><tr>
           <th class="l" style="width:34px">#</th>
           <th class="l">Coin</th>
           <th>Age</th>
@@ -334,6 +357,17 @@ td.l{text-align:left}
           <th style="width:150px">Progress</th>
           <th style="width:150px" title="Live graduation market — the column no other terminal has">Odds ⚖</th>
           <th style="width:130px"></th>
+        </tr></thead>
+        <thead id="thScan" style="display:none"><tr>
+          <th class="l" style="width:34px">#</th>
+          <th class="l">Token</th>
+          <th>Price</th>
+          <th title="Change vs. the last swap 24h ago">24h</th>
+          <th title="USDC traded in the last 24h">Vol 24h</th>
+          <th title="Swaps in the last 24h">Txns</th>
+          <th title="Addresses holding a non-zero balance (burn and zero address excluded)">Holders</th>
+          <th title="Time since the pool was created">Age</th>
+          <th style="width:110px"></th>
         </tr></thead>
         <tbody id="rows"></tbody>
       </table>
@@ -608,7 +642,7 @@ function toast(msg, err){
 ================================================================== */
 let GRAD_TARGET = 8000;
 let coins = [];          // merged coin + market rows
-let filter = 'new';
+let filter = (typeof NET!=='undefined' && NET.mode==='scanner') ? 'trending' : 'new';
 let selected = -1;
 let portfolioDust = []; // last-rendered dust rows, for the Sweep button delegate
 let buyAmt = 1, betAmt = 1;
@@ -838,6 +872,8 @@ async function loadFromIndexer(){
       // might trade on. priceStale already drives that rendering below.
       phase:1, price:Number(t.price)||0, priceStale:(t.price==null), liq:null,
       pool:t.pool_ref, fee:null, block:t.first_seen_block,
+      firstSeenAt: t.first_seen_at ? Math.floor(new Date(t.first_seen_at).getTime()/1000) : null,
+      metaOk: t.meta_ok === true,
       raised:0, sold:0, pct:0, market:null, scanner:true, dex:t.dex,
       // carried through for a future trending/volume-column UI pass — not
       // rendered yet, but no reason to make the API round-trip twice later.
@@ -981,10 +1017,31 @@ async function load(){
 /* ==================================================================
    FILTER + RENDER
 ================================================================== */
+const WATCH_KEY='ark_watch';
+let watch = new Set();
+try{ watch = new Set(JSON.parse(localStorage.getItem(WATCH_KEY)||'[]')); }catch(e){}
+function toggleWatch(addr){
+  addr=addr.toLowerCase();
+  watch.has(addr) ? watch.delete(addr) : watch.add(addr);
+  try{ localStorage.setItem(WATCH_KEY, JSON.stringify([...watch])); }catch(e){}
+  render(); rail();
+}
+const isWatched = c => watch.has((c.addr||'').toLowerCase());
+
 function view(){
   const q=(document.getElementById('q').value||'').trim().toLowerCase();
   let v=coins.filter(c=>!q || c.name.toLowerCase().includes(q) ||
         c.symbol.toLowerCase().includes(q) || c.addr.toLowerCase().includes(q));
+  if(NET.mode==='scanner'){
+    // Explorer sorts. Anything unverified (no real decimals yet) sorts to the
+    // bottom of price-based views rather than polluting them with nulls.
+    const num = x => (x==null||isNaN(x)) ? -Infinity : Number(x);
+    if(filter==='trending') return v.sort((a,b)=>num(b.volume24h)-num(a.volume24h) || num(b.txns24h)-num(a.txns24h));
+    if(filter==='gainers')  return v.filter(c=>c.change24h!=null && c.txns24h>0).sort((a,b)=>num(b.change24h)-num(a.change24h));
+    if(filter==='holders')  return v.sort((a,b)=>num(b.holders)-num(a.holders));
+    if(filter==='watch')    return v.filter(isWatched);
+    return v.sort((a,b)=>num(b.firstSeenAt??b.block)-num(a.firstSeenAt??a.block)); // new
+  }
   if(filter==='new')      v=v.filter(c=>c.phase===1);
   if(filter==='climbing') v=v.filter(c=>c.phase===1 && c.pct>=5 && c.pct<70).sort((a,b)=>b.pct-a.pct);
   if(filter==='near')     v=v.filter(c=>c.phase===1 && c.pct>=70).sort((a,b)=>b.pct-a.pct);
@@ -999,9 +1056,13 @@ function counts(){
     climbing:coins.filter(c=>c.phase===1&&c.pct>=5&&c.pct<70).length,
     near:coins.filter(c=>c.phase===1&&c.pct>=70).length,
     grad:coins.filter(c=>c.phase===2).length,
-    odds:coins.filter(c=>c.market&&!c.market.resolved).length
+    odds:coins.filter(c=>c.market&&!c.market.resolved).length,
+    trending:coins.filter(c=>(c.volume24h||0)>0).length,
+    gainers:coins.filter(c=>c.change24h!=null && c.txns24h>0 && c.change24h>0).length,
+    holders:coins.filter(c=>(c.holders||0)>0).length,
+    watch:coins.filter(isWatched).length,
   };
-  for(const k in set) document.getElementById('c-'+k).textContent=set[k];
+  for(const k in set){ const el=document.getElementById('c-'+k); if(el) el.textContent=set[k]; }
 }
 
 function oddsCell(c){
@@ -1257,6 +1318,36 @@ function render(){
   if(filter==='portfolio'){ renderPortfolio(); return; }
   const v=view(), tb=document.getElementById('rows');
   if(!v.length){ tb.innerHTML='<tr><td colspan="9" class="empty">Nothing here yet.</td></tr>'; return; }
+  if(NET.mode==='scanner'){
+    tb.innerHTML=v.map((c,i)=>{
+      const named = c.symbol && c.symbol!=='—';
+      const chg = c.change24h;
+      const chgCell = (chg==null || !(c.txns24h>0))
+        ? '<span class="dim">—</span>'
+        : '<span class="chg '+(chg>=0?'up':'dn')+'">'+(chg>=0?'+':'')+Number(chg).toFixed(1)+'%</span>';
+      return '<tr data-i="'+i+'" class="'+(i===selected?'sel':'')+'">'+
+        '<td class="l dim num">'+(i+1)+'</td>'+
+        '<td class="l"><div class="coin">'+
+          '<div class="av" style="background:linear-gradient(135deg,hsl('+hue(c.addr)+',70%,52%),hsl('+((hue(c.addr)+40)%360)+',70%,38%))">'+
+            (named ? c.symbol.slice(0,3) : c.addr.slice(2,4).toUpperCase())+'</div>'+
+          '<div><div class="cname">'+(named ? c.name : '<span class="unnamed">'+short(c.addr)+'</span>')+
+            '<span class="dexb '+(c.dex==='v4'?'v4':'')+'">'+(c.dex||'v3').toUpperCase()+'</span></div>'+
+            '<div class="csym">'+(named ? c.symbol+' · '+short(c.addr) : 'name pending · '+short(c.addr))+'</div></div>'+
+        '</div></td>'+
+        '<td class="num">'+((c.priceStale||!c.metaOk)?'<span class="pend" title="Price is published only once the token\'s decimals are verified on-chain — a guessed value could be wrong by orders of magnitude.">pending</span>':fmtPrice(c.price))+'</td>'+
+        '<td class="num">'+chgCell+'</td>'+
+        '<td class="num">'+((c.volume24h||0)>0 ? fmtUsd(c.volume24h) : '<span class="dim">—</span>')+'</td>'+
+        '<td class="num">'+((c.txns24h||0)>0 ? c.txns24h : '<span class="dim">—</span>')+'</td>'+
+        '<td class="num">'+((c.holders||0)>0 ? Number(c.holders).toLocaleString() : '<span class="dim">—</span>')+'</td>'+
+        '<td class="num dim">'+(c.firstSeenAt ? age(c.firstSeenAt) : '—')+'</td>'+
+        '<td><div class="acts">'+
+          '<button class="star '+(isWatched(c)?'on':'')+'" data-watch="'+c.addr+'" title="'+(isWatched(c)?'Remove from':'Add to')+' watchlist">'+(isWatched(c)?'★':'☆')+'</button>'+
+          '<a class="mini" style="text-decoration:none" target="_blank" rel="noopener" href="'+
+            (c.dex==='v4' ? EXPLORER+'/address/'+NET.v4PoolManager : EXPLORER+'/address/'+c.pool)+'">POOL ↗</a>'+
+        '</div></td></tr>';
+    }).join('');
+    return;
+  }
   tb.innerHTML=v.map((c,i)=>{
     const grad=c.phase===2;
     return '<tr data-i="'+i+'" class="'+(i===selected?'sel':'')+'">'+
@@ -1298,7 +1389,8 @@ function render(){
 ================================================================== */
 function rail(){
   const v=view(), c=v[selected], el=document.getElementById('rail');
-  if(!c){ el.innerHTML='<div class="empty">Select a coin<br><span style="color:var(--ink3);font-size:11px">↑ ↓ to move · Enter to open</span></div>'; return; }
+  if(!c){ el.innerHTML='<div class="empty">Select a token<br><span style="color:var(--ink3);font-size:11px">↑ ↓ to move · Enter to open · ★ to watch</span></div>'; return; }
+  if(NET.mode==='scanner'){ railScan(c, el); return; }
   const m=c.market;
   el.innerHTML =
    '<div class="card">'+
@@ -1341,6 +1433,45 @@ function rail(){
        '<div id="railCreator" class="dim" style="font-size:11.5px">Reading the chain…</div></div>'
      : '');
   if(!c.scanner && c.creator) setTimeout(()=>fillCreatorCard(c),0);
+}
+
+function railScan(c, el){
+  const named = c.symbol && c.symbol!=='—';
+  const verified = c.metaOk && !c.priceStale;
+  const chg = c.change24h;
+  const poolHref = c.dex==='v4' ? EXPLORER+'/address/'+NET.v4PoolManager : EXPLORER+'/address/'+c.pool;
+  const stat = (k,val,title) => '<div class="stat"'+(title?' title="'+title+'"':'')+'><span>'+k+'</span><b>'+val+'</b></div>';
+  el.innerHTML =
+   '<div class="card">'+
+     '<div class="coin" style="margin-bottom:8px;align-items:flex-start">'+
+       '<div class="av" style="width:40px;height:40px;flex:0 0 40px;border-radius:11px;font-size:12px;background:linear-gradient(135deg,hsl('+hue(c.addr)+',70%,52%),hsl('+((hue(c.addr)+40)%360)+',70%,38%))">'+
+         (named ? c.symbol.slice(0,3) : c.addr.slice(2,4).toUpperCase())+'</div>'+
+       '<div style="min-width:0;flex:1">'+
+         '<div class="dsp" style="font-size:15px;display:flex;align-items:center;gap:6px">'+
+           (named ? c.name : '<span class="unnamed">Unnamed token</span>')+
+           '<span class="dexb '+(c.dex==='v4'?'v4':'')+'">Uniswap '+(c.dex||'v3').toUpperCase()+'</span>'+
+           '<button class="star '+(isWatched(c)?'on':'')+'" data-watch="'+c.addr+'" style="margin-left:auto" title="Watchlist">'+(isWatched(c)?'★':'☆')+'</button>'+
+         '</div>'+
+         '<div class="addrrow"><span>'+(named ? c.symbol+' · ' : '')+short(c.addr)+'</span>'+
+           '<button class="copy" data-copy="'+c.addr+'">copy</button></div>'+
+       '</div></div>'+
+     '<div class="big">'+(verified ? fmtPrice(c.price) : '<span class="pend" style="font-size:12px">price pending</span>')+
+       (verified && chg!=null && c.txns24h>0 ? ' <span class="chg '+(chg>=0?'up':'dn')+'" style="font-size:14px">'+(chg>=0?'+':'')+Number(chg).toFixed(1)+'%</span>' : '')+'</div>'+
+     (!verified ? '<div class="hint">Shown once the token\'s decimals are read on-chain. A price on guessed decimals can be wrong by 10<sup>12</sup>, so we don\'t show one.</div>' : '')+
+     '<div class="stats">'+
+       stat('Vol 24h', (c.volume24h||0)>0 ? fmtUsd(c.volume24h) : '—')+
+       stat('Txns 24h', (c.txns24h||0)>0 ? c.txns24h : '—')+
+       stat('Traders 24h', (c.traders24h||0)>0 ? c.traders24h : '—')+
+       stat('Holders', (c.holders||0)>0 ? Number(c.holders).toLocaleString() : '—', 'Non-zero balances, burn and zero address excluded')+
+       stat('Age', c.firstSeenAt ? age(c.firstSeenAt) : '—')+
+       stat('Pair', 'USDC')+
+     '</div>'+
+   '</div>'+
+   '<div class="card"><h3>Trade</h3>'+
+     '<a class="btn primary" style="display:block;text-align:center;text-decoration:none" href="'+poolHref+'" target="_blank" rel="noopener">Open pool ↗</a>'+
+     '<a class="btn" style="display:block;text-align:center;text-decoration:none;margin-top:7px" href="'+EXPLORER+'/token/'+c.addr+'" target="_blank" rel="noopener">Token on explorer ↗</a>'+
+     '<div class="hint">This is a Uniswap pool on Arc, not an Arclite curve — in-terminal swaps land once the Arc swap router is verified. Arclite launches (BUY, odds markets) show here the day the launchpad goes live on mainnet.</div>'+
+   '</div>';
 }
 
 /* ==================================================================
@@ -1734,17 +1865,23 @@ document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
 function paintNet(){
   document.querySelectorAll('.netopt').forEach(o=>
     o.classList.toggle('on', NETWORKS[o.dataset.net] && NETWORKS[o.dataset.net].chainId===NET.chainId));
-  // Launchpad-only controls make no sense in scanner mode.
+  // Everything below swaps the UI between "explorer" (mainnet: Uniswap pools,
+  // read-only, no router) and "launchpad" (Arclite curve + odds markets).
   const scanner = NET.mode==='scanner';
-  document.querySelectorAll('.tab[data-f="near"],.tab[data-f="grad"],.tab[data-f="odds"]')
-    .forEach(t=>t.style.display = scanner ? 'none' : '');
-  const betGroup = document.querySelector('.chip[data-bet]');
-  if(betGroup && betGroup.parentElement)
-    betGroup.parentElement.style.display = scanner ? 'none' : '';
-  if(scanner && ['near','grad','odds'].includes(filter)){
-    filter='new';
-    document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on', x.dataset.f==='new'));
-  }
+  document.querySelectorAll('.scan-only').forEach(t=>t.style.display = scanner ? '' : 'none');
+  document.querySelectorAll('.launch-only').forEach(t=>t.style.display = scanner ? 'none' : '');
+  document.getElementById('thScan').style.display   = scanner ? '' : 'none';
+  document.getElementById('thLaunch').style.display = scanner ? 'none' : '';
+  // Buy/Bet presets drive launchpad calls — hide both rather than show a $1 chip
+  // that can't do anything on a Uniswap pool.
+  document.querySelectorAll('.presets, .toolbar .vr').forEach(el=>el.style.display = scanner ? 'none' : '');
+  const pill=document.getElementById('netPill');
+  if(pill){ pill.textContent = scanner ? 'arc mainnet' : 'arc testnet'; pill.classList.add('live'); }
+  const badFilter = scanner ? ['near','grad','odds','climbing'] : ['trending','gainers','holders','watch'];
+  if(badFilter.includes(filter)) filter = scanner ? 'trending' : 'new';
+  // Always sync the highlighted tab to the real filter — the markup hard-codes
+  // "New" as active, which is wrong the moment the explorer opens on Trending.
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on', x.dataset.f===filter));
 }
 document.querySelectorAll('.netopt').forEach(o=>o.addEventListener('click',()=>{
   const key=o.dataset.net;
@@ -1776,6 +1913,10 @@ document.body.addEventListener('click',e=>{
     if(b.dataset.act==='no')  doBet(c,false);
     return;
   }
+  const w=e.target.closest('[data-watch]');
+  if(w){ e.stopPropagation(); toggleWatch(w.dataset.watch); return; }
+  const cp=e.target.closest('[data-copy]');
+  if(cp){ e.stopPropagation(); navigator.clipboard.writeText(cp.dataset.copy).then(()=>toast('Address copied')).catch(()=>{}); return; }
   const ds=e.target.closest('[data-dust]');
   if(ds){
     e.stopPropagation();
