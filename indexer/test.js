@@ -290,6 +290,36 @@ function fakeLog(iface, eventName, args, overrides = {}) {
   ok(bad.log.includes('ROLLBACK') && !bad.log.includes('COMMIT'), 'failure path: ROLLBACK, never COMMIT: ' + bad.log.join(','));
   ok(bad.released === 1, 'client released after failure too');
 
+  // --- memory bound: dense fetch aborts the chunk before processing; chunk size adapts
+  console.log('\n=== memory bound: TooDense aborts early, chunk size halves then recovers ===');
+  const { nextChunkSize, TooDense, MAX_LOGS_PER_CHUNK } = require('./worker');
+  ok(nextChunkSize(9500, { tooDense: true }) === 4750, 'TooDense halves the chunk (9500 -> 4750)');
+  ok(nextChunkSize(300, { tooDense: true }) === 200, 'never shrinks below MIN_CHUNK (200)');
+  ok(nextChunkSize(4750, { logs: 100 }) === 9500, 'a quiet chunk doubles back, capped at LOG_CHUNK');
+  ok(nextChunkSize(4750, { logs: MAX_LOGS_PER_CHUNK - 1 }) === 4750, 'a busy-but-OK chunk holds its size');
+  ok(nextChunkSize(9500, { logs: 10 }) === 9500, 'already at max stays at max');
+
+  // a provider whose first fetch returns MAX+1 logs: processChunk must throw TooDense
+  // having done NO discovery, NO DB writes and NO further RPC calls.
+  const db5 = freshDb();
+  await store.upsertToken(db5, { address: T_OLD, name:'Old', symbol:'OLD', decimals:18, dex:'v3', poolRef:P_OLD, fee:3000, usdcIsToken0:true, block:50, metaOk:true });
+  const flood = Array.from({ length: MAX_LOGS_PER_CHUNK + 1 }, (_, i) =>
+    fakeLog(IFACES.v3Pool, 'Swap', [A(0x9), A(0x9), 1_000_000n, -1n*10n**18n, sqrt, 0n, 0], { address: P_OLD, blockNumber: 2000 + (i % 50), txHash: '0x' + i.toString(16).padStart(64, '0'), logIndex: i }));
+  let fetches = 0, blockFetches = 0;
+  const floodProvider = { async getLogs() { fetches++; return flood; }, async getBlock() { blockFetches++; return { timestamp: 1 }; } };
+  let denseErr = null;
+  try { await processChunk(db5, floodProvider, 2000, 2100); } catch (e) { denseErr = e; }
+  ok(denseErr && denseErr.tooDense, 'processChunk throws TooDense on a flood: ' + (denseErr && denseErr.message));
+  ok(fetches === 1, 'aborted after the FIRST getLogs — no follow-up, no transfers fetch: ' + fetches);
+  ok(blockFetches === 0, 'no block timestamps fetched for a chunk that was abandoned');
+  ok((await db5.query('SELECT count(*)::int n FROM swaps')).rows[0].n === 0, 'nothing written to the DB for the abandoned chunk');
+
+  // runChunk surfaces TooDense unchanged (so the loop can shrink) and still rolls back
+  const tp = mkPool(null);
+  let surfaced = null;
+  try { await runChunk(tp.pool, floodProvider, 2000, 2100); } catch (e) { surfaced = e; }
+  ok(surfaced && surfaced.tooDense && tp.log.includes('ROLLBACK') && tp.released === 1, 'runChunk passes TooDense through after ROLLBACK + release');
+
   // --- getLogsAdaptive: Infura's 20k-result cap, reproduced verbatim, must be
   //     survived by splitting — and nothing may be lost or duplicated in the seam.
   console.log('\n=== getLogsAdaptive: provider result cap -> split, no loss, no duplicates ===');

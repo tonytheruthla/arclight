@@ -21,6 +21,26 @@ const LOG_CHUNK = 9500;               // Arc's eth_getLogs caps at 10k blocks �
  * one go (663 chunks x ~1,800 ≈ 1.2M, so 0 is fine; raise it if you're sharing
  * the key with something else). PAUSED=1 idles the worker without a redeploy —
  * use it to hand the whole quota to a deploy for an hour. */
+/* Memory bound. The worker runs in a ~512MB container. A launch-wave range can
+ * put 14,000 swaps and far more transfers in one 9,500-block chunk; held as ethers
+ * Log objects across three arrays plus one transaction, that peaked at ~600MB and
+ * the kernel killed it — then it restarted into the same chunk. So any single
+ * fetch that comes back with more than MAX_LOGS_PER_CHUNK logs aborts the chunk
+ * BEFORE processing (one wasted getLogs, ~255 credits) and the main loop retries
+ * it at half the block range. Chunk size grows back once ranges are quiet. */
+const MAX_LOGS_PER_CHUNK = Number(process.env.MAX_LOGS_PER_CHUNK || 6000);
+const MIN_CHUNK          = 200;
+class TooDense extends Error {
+  constructor(count, from, to) { super(`${count} logs in ${from}-${to} exceeds MAX_LOGS_PER_CHUNK=${MAX_LOGS_PER_CHUNK}`); this.tooDense = true; }
+}
+/** Next chunk size after a chunk outcome. Halve on TooDense (floor MIN_CHUNK);
+ *  double back toward LOG_CHUNK once a chunk comes in well under the cap. */
+function nextChunkSize(current, { tooDense = false, logs = 0 } = {}) {
+  if (tooDense) return Math.max(MIN_CHUNK, Math.floor(current / 2));
+  if (logs < MAX_LOGS_PER_CHUNK / 4 && current < LOG_CHUNK) return Math.min(LOG_CHUNK, current * 2);
+  return current;
+}
+
 const POLL_INTERVAL_MS   = Number(process.env.POLL_INTERVAL_MS || 30_000);
 const CHUNK_DELAY_MS     = Number(process.env.CHUNK_DELAY_MS || 0);
 const PAUSED             = process.env.PAUSED === '1';
@@ -146,8 +166,11 @@ async function getLogsAdaptive(provider, filter, depth = 0) {
   let lastErr;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      return await provider.getLogs(filter);
+      const logs = await provider.getLogs(filter);
+      if (logs.length > MAX_LOGS_PER_CHUNK) throw new TooDense(logs.length, from, to);
+      return logs;
     } catch (e) {
+      if (e && e.tooDense) throw e;
       const msg = String(e && (e.message || e));
       const capped = /exceeds max results|too many results|response size|query timeout|-32602/i.test(msg);
       if (capped) {
@@ -159,7 +182,9 @@ async function getLogsAdaptive(provider, filter, depth = 0) {
         if (!(mid >= from && mid < to)) mid = Math.floor((from + to) / 2);
         console.log(`[split] ${from}-${to} exceeded the provider result cap; retrying as ${from}-${mid} + ${mid + 1}-${to}`);
         const a = await getLogsAdaptive(provider, { ...filter, fromBlock: from, toBlock: mid }, depth + 1);
+        if (a.length > MAX_LOGS_PER_CHUNK) throw new TooDense(a.length, from, mid);
         const b = await getLogsAdaptive(provider, { ...filter, fromBlock: mid + 1, toBlock: to }, depth + 1);
+        if (a.length + b.length > MAX_LOGS_PER_CHUNK) throw new TooDense(a.length + b.length, from, to);
         return a.concat(b);
       }
       lastErr = e;                                   // transient: back off and retry
@@ -238,10 +263,12 @@ async function processChunk(db, provider, fromBlock, toBlock) {
 
   // ---- 3. transfers, for holder counts
   const allTokens = v3Tokens.concat(v4Tokens);
+  let transferCount = 0;
   if (allTokens.length) {
     const trLogs = await getLogsAdaptive(provider, {
       address: allTokens.map(t => t.address), topics: [TOPICS.erc20Transfer], fromBlock, toBlock,
     });
+    transferCount = trLogs.length;
     const byAddr = new Map(allTokens.map(t => [t.address.toLowerCase(), t]));
     for (const log of trLogs) {
       const t = byAddr.get(log.address.toLowerCase());
@@ -251,7 +278,8 @@ async function processChunk(db, provider, fromBlock, toBlock) {
     }
   }
 
-  return { discovered: poolCreatedLogs.length + initLogs.length, swaps: v3Kept.length + v4Kept.length, transfers: allTokens.length ? 'scanned' : 0 };
+  return { discovered: poolCreatedLogs.length + initLogs.length, swaps: v3Kept.length + v4Kept.length,
+           transfers: transferCount, logs: merged.length + transferCount };
 }
 
 /** Process one chunk inside a single DB transaction. Balance updates are
@@ -286,6 +314,13 @@ async function takeSnapshots(db) {
 }
 
 async function main() {
+  // PAUSED must be honoured before touching anything. It used to sit after the
+  // first DB read, so with Postgres down the worker crashed instead of idling —
+  // which is exactly the moment you most want a pause switch to work.
+  if (PAUSED) {
+    console.log('[paused] PAUSED=1 — idling, no RPC or DB calls. Unset to resume.');
+    while (true) await sleep(60_000);
+  }
   const db = makePool();
   const provider = new ethers.JsonRpcProvider(
     process.env.RPC_URL,
@@ -303,20 +338,26 @@ async function main() {
 
   let lastSnapshot = 0;
   let chunksSinceMeta = 0;
-
-  if (PAUSED) {
-    console.log('[paused] PAUSED=1 — idling, no RPC calls. Unset to resume.');
-    while (true) await sleep(60_000);
-  }
+  let chunk = LOG_CHUNK;
 
   while (true) {
     try {
       const head = await retry(() => provider.getBlockNumber());
       if (lastBlock < head) {
-        const to = Math.min(head, lastBlock + LOG_CHUNK);
-        const stats = await runChunk(db, provider, lastBlock + 1, to);
-        console.log(`[chunk] ${lastBlock + 1}-${to} · +${stats.discovered} tokens · ${stats.swaps} swaps`);
+        const to = Math.min(head, lastBlock + chunk);
+        let stats;
+        try {
+          stats = await runChunk(db, provider, lastBlock + 1, to);
+        } catch (e) {
+          if (!(e && e.tooDense)) throw e;
+          const next = nextChunkSize(chunk, { tooDense: true });
+          console.log(`[dense] ${e.message} — shrinking chunk ${chunk} -> ${next} and retrying`);
+          chunk = next;
+          continue;                                   // no sleep: retry the same range smaller, right away
+        }
+        console.log(`[chunk] ${lastBlock + 1}-${to} · +${stats.discovered} tokens · ${stats.swaps} swaps · ${stats.transfers} transfers · ${stats.logs} logs`);
         lastBlock = to;
+        chunk = nextChunkSize(chunk, { logs: stats.logs });
         // Repair metadata during the backfill too, not just once caught up. A
         // cold start is millions of blocks behind, so gating this on "caught up"
         // meant every token discovered on the way stayed nameless and unpriced
@@ -345,4 +386,4 @@ if (require.main === module) {
   main().catch(e => { console.error('FATAL', e); process.exit(1); });
 }
 
-module.exports = { processChunk, runChunk, takeSnapshots, getLogsAdaptive, retry, blockTimes };
+module.exports = { processChunk, runChunk, takeSnapshots, getLogsAdaptive, retry, blockTimes, nextChunkSize, TooDense, MAX_LOGS_PER_CHUNK };
