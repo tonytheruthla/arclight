@@ -65,10 +65,14 @@ async function insertSwap(db, tokenAddress, s) {
  *  0x...dead) are tracked as amount flowing to/from those sentinel addresses,
  *  but the holders query (see queries.js) excludes them — a burn address
  *  holding tokens isn't a "holder" for the UI's purposes. */
-async function applyTransfer(db, tokenAddress, t) { // $3::numeric - without the cast, 0 - $3 makes Postgres infer integer
+async function applyTransfer(db, tokenAddress, t) {
+  // Both operands cast explicitly. `0 - $3` makes Postgres infer INTEGER from the
+  // literal and reject a fractional amount; and pg-mem (the test engine) drops the
+  // subtraction entirely for `0 - $3::numeric`, returning +amount. Spelling it as
+  // 0::numeric - $3::numeric is correct in both, so the tests test the real thing.
   const addr = tokenAddress.toLowerCase();
   await db.query(
-    `INSERT INTO balances (token_address, holder, balance) VALUES ($1,$2, 0 - $3::numeric)
+    `INSERT INTO balances (token_address, holder, balance) VALUES ($1,$2, 0::numeric - $3::numeric)
      ON CONFLICT (token_address, holder) DO UPDATE SET balance = balances.balance - $3::numeric`,
     [addr, t.from.toLowerCase(), t.amount]
   );

@@ -105,14 +105,28 @@ Two consequences the code now handles rather than hides:
 - The worker retries those tokens (`backfillMeta`) whenever it's caught up, so they repair
   themselves once quota frees up. No manual intervention, no re-scan.
 
-To actually fix the underlying limit, in rough order of effort:
+**The free tier is enough — the worker is now sized for it.** Infura credit costs (from their
+published table): `eth_getLogs` 255, `eth_call` / `getBlock` / `blockNumber` 80 each. What the
+worker costs per chunk:
 
-1. **Raise the plan** on whichever provider you use, or switch to one with a bigger free tier.
-2. **Route through `arclite-rpc`** — it caches `eth_getCode`, `eth_chainId` and friends hard,
-   which is exactly the repeat traffic that burns quota. Set `RPC_URL` to the proxy instead of
-   the provider once it's deployed.
-3. **Set `START_BLOCK`** to the earliest block that actually matters, so a fresh backfill
-   doesn't re-scan millions of empty blocks.
+| | before | now |
+|---|---|---|
+| `eth_getLogs` per chunk | 5 (≈1,275 credits) | 2 (≈510) — one merged discovery+swaps call, one transfers call |
+| polling interval | 20s | 30s (`POLL_INTERVAL_MS`) |
+| steady state / day | **≈6M** (2× the free tier) | **≈1.7M** |
+| remaining backfill (≈663 chunks) | — | ≈1.2M, one-off |
+
+So day one of a fresh backfill lands around 2.5–2.9M — tight against the 3M line — and every
+day after is ~1.7M with room to spare for the metadata repair. Two levers if you need them, both
+Railway variables, no redeploy of code:
+
+- `PAUSED=1` — idles the worker (no RPC calls at all). Use it to hand the whole quota to
+  something else for an hour, e.g. the contract deploy. Unset to resume where it left off.
+- `CHUNK_DELAY_MS=2000` — paces the backfill (≈1,800 credits every 2s instead of as fast as
+  the RPC allows) so it spreads over two days rather than risking the daily cap.
+
+If you'd still rather not think about it: the Developer plan ($50/mo, 15M/day) removes the
+question entirely. But it isn't required.
 
 ## What to check when something looks wrong
 

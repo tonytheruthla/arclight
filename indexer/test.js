@@ -167,6 +167,59 @@ function fakeLog(iface, eventName, args, overrides = {}) {
   ok((await store.getTokensMissingMeta(db, 10)).length === 0,
      'backfilled token no longer appears in the missing-metadata queue');
 
+  // --- processChunk end-to-end against a MOCK provider: proves the single merged
+  //     getLogs call yields the same rows as the old five, including the edge
+  //     case of a pool created and traded inside the same chunk.
+  console.log('\n=== worker.processChunk: merged log fetch (2 getLogs per chunk, not 5) ===');
+  const { processChunk } = require('./worker');
+  const db2 = freshDb();
+  const sqrt = 79228162514264337593543950336n; // 2^96 -> price 1.0 before decimals
+  const T_OLD = A(0x5001), P_OLD = A(0x5002);   // known pool, discovered in an earlier chunk
+  const T_NEW = A(0x6001), P_NEW = A(0x6002);   // created AND traded in this chunk
+  await store.upsertToken(db2, { address: T_OLD, name:'Old', symbol:'OLD', decimals:18, dex:'v3', poolRef:P_OLD, fee:3000, usdcIsToken0:true, block:50, metaOk:true });
+
+  const chainLogs = [
+    fakeLog(IFACES.v3Pool,    'Swap',        [A(0x9), A(0x9), 1_000_000n, -5n*10n**18n, sqrt, 0n, 0], { address:P_OLD, blockNumber:120, txHash:'0x'+'a1'.repeat(32), logIndex:0 }),
+    fakeLog(IFACES.v3Factory, 'PoolCreated', [usdc, T_NEW, 3000, 60, P_NEW],                              { address:ARC.v3Factory, blockNumber:121, txHash:'0x'+'a2'.repeat(32), logIndex:0 }),
+    fakeLog(IFACES.v3Pool,    'Swap',        [A(0x9), A(0x9), 2_000_000n, -7n*10n**18n, sqrt, 0n, 0], { address:P_NEW, blockNumber:122, txHash:'0x'+'a3'.repeat(32), logIndex:0 }),
+    fakeLog(IFACES.erc20,     'Transfer',    [A(0x9), A(0x8), 5n*10n**18n],                                { address:T_OLD, blockNumber:120, txHash:'0x'+'a1'.repeat(32), logIndex:1 }),
+    fakeLog(IFACES.erc20,     'Transfer',    [A(0x9), A(0x7), 2n*10n**18n],                                { address:T_OLD, blockNumber:123, txHash:'0x'+'a4'.repeat(32), logIndex:0 }),
+  ];
+  const calls = [];
+  const mockProvider = {
+    async getLogs(f) {
+      calls.push(f);
+      const addrs = (Array.isArray(f.address) ? f.address : [f.address]).map(a => a.toLowerCase());
+      const topics = Array.isArray(f.topics[0]) ? f.topics[0] : [f.topics[0]];
+      return chainLogs.filter(l => addrs.includes(l.address.toLowerCase()) && topics.includes(l.topics[0])
+        && l.blockNumber >= f.fromBlock && l.blockNumber <= f.toBlock);
+    },
+    async getBlock(n) { return { timestamp: 1_700_000_000 + n }; },
+  };
+  const stats = await processChunk(db2, mockProvider, 100, 200);
+
+  const logCalls = calls.length;
+  ok(logCalls === 3, 'chunk with a new pool costs 3 getLogs (merged + follow-up for the new pool + transfers), got ' + logCalls);
+  ok(Array.isArray(calls[0].topics[0]) && calls[0].topics[0].length === 4, 'first call ORs all four discovery/swap topics in one request');
+  ok(calls[0].address.map(a=>a.toLowerCase()).includes(P_OLD.toLowerCase()), 'first call includes the already-known pool address');
+  const swaps = (await db2.query('SELECT token_address, usdc_amount FROM swaps ORDER BY block_number')).rows;
+  ok(swaps.length === 2, 'both swaps stored, got ' + swaps.length);
+  ok(swaps.some(s => s.token_address === T_NEW.toLowerCase() && Number(s.usdc_amount) === 2),
+     'swap on the pool created in the SAME chunk is captured (follow-up call worked)');
+  ok(swaps.some(s => s.token_address === T_OLD.toLowerCase() && Number(s.usdc_amount) === 1),
+     'swap on the previously-known pool captured from the merged call');
+  const bal = (await db2.query("SELECT holder, balance FROM balances WHERE token_address=$1 ORDER BY holder", [T_OLD.toLowerCase()])).rows;
+  const b = Object.fromEntries(bal.map(r => [r.holder, Number(r.balance)]));
+  ok(b[A(0x8).toLowerCase()] === 5 && b[A(0x7).toLowerCase()] === 2, 'transfer credits recipients (+5, +2)');
+  ok(b[A(0x9).toLowerCase()] === -7, 'sender debited across INSERT then UPDATE paths (-5 then -2 = -7), got ' + b[A(0x9).toLowerCase()]);
+  ok(bal.filter(r => Number(r.balance) > 0).length === 2, 'holders = 2 (sender is net negative, never counted)');
+  ok((await store.getKnownTokens(db2,'v3')).length === 2, 'new pool discovered and stored');
+
+  // a quiet chunk (nothing new) must be exactly 2 calls
+  calls.length = 0;
+  await processChunk(db2, mockProvider, 300, 400);
+  ok(calls.length === 2, 'quiet chunk costs exactly 2 getLogs, got ' + calls.length);
+
   console.log('\n' + '='.repeat(52));
   console.log(`${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);

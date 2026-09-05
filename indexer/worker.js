@@ -11,7 +11,19 @@ const { listTokens } = require('./queries');
 const { makePool } = require('./db');
 
 const LOG_CHUNK = 9500;               // Arc's eth_getLogs caps at 10k blocks — same limit terminal.html works around
-const POLL_INTERVAL_MS = 20_000;
+/* Provider credit budget (Infura free tier: 3M credits/day; eth_getLogs = 255,
+ * eth_call / getBlock / blockNumber = 80). Each poll that finds new blocks costs
+ * 2 getLogs + 1 blockNumber ≈ 590 credits, plus 80 per unique swap block.
+ *   30s polling  -> 2,880 polls/day -> ~1.7M/day steady state. Fits.
+ *   20s polling  -> ~2.5M/day. Fits, no headroom for metadata backfill.
+ * Before the merge below it was 5 getLogs per poll ≈ 6M/day, i.e. 2x the free tier.
+ * CHUNK_DELAY_MS paces the initial backfill so it can't blow the daily quota in
+ * one go (663 chunks x ~1,800 ≈ 1.2M, so 0 is fine; raise it if you're sharing
+ * the key with something else). PAUSED=1 idles the worker without a redeploy —
+ * use it to hand the whole quota to a deploy for an hour. */
+const POLL_INTERVAL_MS   = Number(process.env.POLL_INTERVAL_MS || 30_000);
+const CHUNK_DELAY_MS     = Number(process.env.CHUNK_DELAY_MS || 0);
+const PAUSED             = process.env.PAUSED === '1';
 const SNAPSHOT_INTERVAL_MS = 10 * 60 * 1000;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -106,16 +118,31 @@ async function blockTimeCache(provider, blockNumbers) {
 }
 
 async function processChunk(db, provider, fromBlock, toBlock) {
-  // ---- 1. discovery: new V3 pools + V4 pools, USDC-paired only
-  const [poolCreatedLogs, initLogs] = await Promise.all([
-    retry(() => provider.getLogs({ address: ARC.v3Factory, topics: [TOPICS.poolCreated], fromBlock, toBlock })),
-    retry(() => provider.getLogs({ address: ARC.v4PoolManager, topics: [TOPICS.v4Initialize], fromBlock, toBlock })),
-  ]);
+  // ---- 1. ONE getLogs for discovery AND swaps on every pool we already know.
+  // eth_getLogs accepts an address list and an OR-list of topics, so factory
+  // PoolCreated, PoolManager Initialize, and Swap events from all known V3 pools
+  // + the V4 manager come back in a single 255-credit call instead of four.
+  // Swaps for pools discovered *in this very chunk* aren't in the address list
+  // yet; those get one small follow-up call below, only when it happens.
+  const knownV3Before = await getKnownTokens(db, 'v3');
+  const merged = await retry(() => provider.getLogs({
+    address: [ARC.v3Factory, ARC.v4PoolManager, ...knownV3Before.map(t => t.pool_ref)],
+    topics: [[TOPICS.poolCreated, TOPICS.v4Initialize, TOPICS.v3Swap, TOPICS.v4Swap]],
+    fromBlock, toBlock,
+  }));
+  const byTopic = t => merged.filter(l => l.topics && l.topics[0] === t);
+  const poolCreatedLogs = byTopic(TOPICS.poolCreated);
+  const initLogs        = byTopic(TOPICS.v4Initialize);
+  let   v3SwapLogs      = byTopic(TOPICS.v3Swap);
+  let   v4SwapLogs      = byTopic(TOPICS.v4Swap);
+
+  const newV3Pools = [];
   for (const log of poolCreatedLogs) {
     const info = decodePoolCreatedV3(log, ARC.usdc);
     if (!info) continue;
     const meta = await tokenMeta(provider, info.token);
     await upsertToken(db, { address: info.token, ...meta, dex: 'v3', poolRef: info.poolRef, fee: info.fee, usdcIsToken0: info.usdcIsToken0, block: info.block, metaOk: meta.ok });
+    newV3Pools.push(info.poolRef);
     console.log(`[discover v3] ${meta.symbol || '?'} ${info.token}`);
   }
   for (const log of initLogs) {
@@ -129,17 +156,13 @@ async function processChunk(db, provider, fromBlock, toBlock) {
   const v3Tokens = await getKnownTokens(db, 'v3');
   const v4Tokens = await getKnownTokens(db, 'v4');
 
-  // ---- 2. swaps
-  let v3SwapLogs = [], v4SwapLogs = [];
-  if (v3Tokens.length) {
-    v3SwapLogs = await retry(() => provider.getLogs({
-      address: v3Tokens.map(t => t.pool_ref), topics: [TOPICS.v3Swap], fromBlock, toBlock,
-    }));
-  }
-  if (v4Tokens.length) {
-    v4SwapLogs = await retry(() => provider.getLogs({
-      address: ARC.v4PoolManager, topics: [TOPICS.v4Swap], fromBlock, toBlock,
-    }));
+  // ---- 2. swaps — already fetched above. Only pools created inside this chunk
+  // need a follow-up, since they weren't in the merged call's address list.
+  // (V4 needs nothing extra: all V4 swaps come from the one PoolManager address
+  // and are matched to known poolIds below, which now include this chunk's.)
+  if (newV3Pools.length) {
+    const late = await retry(() => provider.getLogs({ address: newV3Pools, topics: [TOPICS.v3Swap], fromBlock, toBlock }));
+    v3SwapLogs = v3SwapLogs.concat(late);
   }
   const times = await blockTimeCache(provider, [...v3SwapLogs, ...v4SwapLogs].map(l => l.blockNumber));
 
@@ -209,6 +232,11 @@ async function main() {
   let lastSnapshot = 0;
   let chunksSinceMeta = 0;
 
+  if (PAUSED) {
+    console.log('[paused] PAUSED=1 — idling, no RPC calls. Unset to resume.');
+    while (true) await sleep(60_000);
+  }
+
   while (true) {
     try {
       const head = await retry(() => provider.getBlockNumber());
@@ -223,6 +251,7 @@ async function main() {
         // meant every token discovered on the way stayed nameless and unpriced
         // for the entire catch-up. Every 25th chunk keeps it cheap.
         if (++chunksSinceMeta >= 25) { chunksSinceMeta = 0; await backfillMeta(db, provider); }
+        if (CHUNK_DELAY_MS) await sleep(CHUNK_DELAY_MS);
       } else {
         // Caught up. Use the idle time to repair tokens whose metadata reads
         // failed earlier — this is when the RPC is least busy and most likely
