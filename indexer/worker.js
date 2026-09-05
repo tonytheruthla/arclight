@@ -27,6 +27,13 @@ const PAUSED             = process.env.PAUSED === '1';
 const SNAPSHOT_INTERVAL_MS = 10 * 60 * 1000;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
+/** Quota exhaustion is not transient — the provider will refuse the same call
+ *  until its daily reset, so backing off and retrying only burns wall-clock time.
+ *  Observed live: 5 tries x 3 fields with backoff made each newly discovered
+ *  token cost ~20s of pure waiting, turning a dense chunk into a ten-minute stall.
+ *  Rate limits (429) ARE transient and still get the backoff. */
+const isQuotaExhausted = msg => /exceeded quota|quota exceeded|daily (request )?limit|\b402\b/i.test(String(msg || ''));
+
 async function retry(fn, tries = 5, baseMs = 1000) {
   let last;
   for (let i = 0; i < tries; i++) {
@@ -34,6 +41,7 @@ async function retry(fn, tries = 5, baseMs = 1000) {
     catch (e) {
       last = e;
       const m = String(e && (e.message || e));
+      if (isQuotaExhausted(m)) break;                 // fail fast; backfillMeta repairs later
       if (i === tries - 1) break;
       await sleep(/limit|429|-32011/i.test(m) ? baseMs * (i + 2) : baseMs * (i + 1));
     }
@@ -306,4 +314,4 @@ if (require.main === module) {
   main().catch(e => { console.error('FATAL', e); process.exit(1); });
 }
 
-module.exports = { processChunk, takeSnapshots, getLogsAdaptive };
+module.exports = { processChunk, takeSnapshots, getLogsAdaptive, retry };

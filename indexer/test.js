@@ -243,6 +243,17 @@ function fakeLog(iface, eventName, args, overrides = {}) {
   ok(st3.swaps === 2, 'stats report kept swaps (2), not raw log count (42): got ' + st3.swaps);
   ok((await db3.query('SELECT count(*)::int AS n FROM swaps')).rows[0].n === 2, '2 swaps stored for the known USDC pool');
 
+  // --- retry(): quota exhaustion fails fast; rate limits still back off
+  console.log('\n=== retry: quota exhaustion is not retried, 429 is ===');
+  const { retry: retryFn } = require('./worker');
+  let quotaAttempts = 0; const t0 = Date.now();
+  await retryFn(() => { quotaAttempts++; throw new Error('could not coalesce error (error={ "code": -32600, "message": "project ID exceeded quota" })'); }, 5, 50).catch(() => {});
+  ok(quotaAttempts === 1, 'quota-exhausted call attempted exactly once, not 5: got ' + quotaAttempts);
+  ok(Date.now() - t0 < 200, 'and returned immediately, no backoff sleep');
+  let rlAttempts = 0;
+  await retryFn(() => { rlAttempts++; if (rlAttempts < 3) throw new Error('429 Too Many Requests'); return 'ok'; }, 5, 5);
+  ok(rlAttempts === 3, 'rate-limited call was retried until it succeeded (3 attempts)');
+
   // --- getLogsAdaptive: Infura's 20k-result cap, reproduced verbatim, must be
   //     survived by splitting — and nothing may be lost or duplicated in the seam.
   console.log('\n=== getLogsAdaptive: provider result cap -> split, no loss, no duplicates ===');
