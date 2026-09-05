@@ -111,17 +111,27 @@ async function backfillMeta(db, provider, limit = 5) {
   return fixed;
 }
 
-/** Fetch block timestamps once per unique block number touched in a chunk,
- *  instead of once per log — with hundreds of swaps in a chunk this is the
- *  difference between a handful of RPC calls and hundreds against an RPC
- *  that already rate-limits. */
-async function blockTimeCache(provider, blockNumbers) {
-  const uniq = [...new Set(blockNumbers)];
+/** Block timestamps for every swap in a chunk from TWO getBlock calls, not one
+ *  per unique block. We fetch the chunk's first and last block and interpolate
+ *  linearly between them. block_time only feeds the 24h aggregation windows
+ *  and the 24h change, where being a few seconds off is irrelevant — while a
+ *  dense chunk can touch thousands of unique blocks, which at 80 credits a
+ *  fetch was both the slowest phase of a chunk and the largest single line in
+ *  the credit budget. On the live tail chunks are tens of blocks wide, so the
+ *  interpolation is near-exact there anyway. Zero calls if there's nothing to
+ *  timestamp. */
+async function blockTimes(provider, fromBlock, toBlock, blockNumbers) {
   const cache = new Map();
-  for (const bn of uniq) {
-    const b = await retry(() => provider.getBlock(bn));
-    cache.set(bn, new Date(b.timestamp * 1000));
-  }
+  const uniq = [...new Set(blockNumbers)];
+  if (!uniq.length) return cache;
+  const lo = Math.min(fromBlock, ...uniq), hi = Math.max(toBlock, ...uniq);
+  const [a, b] = await Promise.all([
+    retry(() => provider.getBlock(lo)),
+    hi === lo ? null : retry(() => provider.getBlock(hi)),
+  ]);
+  const tsLo = Number(a.timestamp), tsHi = b ? Number(b.timestamp) : tsLo;
+  const perBlock = hi > lo ? (tsHi - tsLo) / (hi - lo) : 0;
+  for (const bn of uniq) cache.set(bn, new Date((tsLo + (bn - lo) * perBlock) * 1000));
   return cache;
 }
 
@@ -215,7 +225,7 @@ async function processChunk(db, provider, fromBlock, toBlock) {
   const byPoolId = new Map(v4Tokens.map(t => [t.pool_ref, t]));
   const v3Kept = v3SwapLogs.map(log => [log, byPool.get(log.address.toLowerCase())]).filter(([, t]) => t);
   const v4Kept = v4SwapLogs.map(log => [log, byPoolId.get(log.topics[1])]).filter(([, t]) => t);
-  const times = await blockTimeCache(provider, [...v3Kept, ...v4Kept].map(([log]) => log.blockNumber));
+  const times = await blockTimes(provider, fromBlock, toBlock, [...v3Kept, ...v4Kept].map(([log]) => log.blockNumber));
 
   for (const [log, t] of v3Kept) {
     const s = decodeSwapV3(log, { usdcIsToken0: t.usdc_is_token0 }, ARC.usdcDecimals, t.decimals, times.get(log.blockNumber));
@@ -242,6 +252,28 @@ async function processChunk(db, provider, fromBlock, toBlock) {
   }
 
   return { discovered: poolCreatedLogs.length + initLogs.length, swaps: v3Kept.length + v4Kept.length, transfers: allTokens.length ? 'scanned' : 0 };
+}
+
+/** Process one chunk inside a single DB transaction. Balance updates are
+ *  deltas (balance += amount), NOT idempotent — so if the worker restarts
+ *  halfway through a chunk (a redeploy, a crash), replaying that chunk would
+ *  double-count every transfer it had already applied. Wrapping the chunk and
+ *  its setState() in one transaction means a chunk is either fully applied
+ *  and marked done, or not applied at all. Postgres does the rest. */
+async function runChunk(pool, provider, fromBlock, toBlock) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const stats = await processChunk(client, provider, fromBlock, toBlock);
+    await setState(client, ARC.chainId, toBlock);
+    await client.query('COMMIT');
+    return stats;
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw e;
+  } finally {
+    client.release();
+  }
 }
 
 async function takeSnapshots(db) {
@@ -282,8 +314,7 @@ async function main() {
       const head = await retry(() => provider.getBlockNumber());
       if (lastBlock < head) {
         const to = Math.min(head, lastBlock + LOG_CHUNK);
-        const stats = await processChunk(db, provider, lastBlock + 1, to);
-        await setState(db, ARC.chainId, to);
+        const stats = await runChunk(db, provider, lastBlock + 1, to);
         console.log(`[chunk] ${lastBlock + 1}-${to} · +${stats.discovered} tokens · ${stats.swaps} swaps`);
         lastBlock = to;
         // Repair metadata during the backfill too, not just once caught up. A
@@ -314,4 +345,4 @@ if (require.main === module) {
   main().catch(e => { console.error('FATAL', e); process.exit(1); });
 }
 
-module.exports = { processChunk, takeSnapshots, getLogsAdaptive, retry };
+module.exports = { processChunk, runChunk, takeSnapshots, getLogsAdaptive, retry, blockTimes };

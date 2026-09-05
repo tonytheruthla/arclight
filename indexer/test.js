@@ -239,7 +239,7 @@ function fakeLog(iface, eventName, args, overrides = {}) {
     async getBlock(n) { blockCalls.push(n); return { timestamp: 1_700_000_000 + n }; },
   };
   const st3 = await processChunk(db3, p3, 400, 700);
-  ok(blockCalls.length === 2, 'only the 2 kept-swap blocks were fetched, not 42: got ' + blockCalls.length);
+  ok(JSON.stringify([...blockCalls].sort()) === JSON.stringify([400, 700]), 'block timestamps come from the 2 chunk boundaries only — not one per swap, not the 40 discarded swaps: got ' + JSON.stringify(blockCalls));
   ok(st3.swaps === 2, 'stats report kept swaps (2), not raw log count (42): got ' + st3.swaps);
   ok((await db3.query('SELECT count(*)::int AS n FROM swaps')).rows[0].n === 2, '2 swaps stored for the known USDC pool');
 
@@ -253,6 +253,42 @@ function fakeLog(iface, eventName, args, overrides = {}) {
   let rlAttempts = 0;
   await retryFn(() => { rlAttempts++; if (rlAttempts < 3) throw new Error('429 Too Many Requests'); return 'ok'; }, 5, 5);
   ok(rlAttempts === 3, 'rate-limited call was retried until it succeeded (3 attempts)');
+
+  // --- blockTimes: interpolation is exact for evenly spaced blocks, 2 calls max, 0 when idle
+  console.log('\n=== blockTimes: 2 boundary fetches + linear interpolation ===');
+  const { blockTimes, runChunk } = require('./worker');
+  const bt = []; const p4 = { async getBlock(n) { bt.push(n); return { timestamp: 1_700_000_000 + n * 2 }; } }; // 2s blocks
+  const m4 = await blockTimes(p4, 1000, 1100, [1000, 1050, 1099, 1100, 1050]);
+  ok(bt.length === 2 && bt.includes(1000) && bt.includes(1100), 'fetched exactly the two boundary blocks: ' + JSON.stringify(bt));
+  ok(m4.get(1050).getTime() === (1_700_000_000 + 1050 * 2) * 1000, 'interior block interpolated exactly on a regular chain');
+  ok(m4.get(1099).getTime() === (1_700_000_000 + 1099 * 2) * 1000, 'block next to the boundary interpolated exactly');
+  ok(m4.size === 4, 'duplicate block numbers collapse to one entry');
+  bt.length = 0;
+  ok((await blockTimes(p4, 1000, 1100, [])).size === 0 && bt.length === 0, 'no swaps -> no getBlock calls at all');
+  bt.length = 0;
+  const one = await blockTimes(p4, 500, 500, [500]);
+  ok(bt.length === 1 && one.get(500).getTime() === (1_700_000_000 + 1000) * 1000, 'single-block chunk fetches once');
+
+  // --- runChunk: BEGIN ... COMMIT on success, ROLLBACK on failure, client always released
+  console.log('\n=== runChunk: one transaction per chunk ===');
+  const mkPool = (failOn) => {
+    const log = []; let released = 0;
+    const client = { async query(sql, params) { const head = String(sql).trim().split(/\s+/).slice(0,2).join(' '); log.push(head);
+        if (failOn && head.startsWith(failOn)) throw new Error('boom at ' + failOn); return { rows: [] }; }, release() { released++; } };
+    return { pool: { async connect() { return client; } }, log, get released() { return released; } };
+  };
+  const okProv = { async getLogs() { return []; }, async getBlock() { return { timestamp: 1 }; } };
+  const good = mkPool(null);
+  await runChunk(good.pool, okProv, 10, 20);
+  ok(good.log[0] === 'BEGIN' && good.log[good.log.length-1] === 'COMMIT', 'success path: BEGIN first, COMMIT last: ' + good.log[0] + ' … ' + good.log[good.log.length-1]);
+  ok(good.log.some(h => h.startsWith('INSERT INTO')), 'setState ran inside the transaction');
+  ok(good.released === 1, 'client released after success');
+  const bad = mkPool('INSERT INTO');   // make the setState / any insert blow up
+  let threw = false;
+  try { await runChunk(bad.pool, okProv, 10, 20); } catch { threw = true; }
+  ok(threw, 'failure propagates so the main loop logs and retries the chunk');
+  ok(bad.log.includes('ROLLBACK') && !bad.log.includes('COMMIT'), 'failure path: ROLLBACK, never COMMIT: ' + bad.log.join(','));
+  ok(bad.released === 1, 'client released after failure too');
 
   // --- getLogsAdaptive: Infura's 20k-result cap, reproduced verbatim, must be
   //     survived by splitting — and nothing may be lost or duplicated in the seam.
