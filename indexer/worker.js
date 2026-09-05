@@ -117,6 +117,40 @@ async function blockTimeCache(provider, blockNumbers) {
   return cache;
 }
 
+/** eth_getLogs with automatic range splitting. Providers cap results per call
+ *  (Infura: 20,000, error -32602 "query exceeds max results 20000, retry with
+ *  the range A-B"). A busy 9,500-block window of V4 swaps trips it. When that
+ *  happens we split — using the provider's suggested end block when it gives
+ *  one, halving otherwise — and stitch the pieces back together. Quiet ranges
+ *  still cost one call; only genuinely dense ranges pay for more. */
+async function getLogsAdaptive(provider, filter, depth = 0) {
+  const from = Number(filter.fromBlock), to = Number(filter.toBlock);
+  let lastErr;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await provider.getLogs(filter);
+    } catch (e) {
+      const msg = String(e && (e.message || e));
+      const capped = /exceeds max results|too many results|response size|query timeout|-32602/i.test(msg);
+      if (capped) {
+        // Deterministic — the same query will fail the same way. Don't retry it,
+        // split it. Use the provider's suggested end block when it offers one.
+        if (!(to > from) || depth > 12) throw e;
+        const m = msg.match(/range\s+(\d+)\s*-\s*(\d+)/);
+        let mid = m ? Number(m[2]) : Math.floor((from + to) / 2);
+        if (!(mid >= from && mid < to)) mid = Math.floor((from + to) / 2);
+        console.log(`[split] ${from}-${to} exceeded the provider result cap; retrying as ${from}-${mid} + ${mid + 1}-${to}`);
+        const a = await getLogsAdaptive(provider, { ...filter, fromBlock: from, toBlock: mid }, depth + 1);
+        const b = await getLogsAdaptive(provider, { ...filter, fromBlock: mid + 1, toBlock: to }, depth + 1);
+        return a.concat(b);
+      }
+      lastErr = e;                                   // transient: back off and retry
+      await sleep(/limit|429|-32011/i.test(msg) ? 2000 * (attempt + 1) : 1000 * (attempt + 1));
+    }
+  }
+  throw lastErr;
+}
+
 async function processChunk(db, provider, fromBlock, toBlock) {
   // ---- 1. ONE getLogs for discovery AND swaps on every pool we already know.
   // eth_getLogs accepts an address list and an OR-list of topics, so factory
@@ -125,11 +159,11 @@ async function processChunk(db, provider, fromBlock, toBlock) {
   // Swaps for pools discovered *in this very chunk* aren't in the address list
   // yet; those get one small follow-up call below, only when it happens.
   const knownV3Before = await getKnownTokens(db, 'v3');
-  const merged = await retry(() => provider.getLogs({
+  const merged = await getLogsAdaptive(provider, {
     address: [ARC.v3Factory, ARC.v4PoolManager, ...knownV3Before.map(t => t.pool_ref)],
     topics: [[TOPICS.poolCreated, TOPICS.v4Initialize, TOPICS.v3Swap, TOPICS.v4Swap]],
     fromBlock, toBlock,
-  }));
+  });
   const byTopic = t => merged.filter(l => l.topics && l.topics[0] === t);
   const poolCreatedLogs = byTopic(TOPICS.poolCreated);
   const initLogs        = byTopic(TOPICS.v4Initialize);
@@ -161,7 +195,7 @@ async function processChunk(db, provider, fromBlock, toBlock) {
   // (V4 needs nothing extra: all V4 swaps come from the one PoolManager address
   // and are matched to known poolIds below, which now include this chunk's.)
   if (newV3Pools.length) {
-    const late = await retry(() => provider.getLogs({ address: newV3Pools, topics: [TOPICS.v3Swap], fromBlock, toBlock }));
+    const late = await getLogsAdaptive(provider, { address: newV3Pools, topics: [TOPICS.v3Swap], fromBlock, toBlock });
     v3SwapLogs = v3SwapLogs.concat(late);
   }
   const times = await blockTimeCache(provider, [...v3SwapLogs, ...v4SwapLogs].map(l => l.blockNumber));
@@ -189,9 +223,9 @@ async function processChunk(db, provider, fromBlock, toBlock) {
   // ---- 3. transfers, for holder counts
   const allTokens = v3Tokens.concat(v4Tokens);
   if (allTokens.length) {
-    const trLogs = await retry(() => provider.getLogs({
+    const trLogs = await getLogsAdaptive(provider, {
       address: allTokens.map(t => t.address), topics: [TOPICS.erc20Transfer], fromBlock, toBlock,
-    }));
+    });
     const byAddr = new Map(allTokens.map(t => [t.address.toLowerCase(), t]));
     for (const log of trLogs) {
       const t = byAddr.get(log.address.toLowerCase());
@@ -274,4 +308,4 @@ if (require.main === module) {
   main().catch(e => { console.error('FATAL', e); process.exit(1); });
 }
 
-module.exports = { processChunk, takeSnapshots };
+module.exports = { processChunk, takeSnapshots, getLogsAdaptive };

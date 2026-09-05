@@ -220,6 +220,42 @@ function fakeLog(iface, eventName, args, overrides = {}) {
   await processChunk(db2, mockProvider, 300, 400);
   ok(calls.length === 2, 'quiet chunk costs exactly 2 getLogs, got ' + calls.length);
 
+  // --- getLogsAdaptive: Infura's 20k-result cap, reproduced verbatim, must be
+  //     survived by splitting — and nothing may be lost or duplicated in the seam.
+  console.log('\n=== getLogsAdaptive: provider result cap -> split, no loss, no duplicates ===');
+  const { getLogsAdaptive } = require('./worker');
+  // 30 swap logs spread over blocks 1000..1029 on the known pool; provider refuses
+  // any query whose range would return more than 12 of them, with Infura's phrasing
+  // and a suggested end block, exactly like the live error.
+  const dense = Array.from({ length: 30 }, (_, i) =>
+    fakeLog(IFACES.v3Pool, 'Swap', [A(0x9), A(0x9), 1_000_000n, -1n*10n**18n, sqrt, 0n, 0],
+      { address: P_OLD, blockNumber: 1000 + i, txHash: '0x' + (0xb0 + i).toString(16).padStart(2,'0').repeat(32), logIndex: 0 }));
+  const capCalls = [];
+  const cappedProvider = {
+    async getLogs(f) {
+      capCalls.push([Number(f.fromBlock), Number(f.toBlock)]);
+      const hits = dense.filter(l => l.blockNumber >= Number(f.fromBlock) && l.blockNumber <= Number(f.toBlock));
+      if (hits.length > 12) {
+        const suggestedEnd = Number(f.fromBlock) + 11;   // what Infura does: "retry with the range A-B"
+        const err = new Error(`could not coalesce error (error={ "code": -32602, "message": "query exceeds max results 20000, retry with the range ${f.fromBlock}-${suggestedEnd}" })`);
+        throw err;
+      }
+      return hits;
+    },
+  };
+  const got = await getLogsAdaptive(cappedProvider, { address: [P_OLD], topics: [[TOPICS.v3Swap]], fromBlock: 1000, toBlock: 1029 });
+  ok(got.length === 30, 'all 30 logs recovered across the splits, got ' + got.length);
+  ok(new Set(got.map(l => l.transactionHash)).size === 30, 'no duplicates at the split seams');
+  ok(got.every((l, i) => i === 0 || l.blockNumber >= got[i-1].blockNumber), 'results come back in block order');
+  ok(capCalls.some(([a, b]) => b - a + 1 === 12), 'used the provider\'s suggested range (12 blocks), not blind halving');
+  ok(capCalls.length <= 8, 'bounded number of calls for a 30-log range, got ' + capCalls.length);
+
+  // a transient error must still be retried, and a non-cap error must not be split
+  let flaky = 0;
+  const flakyProvider = { async getLogs(f) { if (++flaky < 3) throw new Error('ECONNRESET'); return [dense[0]]; } };
+  ok((await getLogsAdaptive(flakyProvider, { address:[P_OLD], topics:[[TOPICS.v3Swap]], fromBlock:1000, toBlock:1000 })).length === 1 && flaky === 3,
+     'transient network error is retried (3 attempts), not split');
+
   console.log('\n' + '='.repeat(52));
   console.log(`${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
