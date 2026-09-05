@@ -220,6 +220,29 @@ function fakeLog(iface, eventName, args, overrides = {}) {
   await processChunk(db2, mockProvider, 300, 400);
   ok(calls.length === 2, 'quiet chunk costs exactly 2 getLogs, got ' + calls.length);
 
+  // --- block timestamps are only fetched for swaps we keep. The V4 PoolManager
+  //     emits Swap for every pool on the chain; the ones on unknown (non-USDC)
+  //     poolIds must not cost a getBlock each.
+  console.log('\n=== blockTimeCache scope: only kept swaps cost a getBlock ===');
+  const db3 = freshDb();
+  const KNOWN_ID = '0x' + '11'.repeat(32), UNKNOWN_ID = '0x' + '22'.repeat(32);
+  await store.upsertToken(db3, { address: A(0x7001), name:'V4', symbol:'VFOUR', decimals:18, dex:'v4', poolRef:KNOWN_ID, fee:3000, usdcIsToken0:true, block:50, metaOk:true });
+  const v4swap = (id, bn) => fakeLog(IFACES.v4PoolManager, 'Swap', [id, A(0x9), 1_000_000n, -1n*10n**18n, sqrt, 0n, 0, 3000],
+    { address: ARC.v4PoolManager, blockNumber: bn, txHash: '0x' + bn.toString(16).padStart(2,'0').repeat(32), logIndex: 0 });
+  const v4Logs = [ v4swap(KNOWN_ID, 500), v4swap(KNOWN_ID, 501), ...Array.from({length: 40}, (_, i) => v4swap(UNKNOWN_ID, 600 + i)) ];
+  const blockCalls = [];
+  const p3 = {
+    async getLogs(f) {
+      const addrs=(Array.isArray(f.address)?f.address:[f.address]).map(a=>a.toLowerCase()); const tps=Array.isArray(f.topics[0])?f.topics[0]:[f.topics[0]];
+      return v4Logs.filter(l=>addrs.includes(l.address.toLowerCase())&&tps.includes(l.topics[0]));
+    },
+    async getBlock(n) { blockCalls.push(n); return { timestamp: 1_700_000_000 + n }; },
+  };
+  const st3 = await processChunk(db3, p3, 400, 700);
+  ok(blockCalls.length === 2, 'only the 2 kept-swap blocks were fetched, not 42: got ' + blockCalls.length);
+  ok(st3.swaps === 2, 'stats report kept swaps (2), not raw log count (42): got ' + st3.swaps);
+  ok((await db3.query('SELECT count(*)::int AS n FROM swaps')).rows[0].n === 2, '2 swaps stored for the known USDC pool');
+
   // --- getLogsAdaptive: Infura's 20k-result cap, reproduced verbatim, must be
   //     survived by splitting — and nothing may be lost or duplicated in the seam.
   console.log('\n=== getLogsAdaptive: provider result cap -> split, no loss, no duplicates ===');

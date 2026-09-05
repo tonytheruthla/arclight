@@ -198,26 +198,24 @@ async function processChunk(db, provider, fromBlock, toBlock) {
     const late = await getLogsAdaptive(provider, { address: newV3Pools, topics: [TOPICS.v3Swap], fromBlock, toBlock });
     v3SwapLogs = v3SwapLogs.concat(late);
   }
-  const times = await blockTimeCache(provider, [...v3SwapLogs, ...v4SwapLogs].map(l => l.blockNumber));
+  // Narrow to swaps we will actually store BEFORE fetching block timestamps.
+  // The V4 PoolManager emits Swap for every pool on the chain, USDC-paired or
+  // not; in a dense range that is thousands of logs we discard. Fetching a
+  // block per discarded log was the slow part of a chunk and, at 80 credits a
+  // block, the single biggest hole in the credit budget.
+  const byPool   = new Map(v3Tokens.map(t => [t.pool_ref.toLowerCase(), t]));
+  const byPoolId = new Map(v4Tokens.map(t => [t.pool_ref, t]));
+  const v3Kept = v3SwapLogs.map(log => [log, byPool.get(log.address.toLowerCase())]).filter(([, t]) => t);
+  const v4Kept = v4SwapLogs.map(log => [log, byPoolId.get(log.topics[1])]).filter(([, t]) => t);
+  const times = await blockTimeCache(provider, [...v3Kept, ...v4Kept].map(([log]) => log.blockNumber));
 
-  if (v3SwapLogs.length) {
-    const byPool = new Map(v3Tokens.map(t => [t.pool_ref.toLowerCase(), t]));
-    for (const log of v3SwapLogs) {
-      const t = byPool.get(log.address.toLowerCase());
-      if (!t) continue;
-      const s = decodeSwapV3(log, { usdcIsToken0: t.usdc_is_token0 }, ARC.usdcDecimals, t.decimals, times.get(log.blockNumber));
-      if (s) await insertSwap(db, t.address, s);
-    }
+  for (const [log, t] of v3Kept) {
+    const s = decodeSwapV3(log, { usdcIsToken0: t.usdc_is_token0 }, ARC.usdcDecimals, t.decimals, times.get(log.blockNumber));
+    if (s) await insertSwap(db, t.address, s);
   }
-  if (v4SwapLogs.length) {
-    const byPoolId = new Map(v4Tokens.map(t => [t.pool_ref, t]));
-    for (const log of v4SwapLogs) {
-      const poolId = log.topics[1];
-      const t = byPoolId.get(poolId);
-      if (!t) continue;
-      const s = decodeSwapV4(log, { usdcIsToken0: t.usdc_is_token0, poolRef: t.pool_ref }, ARC.usdcDecimals, t.decimals, times.get(log.blockNumber));
-      if (s) await insertSwap(db, t.address, s);
-    }
+  for (const [log, t] of v4Kept) {
+    const s = decodeSwapV4(log, { usdcIsToken0: t.usdc_is_token0, poolRef: t.pool_ref }, ARC.usdcDecimals, t.decimals, times.get(log.blockNumber));
+    if (s) await insertSwap(db, t.address, s);
   }
 
   // ---- 3. transfers, for holder counts
@@ -235,7 +233,7 @@ async function processChunk(db, provider, fromBlock, toBlock) {
     }
   }
 
-  return { discovered: poolCreatedLogs.length + initLogs.length, swaps: v3SwapLogs.length + v4SwapLogs.length, transfers: allTokens.length ? 'scanned' : 0 };
+  return { discovered: poolCreatedLogs.length + initLogs.length, swaps: v3Kept.length + v4Kept.length, transfers: allTokens.length ? 'scanned' : 0 };
 }
 
 async function takeSnapshots(db) {
