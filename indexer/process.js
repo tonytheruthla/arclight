@@ -2,6 +2,7 @@
 // so they can be unit tested directly against synthetic logs (see test.js),
 // the same approach used to verify the V4 topics before they shipped in
 // app/terminal.html.
+const { ethers } = require('ethers');
 const { IFACES, priceFromSqrt } = require('./chain');
 
 /** V3 PoolCreated -> new token discovery, or null if not USDC-paired. */
@@ -109,4 +110,37 @@ function decodeTransfer(log, decimals) {
   };
 }
 
-module.exports = { decodePoolCreatedV3, decodeInitializeV4, decodeSwapV3, decodeSwapV4, decodeTransfer };
+/** ArclitePump TokenCreated → launch_tokens row. */
+function decodeTokenCreated(log, blockTime) {
+  let p;
+  try { p = IFACES.pump.parseLog({ topics: [...log.topics], data: log.data }); } catch { return null; }
+  if (!p || p.name !== 'TokenCreated') return null;
+  return {
+    address: p.args.token.toLowerCase(), creator: p.args.creator.toLowerCase(),
+    name: String(p.args.name || ''), symbol: String(p.args.symbol || ''),
+    block: log.blockNumber, blockTime,
+  };
+}
+
+/** ArclitePump Bought / Sold → launch_trades row. Native USDC is 18dp on
+ *  Arc (it is the gas token), unlike the 6dp ERC-20 the Uniswap side uses —
+ *  the 10^12 trap from AUDIT.md §2.1, handled here by formatting with 18. */
+function decodeLaunchTrade(log, blockTime) {
+  let p;
+  try { p = IFACES.pump.parseLog({ topics: [...log.topics], data: log.data }); } catch { return null; }
+  if (!p || (p.name !== 'Bought' && p.name !== 'Sold')) return null;
+  const buy = p.name === 'Bought';
+  const usdcRaw   = buy ? p.args.usdcIn   : p.args.usdcOut;
+  const tokenRaw  = buy ? p.args.tokensOut : p.args.tokensIn;
+  return {
+    token: p.args.token.toLowerCase(),
+    trader: (buy ? p.args.buyer : p.args.seller).toLowerCase(),
+    side: buy ? 'buy' : 'sell',
+    usdcAmount: Number(ethers.formatUnits(usdcRaw, 18)),
+    tokenAmount: Number(ethers.formatUnits(tokenRaw, 18)),
+    block: log.blockNumber, blockTime,
+    txHash: log.transactionHash, logIndex: log.index,
+  };
+}
+
+module.exports = { decodePoolCreatedV3, decodeInitializeV4, decodeSwapV3, decodeSwapV4, decodeTransfer, decodeTokenCreated, decodeLaunchTrade };

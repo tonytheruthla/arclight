@@ -69,3 +69,50 @@ CREATE TABLE IF NOT EXISTS indexer_state (
   chain_id    INTEGER PRIMARY KEY,
   last_block  BIGINT NOT NULL
 );
+
+-- ============================================================================
+-- Arclite launchpad (ArclitePump) — the venue whose volume earns points.
+-- Indexed only when PUMP_ADDRESS is set on the worker; on mainnet that is the
+-- day the launchpad contracts deploy. Native USDC on Arc is 18dp, so
+-- usdc_amount here is already decimal-adjusted to whole dollars, same as swaps.
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS launch_tokens (
+  address        TEXT PRIMARY KEY,
+  creator        TEXT NOT NULL,
+  name           TEXT NOT NULL DEFAULT '',
+  symbol         TEXT NOT NULL DEFAULT '',
+  created_block  BIGINT NOT NULL,
+  created_at     TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS launch_trades (
+  id            BIGSERIAL PRIMARY KEY,
+  token_address TEXT NOT NULL,
+  block_number  BIGINT NOT NULL,
+  block_time    TIMESTAMPTZ NOT NULL,
+  tx_hash       TEXT NOT NULL,
+  log_index     INTEGER NOT NULL,
+  trader        TEXT NOT NULL,
+  side          TEXT NOT NULL CHECK (side IN ('buy','sell')),
+  usdc_amount   NUMERIC NOT NULL,   -- whole USDC, decimal-adjusted from 18dp native
+  token_amount  NUMERIC NOT NULL,
+  UNIQUE (tx_hash, log_index)
+);
+CREATE INDEX IF NOT EXISTS idx_launch_trades_trader ON launch_trades (trader);
+CREATE INDEX IF NOT EXISTS idx_launch_trades_time   ON launch_trades (block_time DESC);
+CREATE INDEX IF NOT EXISTS idx_launch_trades_token  ON launch_trades (token_address, block_time DESC);
+
+-- Social-share points. One row = one point. The primary key IS the cap:
+-- a wallet can earn at most one share point per token per UTC day, and the
+-- API additionally refuses more than SHARE_DAILY_CAP rows per wallet per day.
+-- Every row was authorised by a wallet signature over (wallet, token, day) —
+-- see api.js POST /api/v1/points/share — so nobody can be credited a share
+-- they didn't sign for, and a signature can't be replayed on another day.
+CREATE TABLE IF NOT EXISTS share_points (
+  wallet        TEXT NOT NULL,
+  token_address TEXT NOT NULL,
+  day           TEXT NOT NULL,      -- 'YYYY-MM-DD' in UTC
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (wallet, token_address, day)
+);
+CREATE INDEX IF NOT EXISTS idx_share_points_wallet ON share_points (wallet, day);

@@ -1,6 +1,6 @@
 # Deploying the Arclite explorer indexer — step by step
 
-Everything in this folder is written and tested (24/24, `npm test` — schema, decode logic, and aggregation SQL all verified against synthetic data; see the note at the top of `test.js` for exactly what that does and doesn't prove). This guide is the part I can't do for you: creating accounts, holding secrets, and clicking deploy. None of it needs the deployer key or any wallet — this is read-only infrastructure, it never signs anything.
+Everything in this folder is written and tested (115/115, `npm test` — schema, decode logic, and aggregation SQL all verified against synthetic data; see the note at the top of `test.js` for exactly what that does and doesn't prove). This guide is the part I can't do for you: creating accounts, holding secrets, and clicking deploy. None of it needs the deployer key or any wallet — this is read-only infrastructure, it never signs anything.
 
 ## Step 0 — settle the RPC first
 
@@ -84,6 +84,32 @@ Same pattern as every other change this session: copy the updated `arclight/` fo
 ## Step 7 — watch the first backfill
 
 Depending on `START_BLOCK`, the first catch-up to the chain head could take a while — each `[chunk]` log line covers ~9,500 blocks, and Arc's RPC is rate-limited, so the retry/backoff logic will slow things down under load rather than fail outright. That's expected. Once logs show it's caught up (`lastBlock` stops jumping by full chunks and starts polling instead), the API has real, live data.
+
+## Launchpad + points (added Sept 6)
+
+The same worker indexes the **Arclite launchpad** the moment it exists on the chain it's watching.
+One extra Railway variable, on **both** the worker and the API service:
+
+- `PUMP_ADDRESS` = the ArclitePump address from `deployment-v3.json` after the mainnet deploy.
+  Until it's set, `/api/v1/points/leaderboard` reports `season: "pre"` and volume points can't
+  accrue (there's nothing to trade on). Share points work from day one.
+- `SHARE_DAILY_CAP` (optional, default 10) — max share points per wallet per UTC day.
+
+Points rules live in one place, `queries.js` `POINTS_CTE`: **1 point per 1 USDC traded on the
+launchpad** (buys and sells, floored per wallet) **+ 1 point per share** (one per token per UTC
+day). Nothing else counts — referrals and the old bounty are gone.
+
+Share points are the only thing a browser can *write*: `POST /api/v1/points/share` with
+`{wallet, token, day, signature}` where `signature` is the wallet's `personal_sign` of the exact
+text in `api.js` `shareMessage()`. The API verifies it with ethers, so a claim can't be forged for
+someone else's wallet and can't be replayed on another day.
+
+**Schema is applied automatically** on boot (`db.js migrate()` — all `CREATE IF NOT EXISTS`), so
+the three new tables (`launch_tokens`, `launch_trades`, `share_points`) appear on the next deploy
+with no psql step.
+
+New endpoints: `/api/v1/stats` (hero strip), `/api/v1/swaps/recent` (live feed),
+`/api/v1/points/leaderboard`, `/api/v1/points/:wallet`, `POST /api/v1/points/share`.
 
 ## RPC quota — the thing that will actually bite you
 

@@ -4,11 +4,11 @@
 // service, not a web service) — see DEPLOY.md.
 require('dotenv').config();
 const { ethers } = require('ethers');
-const { ARC, TOPICS } = require('./chain');
-const { decodePoolCreatedV3, decodeInitializeV4, decodeSwapV3, decodeSwapV4, decodeTransfer } = require('./process');
-const { getState, setState, upsertToken, getKnownTokens, getTokensMissingMeta, updateTokenMeta, insertSwap, applyTransfer, takeSnapshot } = require('./store');
+const { ARC, TOPICS, pumpAddress } = require('./chain');
+const { decodePoolCreatedV3, decodeInitializeV4, decodeSwapV3, decodeSwapV4, decodeTransfer, decodeTokenCreated, decodeLaunchTrade } = require('./process');
+const { getState, setState, upsertToken, getKnownTokens, getTokensMissingMeta, updateTokenMeta, insertSwap, applyTransfer, takeSnapshot, upsertLaunchToken, insertLaunchTrade } = require('./store');
 const { listTokens } = require('./queries');
-const { makePool } = require('./db');
+const { makePool, migrate } = require('./db');
 
 const LOG_CHUNK = 9500;               // Arc's eth_getLogs caps at 10k blocks — same limit terminal.html works around
 /* Provider credit budget (Infura free tier: 3M credits/day; eth_getLogs = 255,
@@ -202,9 +202,13 @@ async function processChunk(db, provider, fromBlock, toBlock) {
   // Swaps for pools discovered *in this very chunk* aren't in the address list
   // yet; those get one small follow-up call below, only when it happens.
   const knownV3Before = await getKnownTokens(db, 'v3');
+  // The Arclite launchpad rides in the same call when it's deployed on this
+  // chain: three more topics on one more address, zero extra credits.
+  const PUMP = pumpAddress();
   const merged = await getLogsAdaptive(provider, {
-    address: [ARC.v3Factory, ARC.v4PoolManager, ...knownV3Before.map(t => t.pool_ref)],
-    topics: [[TOPICS.poolCreated, TOPICS.v4Initialize, TOPICS.v3Swap, TOPICS.v4Swap]],
+    address: [ARC.v3Factory, ARC.v4PoolManager, ...(PUMP ? [PUMP] : []), ...knownV3Before.map(t => t.pool_ref)],
+    topics: [[TOPICS.poolCreated, TOPICS.v4Initialize, TOPICS.v3Swap, TOPICS.v4Swap,
+              ...(PUMP ? [TOPICS.pumpCreated, TOPICS.pumpBought, TOPICS.pumpSold] : [])]],
     fromBlock, toBlock,
   });
   const byTopic = t => merged.filter(l => l.topics && l.topics[0] === t);
@@ -212,6 +216,11 @@ async function processChunk(db, provider, fromBlock, toBlock) {
   const initLogs        = byTopic(TOPICS.v4Initialize);
   let   v3SwapLogs      = byTopic(TOPICS.v3Swap);
   let   v4SwapLogs      = byTopic(TOPICS.v4Swap);
+  // Only logs actually emitted by the pump count — a random token could emit
+  // an event with the same signature, and the address filter above is an OR.
+  const fromPump = l => PUMP && l.address && l.address.toLowerCase() === PUMP.toLowerCase();
+  const pumpCreatedLogs = byTopic(TOPICS.pumpCreated).filter(fromPump);
+  const pumpTradeLogs   = [...byTopic(TOPICS.pumpBought), ...byTopic(TOPICS.pumpSold)].filter(fromPump);
 
   const newV3Pools = [];
   for (const log of poolCreatedLogs) {
@@ -250,7 +259,8 @@ async function processChunk(db, provider, fromBlock, toBlock) {
   const byPoolId = new Map(v4Tokens.map(t => [t.pool_ref, t]));
   const v3Kept = v3SwapLogs.map(log => [log, byPool.get(log.address.toLowerCase())]).filter(([, t]) => t);
   const v4Kept = v4SwapLogs.map(log => [log, byPoolId.get(log.topics[1])]).filter(([, t]) => t);
-  const times = await blockTimes(provider, fromBlock, toBlock, [...v3Kept, ...v4Kept].map(([log]) => log.blockNumber));
+  const times = await blockTimes(provider, fromBlock, toBlock,
+    [...v3Kept, ...v4Kept].map(([log]) => log.blockNumber).concat([...pumpCreatedLogs, ...pumpTradeLogs].map(l => l.blockNumber)));
 
   for (const [log, t] of v3Kept) {
     const s = decodeSwapV3(log, { usdcIsToken0: t.usdc_is_token0 }, ARC.usdcDecimals, t.decimals, times.get(log.blockNumber));
@@ -259,6 +269,17 @@ async function processChunk(db, provider, fromBlock, toBlock) {
   for (const [log, t] of v4Kept) {
     const s = decodeSwapV4(log, { usdcIsToken0: t.usdc_is_token0, poolRef: t.pool_ref }, ARC.usdcDecimals, t.decimals, times.get(log.blockNumber));
     if (s) await insertSwap(db, t.address, s);
+  }
+
+  // ---- 2b. Arclite launchpad — the volume that earns points (queries.js).
+  let launchTrades = 0;
+  for (const log of pumpCreatedLogs) {
+    const t = decodeTokenCreated(log, times.get(log.blockNumber));
+    if (t) { await upsertLaunchToken(db, t); console.log(`[launch] ${t.symbol || '?'} ${t.address} by ${t.creator}`); }
+  }
+  for (const log of pumpTradeLogs) {
+    const tr = decodeLaunchTrade(log, times.get(log.blockNumber));
+    if (tr) { await insertLaunchTrade(db, tr); launchTrades++; }
   }
 
   // ---- 3. transfers, for holder counts
@@ -279,7 +300,7 @@ async function processChunk(db, provider, fromBlock, toBlock) {
   }
 
   return { discovered: poolCreatedLogs.length + initLogs.length, swaps: v3Kept.length + v4Kept.length,
-           transfers: transferCount, logs: merged.length + transferCount };
+           transfers: transferCount, launchTrades, launched: pumpCreatedLogs.length, logs: merged.length + transferCount };
 }
 
 /** Process one chunk inside a single DB transaction. Balance updates are
@@ -322,6 +343,7 @@ async function main() {
     while (true) await sleep(60_000);
   }
   const db = makePool();
+  await migrate(db);
   const provider = new ethers.JsonRpcProvider(
     process.env.RPC_URL,
     new ethers.Network('arc', BigInt(ARC.chainId)),
@@ -355,7 +377,7 @@ async function main() {
           chunk = next;
           continue;                                   // no sleep: retry the same range smaller, right away
         }
-        console.log(`[chunk] ${lastBlock + 1}-${to} · +${stats.discovered} tokens · ${stats.swaps} swaps · ${stats.transfers} transfers · ${stats.logs} logs`);
+        console.log(`[chunk] ${lastBlock + 1}-${to} · +${stats.discovered} tokens · ${stats.swaps} swaps · ${stats.transfers} transfers${stats.launchTrades ? ' · ' + stats.launchTrades + ' launchpad' : ''} · ${stats.logs} logs`);
         lastBlock = to;
         chunk = nextChunkSize(chunk, { logs: stats.logs });
         // Repair metadata during the backfill too, not just once caught up. A

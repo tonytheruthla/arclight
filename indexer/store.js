@@ -91,4 +91,49 @@ async function takeSnapshot(db, tokenAddress, price, at) {
   );
 }
 
-module.exports = { getState, setState, upsertToken, getKnownTokens, getTokensMissingMeta, updateTokenMeta, insertSwap, applyTransfer, takeSnapshot, ZERO, DEAD };
+// ---- Arclite launchpad ------------------------------------------------------
+
+async function upsertLaunchToken(db, t) {
+  await db.query(
+    `INSERT INTO launch_tokens (address, creator, name, symbol, created_block, created_at)
+     VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (address) DO NOTHING`,
+    [t.address.toLowerCase(), t.creator.toLowerCase(), t.name || '', t.symbol || '', t.block, t.blockTime]
+  );
+}
+
+async function insertLaunchTrade(db, t) {
+  await db.query(
+    `INSERT INTO launch_trades (token_address, block_number, block_time, tx_hash, log_index, trader, side, usdc_amount, token_amount)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (tx_hash, log_index) DO NOTHING`,
+    [t.token.toLowerCase(), t.block, t.blockTime, t.txHash, t.logIndex, t.trader.toLowerCase(), t.side, t.usdcAmount, t.tokenAmount]
+  );
+}
+
+// ---- share points -----------------------------------------------------------
+
+/** How many share points this wallet already earned today (UTC). */
+async function sharesToday(db, wallet, day) {
+  const r = await db.query('SELECT COUNT(*) AS n FROM share_points WHERE wallet = $1 AND day = $2', [wallet.toLowerCase(), day]);
+  return Number(r.rows[0].n);
+}
+
+/** Record one share point. Returns true if a new row was written, false if
+ *  this wallet already has a point for this token today (the PK is the cap). */
+async function addSharePoint(db, wallet, token, day) {
+  const args = [wallet.toLowerCase(), token.toLowerCase(), day];
+  // Explicit existence check rather than trusting rowCount / RETURNING on a
+  // DO NOTHING insert: Postgres reports 0 rows there, pg-mem reports 1, and the
+  // tests run on pg-mem. The primary key is still what enforces one row — under
+  // a concurrent double-claim both callers may see "awarded" but only one row
+  // exists, and points are counted from rows, never from responses.
+  const seen = await db.query(
+    'SELECT 1 FROM share_points WHERE wallet = $1 AND token_address = $2 AND day = $3', args);
+  if (seen.rows.length) return false;
+  await db.query(
+    `INSERT INTO share_points (wallet, token_address, day) VALUES ($1,$2,$3)
+     ON CONFLICT (wallet, token_address, day) DO NOTHING`, args);
+  return true;
+}
+
+module.exports = { getState, setState, upsertToken, getKnownTokens, getTokensMissingMeta, updateTokenMeta, insertSwap, applyTransfer, takeSnapshot,
+  upsertLaunchToken, insertLaunchTrade, sharesToday, addSharePoint, ZERO, DEAD };

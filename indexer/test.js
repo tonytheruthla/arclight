@@ -25,6 +25,10 @@ const A = n => ethers.getAddress('0x' + n.toString(16).padStart(40, '0'));
 function freshDb() {
   const db = newDb({ autoCreateForeignKeyIndices: true });
   db.public.registerFunction({ name: 'now', returns: 'timestamptz', implementation: () => new Date() });
+  // pg-mem ships very few builtins; FLOOR is real Postgres, register it so the
+  // points SQL runs unmodified here.
+  const { DataType } = require('pg-mem');
+  db.public.registerFunction({ name: 'floor', args: [DataType.decimal], returns: DataType.decimal, implementation: x => Math.floor(Number(x)) });
   db.public.none(fs.readFileSync(__dirname + '/schema.sql', 'utf8'));
   const { Pool } = db.adapters.createPg();
   return new Pool();
@@ -355,6 +359,133 @@ function fakeLog(iface, eventName, args, overrides = {}) {
   const flakyProvider = { async getLogs(f) { if (++flaky < 3) throw new Error('ECONNRESET'); return [dense[0]]; } };
   ok((await getLogsAdaptive(flakyProvider, { address:[P_OLD], topics:[[TOPICS.v3Swap]], fromBlock:1000, toBlock:1000 })).length === 1 && flaky === 3,
      'transient network error is retried (3 attempts), not split');
+
+  // =====================================================================
+  //  LAUNCHPAD + POINTS
+  // =====================================================================
+  console.log('\n=== process.js: ArclitePump events decode (18dp native USDC) ===');
+  const { decodeTokenCreated, decodeLaunchTrade } = require('./process');
+  const PUMP = A(0xabc0);
+  const LT = A(0xabc1), BUYER = A(0xb001), SELLER = A(0xb002), CREATOR = A(0xc001);
+  const tp0 = new Date("2026-09-06T00:00:00Z");
+  const createdLog = fakeLog(IFACES.pump, 'TokenCreated', [LT, CREATOR, 'Launch Token', 'LT'], { address: PUMP, blockNumber: 500, txHash: '0x'+'c1'.repeat(32), logIndex: 0 });
+  const lt = decodeTokenCreated(createdLog, tp0);
+  ok(lt && lt.address === LT.toLowerCase() && lt.creator === CREATOR.toLowerCase() && lt.symbol === 'LT', 'TokenCreated decodes token, creator, symbol');
+  const boughtLog = fakeLog(IFACES.pump, 'Bought', [LT, BUYER, 12n * 10n**18n + 5n * 10n**17n, 1000n * 10n**18n], { address: PUMP, blockNumber: 501, txHash: '0x'+'c2'.repeat(32), logIndex: 0 });
+  const b1 = decodeLaunchTrade(boughtLog, tp0);
+  ok(b1 && b1.side === 'buy' && b1.trader === BUYER.toLowerCase(), 'Bought decodes as a buy by the buyer');
+  ok(b1 && Math.abs(b1.usdcAmount - 12.5) < 1e-9, 'Bought usdcIn formatted with 18 decimals (12.5 USDC), got ' + (b1 && b1.usdcAmount));
+  const soldLog = fakeLog(IFACES.pump, 'Sold', [LT, SELLER, 400n * 10n**18n, 3n * 10n**18n], { address: PUMP, blockNumber: 502, txHash: '0x'+'c3'.repeat(32), logIndex: 1 });
+  const s1 = decodeLaunchTrade(soldLog, tp0);
+  ok(s1 && s1.side === 'sell' && s1.trader === SELLER.toLowerCase() && s1.usdcAmount === 3, 'Sold decodes as a sell with usdcOut = 3');
+  ok(decodeLaunchTrade(createdLog, tp0) === null, 'decodeLaunchTrade ignores non-trade pump events');
+  ok(decodeLaunchTrade(fakeLog(IFACES.v3Pool, 'Swap', [A(9), A(9), 1n, -1n, 1n, 0n, 0]), tp0) === null, 'decodeLaunchTrade ignores a Uniswap swap');
+
+  console.log('\n=== worker.processChunk: launchpad rides in the merged call when PUMP_ADDRESS is set ===');
+  process.env.PUMP_ADDRESS = PUMP;
+  const dbp = freshDb();
+  const pumpChain = [
+    createdLog, boughtLog, soldLog,
+    // same Bought signature from a non-pump address must be ignored
+    fakeLog(IFACES.pump, 'Bought', [LT, A(0xbad), 999n * 10n**18n, 1n], { address: A(0xdead1), blockNumber: 503, txHash: '0x'+'c4'.repeat(32), logIndex: 0 }),
+  ];
+  const pumpCalls = [];
+  const pumpProvider = {
+    async getLogs(f) {
+      pumpCalls.push(f);
+      const addrs = (Array.isArray(f.address) ? f.address : [f.address]).map(a => a.toLowerCase());
+      const topics = Array.isArray(f.topics[0]) ? f.topics[0] : [f.topics[0]];
+      return pumpChain.filter(l => addrs.includes(l.address.toLowerCase()) && topics.includes(l.topics[0])
+        && l.blockNumber >= f.fromBlock && l.blockNumber <= f.toBlock);
+    },
+    async getBlock(n) { return { timestamp: 1_700_000_000 + n }; },
+  };
+  const pst = await processChunk(dbp, pumpProvider, 400, 600);
+  ok(pumpCalls.length === 1, 'quiet DEX + pump activity = 1 getLogs (merged), got ' + pumpCalls.length);
+  ok(pumpCalls[0].address.map(a=>a.toLowerCase()).includes(PUMP.toLowerCase()), 'merged call includes the pump address');
+  ok(pumpCalls[0].topics[0].length === 7, 'merged call ORs 4 DEX + 3 pump topics, got ' + pumpCalls[0].topics[0].length);
+  ok(pst.launched === 1 && pst.launchTrades === 2, 'stats: 1 launched, 2 launch trades');
+  const ltRows = (await dbp.query('SELECT trader, side, usdc_amount FROM launch_trades ORDER BY block_number')).rows;
+  ok(ltRows.length === 2, 'both pump trades stored, the spoofed one from another address is not (got ' + ltRows.length + ')');
+  ok(ltRows.some(r => r.trader === BUYER.toLowerCase() && Number(r.usdc_amount) === 12.5), 'buy stored with 12.5 USDC');
+  ok((await dbp.query('SELECT creator FROM launch_tokens')).rows[0].creator === CREATOR.toLowerCase(), 'launch_tokens row has the creator');
+  // idempotent — re-running the chunk (crash + resume) doesn't double count
+  await processChunk(dbp, pumpProvider, 400, 600);
+  ok((await dbp.query('SELECT COUNT(*) AS n FROM launch_trades')).rows[0].n == 2, 'replaying the chunk does not duplicate launch trades');
+  delete process.env.PUMP_ADDRESS;
+  pumpCalls.length = 0;
+  await processChunk(dbp, pumpProvider, 700, 800);
+  ok(pumpCalls[0].topics[0].length === 4 && !pumpCalls[0].address.map(a=>a.toLowerCase()).includes(PUMP.toLowerCase()), 'with PUMP_ADDRESS unset the merged call is exactly the DEX shape');
+
+  console.log('\n=== queries: points = floor(launchpad volume) + shares; leaderboard + rank ===');
+  const { getStats, recentSwaps, pointsLeaderboard, pointsForWallet } = require('./queries');
+  // BUYER: 12.5 volume -> 12 pts. SELLER: 3 volume -> 3 pts. Add shares.
+  ok(await store.addSharePoint(dbp, BUYER, LT, '2026-09-06') === true, 'first share for (wallet, token, day) is credited');
+  ok(await store.addSharePoint(dbp, BUYER, LT, '2026-09-06') === false, 'same (wallet, token, day) again is NOT credited — PK is the cap');
+  ok(await store.addSharePoint(dbp, BUYER, A(0xabc2), '2026-09-06') === true, 'a different token the same day is credited');
+  ok(await store.addSharePoint(dbp, BUYER, LT, '2026-09-07') === true, 'the same token the next day is credited');
+  const SHARER = A(0xd001); // shares only, never traded
+  ok(await store.addSharePoint(dbp, SHARER, LT, '2026-09-06') === true, 'a wallet with no trades can still earn share points');
+  ok(await store.sharesToday(dbp, BUYER, '2026-09-06') === 2, 'sharesToday counts per UTC day (2 on the 6th)');
+
+  const board = await pointsLeaderboard(dbp, 10);
+  ok(board.traders === 3, 'leaderboard counts every wallet with volume OR shares (3), got ' + board.traders);
+  const byW = Object.fromEntries(board.rows.map(r => [r.wallet, r]));
+  ok(byW[BUYER.toLowerCase()].points === 15, 'BUYER: floor(12.5) + 3 shares = 15, got ' + byW[BUYER.toLowerCase()].points);
+  ok(byW[SELLER.toLowerCase()].points === 3 && byW[SELLER.toLowerCase()].volume === 3, 'SELLER: sells count as volume (3)');
+  ok(byW[SHARER.toLowerCase()].points === 1 && byW[SHARER.toLowerCase()].volume === 0, 'SHARER: 1 point, zero volume');
+  ok(board.rows[0].wallet === BUYER.toLowerCase(), 'sorted by points desc');
+  const meB = await pointsForWallet(dbp, BUYER);
+  ok(meB.rank === 1 && meB.points === 15, 'pointsForWallet: rank 1 for the leader');
+  const meS = await pointsForWallet(dbp, SHARER);
+  ok(meS.rank === 3, 'pointsForWallet: rank 3 for the share-only wallet, got ' + meS.rank);
+  const nobody = await pointsForWallet(dbp, A(0xeeee));
+  ok(nobody.points === 0 && nobody.rank === null, 'unknown wallet: 0 points, no rank');
+
+  const st = await getStats(dbp);
+  ok(st.launched === 1 && st.tokens === 0 && typeof st.volume24h === 'number', 'getStats returns launchpad + DEX counters');
+  const rs = await recentSwaps(db2, 5);
+  ok(rs.length === 2 && rs[0].symbol !== undefined, 'recentSwaps joins symbol onto the newest swaps (from the DEX db)');
+
+  console.log('\n=== api: POST /points/share — wallet signature required, day-bound, capped ===');
+  const { makeApp, shareMessage, utcDay, SHARE_DAILY_CAP } = require('./api');
+  const app = makeApp(dbp);
+  const srv = await new Promise(r => { const h = app.listen(0, () => r(h)); });
+  const base = 'http://127.0.0.1:' + srv.address().port;
+  const wallet = ethers.Wallet.createRandom();
+  const today = utcDay();
+  const post = async body => { const r = await fetch(base + '/api/v1/points/share', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(body) }); return { status: r.status, body: await r.json() }; };
+  const sig = await wallet.signMessage(shareMessage(wallet.address, LT, today));
+  let r1 = await post({ wallet: wallet.address, token: LT, day: today, signature: sig });
+  ok(r1.status === 200 && r1.body.awarded === true && r1.body.sharesToday === 1, 'valid signed share is credited');
+  r1 = await post({ wallet: wallet.address, token: LT, day: today, signature: sig });
+  ok(r1.status === 200 && r1.body.awarded === false, 'replaying the same share is accepted but not credited twice');
+  const other = ethers.Wallet.createRandom();
+  const wrongSig = await other.signMessage(shareMessage(wallet.address, LT, today));
+  r1 = await post({ wallet: wallet.address, token: LT, day: today, signature: wrongSig });
+  ok(r1.status === 401, 'a signature from a different key is rejected (401)');
+  r1 = await post({ wallet: wallet.address, token: LT, day: '2020-01-01', signature: sig });
+  ok(r1.status === 400 && r1.body.error === 'stale day', 'a signature for another day is rejected (400 stale day)');
+  r1 = await post({ wallet: 'nope', token: LT, day: today, signature: sig });
+  ok(r1.status === 400, 'malformed wallet is rejected');
+  // cap: fill up to SHARE_DAILY_CAP distinct tokens, the next is 429
+  let capHit = null;
+  for (let i = 1; i <= SHARE_DAILY_CAP; i++) {
+    const tok = A(0xf000 + i);
+    const sg = await wallet.signMessage(shareMessage(wallet.address, tok, today));
+    capHit = await post({ wallet: wallet.address, token: tok, day: today, signature: sg });
+    if (capHit.status === 429) break;
+  }
+  ok(capHit && capHit.status === 429 && capHit.body.sharesToday === SHARE_DAILY_CAP, `daily cap enforced at ${SHARE_DAILY_CAP} (got ${capHit && capHit.status})`);
+  const lb = await (await fetch(base + '/api/v1/points/leaderboard?limit=5')).json();
+  ok(lb.rules && lb.rules.season === 'pre' && Array.isArray(lb.leaderboard), 'leaderboard reports season=pre without PUMP_ADDRESS');
+  const mine = await (await fetch(base + '/api/v1/points/' + wallet.address)).json();
+  ok(mine.sharesToday === SHARE_DAILY_CAP && mine.points === SHARE_DAILY_CAP, 'per-wallet endpoint returns sharesToday + points');
+  const hstats = await (await fetch(base + '/api/v1/stats')).json();
+  ok(hstats.launched === 1 && 'volume24h' in hstats, '/stats serves hero-strip numbers');
+  const pre = await fetch(base + '/api/v1/points/share', { method:'OPTIONS' });
+  ok(pre.status === 204 && pre.headers.get('access-control-allow-methods').includes('POST'), 'CORS preflight allows POST from the browser');
+  srv.close();
 
   console.log('\n' + '='.repeat(52));
   console.log(`${pass} passed, ${fail} failed`);

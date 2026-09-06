@@ -18,7 +18,18 @@ const TOPICS = {
   v4Initialize: ethers.id('Initialize(bytes32,address,address,uint24,int24,address,uint160,int24)'),
   v4Swap: ethers.id('Swap(bytes32,address,int128,int128,uint160,uint128,int24,uint24)'),
   erc20Transfer: ethers.id('Transfer(address,address,uint256)'),
+  // ArclitePump — the launchpad. Signatures match app/terminal.html's PUMP_ABI
+  // and contracts/ArclitePumpV4.sol exactly.
+  pumpCreated: ethers.id('TokenCreated(address,address,string,string)'),
+  pumpBought:  ethers.id('Bought(address,address,uint256,uint256)'),
+  pumpSold:    ethers.id('Sold(address,address,uint256,uint256)'),
 };
+
+/** Arclite launchpad address, if the worker should index it. Unset until the
+ *  contracts are deployed on this chain — on mainnet, that is the deploy
+ *  sequence in arclite-deploy-now.md. Read lazily so tests can set it. */
+const pumpAddress = () => (process.env.PUMP_ADDRESS && /^0x[0-9a-fA-F]{40}$/.test(process.env.PUMP_ADDRESS))
+  ? process.env.PUMP_ADDRESS : null;
 
 const IFACES = {
   v3Factory: new ethers.Interface([
@@ -32,6 +43,11 @@ const IFACES = {
   v4PoolManager: new ethers.Interface([
     'event Initialize(bytes32 indexed id,address indexed currency0,address indexed currency1,uint24 fee,int24 tickSpacing,address hooks,uint160 sqrtPriceX96,int24 tick)',
     'event Swap(bytes32 indexed id,address indexed sender,int128 amount0,int128 amount1,uint160 sqrtPriceX96,uint128 liquidity,int24 tick,uint24 fee)',
+  ]),
+  pump: new ethers.Interface([
+    'event TokenCreated(address indexed token,address indexed creator,string name,string symbol)',
+    'event Bought(address indexed token,address indexed buyer,uint256 usdcIn,uint256 tokensOut)',
+    'event Sold(address indexed token,address indexed seller,uint256 tokensIn,uint256 usdcOut)',
   ]),
   erc20: new ethers.Interface([
     'event Transfer(address indexed from,address indexed to,uint256 value)',
@@ -51,4 +67,4 @@ function priceFromSqrt(sqrtX96, dec0, dec1) {
   return (Number(scaled) / 1e18) * Math.pow(10, dec0 - dec1);
 }
 
-module.exports = { ARC, TOPICS, IFACES, priceFromSqrt };
+module.exports = { ARC, TOPICS, IFACES, priceFromSqrt, pumpAddress };
