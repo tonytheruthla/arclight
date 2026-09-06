@@ -1567,20 +1567,31 @@ async function loadStats(){ const st=await apiGet('/api/v1/stats'); if(st){ STAT
 function ticker(){
   const el=document.getElementById('tickTrack'); if(!el) return;
   const num = x => (x==null||isNaN(x)) ? -Infinity : Number(x);
-  let top;
+  let top, byChange = false;
   if(NET.mode==='scanner'){
-    top = coins.filter(c=>c.change24h!=null && c.txns24h>0 && c.symbol && c.symbol!=='—')
-               .sort((a,b)=>num(b.volume24h)-num(a.volume24h)).slice(0,10);
+    // Preferred: real 24h movers. But % change needs verified decimals, and a
+    // token whose metadata we haven't read yet has neither a name nor a change.
+    // Rather than show an empty ticker on a chain that is visibly trading, fall
+    // back to ranking by volume — which is measured, not derived — and label it
+    // as volume so nobody reads it as a price move.
+    const movers = coins.filter(c=>c.change24h!=null && c.txns24h>0 && c.symbol && c.symbol!=='—');
+    byChange = movers.length > 0;
+    top = (byChange ? movers : coins.filter(c=>(c.volume24h||0)>0))
+            .sort((a,b)=>num(b.volume24h)-num(a.volume24h)).slice(0,10);
   } else {
     top = coins.filter(c=>c.phase===1).sort((a,b)=>b.pct-a.pct).slice(0,10);
   }
-  if(!top.length){ el.innerHTML='<span class="ti dim">'+(NET.mode==='scanner'?'no 24h movers yet':'no coins on the curve yet')+'</span>'; el.style.animation='none'; return; }
+  if(!top.length){ el.innerHTML='<span class="ti dim">'+(NET.mode==='scanner'?'no trading in the last 24h':'no coins on the curve yet')+'</span>'; el.style.animation='none'; return; }
+  const lbl=document.querySelector('.ticker .lbl');
+  if(lbl) lbl.textContent = NET.mode!=='scanner' ? '↗ CLOSEST TO GRADUATION' : (byChange ? '↗ TRENDING 24H' : '↗ TOP VOLUME 24H');
   const items = top.map((c,i)=>{
-    const chg = NET.mode==='scanner' ? c.change24h : null;
-    const tail = NET.mode==='scanner'
-      ? '<span class="'+(chg>=0?'up':'dn')+'">'+(chg>=0?'+':'')+Number(chg).toFixed(2)+'%</span>'
-      : '<span class="up">'+c.pct.toFixed(0)+'% to grad</span>';
-    return '<span class="ti" data-jump="'+c.addr+'"><span class="rk">#'+(i+1)+'</span><b>'+c.symbol+'</b>'+tail+'</span>';
+    const named = c.symbol && c.symbol!=='—';
+    const tail = NET.mode!=='scanner'
+      ? '<span class="up">'+c.pct.toFixed(0)+'% to grad</span>'
+      : byChange
+        ? '<span class="'+(c.change24h>=0?'up':'dn')+'">'+(c.change24h>=0?'+':'')+Number(c.change24h).toFixed(2)+'%</span>'
+        : '<span class="dim">'+fmtUsd(c.volume24h)+'</span>';
+    return '<span class="ti" data-jump="'+c.addr+'"><span class="rk">#'+(i+1)+'</span><b>'+(named?c.symbol:short(c.addr))+'</b>'+tail+'</span>';
   }).join('');
   el.style.animation='';
   // The marquee translates by exactly -50%, so the track must be two identical
@@ -1608,17 +1619,21 @@ function railDefault(el){
   // Launchpad top 3 (by mcap on the curve / by volume on the explorer) + live feed —
   // the RadarDEX right rail, with our data.
   const isScan = NET.mode==='scanner';
+  // Same fallback as the ticker: rank on volume, which is real even when the
+  // token's name isn't readable yet, and show the address when it isn't.
   const top3 = (isScan
-    ? coins.filter(c=>c.metaOk && c.symbol && c.symbol!=='—').sort((a,b)=>(b.volume24h||0)-(a.volume24h||0))
+    ? coins.filter(c=>(c.volume24h||0)>0).sort((a,b)=>(b.volume24h||0)-(a.volume24h||0))
     : coins.filter(c=>c.phase===1).sort((a,b)=>b.mcap-a.mcap)).slice(0,3);
   el.innerHTML =
     '<div class="card top3"><div class="hdrow"><h3>'+(isScan?'Top volume 24h':'Arclite launchpad')+'</h3>'+
       (isScan ? '<a href="#launchpad">Launchpad ›</a>' : '<a href="#launch">Launch a token ›</a>')+'</div>'+
       (top3.length ? top3.map((c,i)=>'<div class="fr" data-jump="'+c.addr+'"><span class="rk">'+(i+1)+'</span>'+
-          '<span class="sy">$'+c.symbol+'</span>'+
+          '<span class="sy">'+((c.symbol && c.symbol!=='—') ? '$'+c.symbol : short(c.addr))+'</span>'+
           '<span class="am">'+(isScan?fmtUsd(c.volume24h):fmtUsd(c.mcap))+'</span>'+
-          (isScan && c.change24h!=null ? '<span class="tm '+(c.change24h>=0?'up':'dn')+'">'+(c.change24h>=0?'+':'')+Number(c.change24h).toFixed(1)+'%</span>'
-                                       : '<span class="tm up">'+(c.pct||0).toFixed(0)+'%</span>')+
+          (isScan
+             ? (c.change24h!=null ? '<span class="tm '+(c.change24h>=0?'up':'dn')+'">'+(c.change24h>=0?'+':'')+Number(c.change24h).toFixed(1)+'%</span>'
+                                  : '<span class="tm dim">'+(c.txns24h||0)+' tx</span>')
+             : '<span class="tm up">'+(c.pct||0).toFixed(0)+'%</span>')+
         '</div>').join('')
         : '<div class="empty" style="padding:14px 4px">'+(isScan?'Indexing…':'No coins launched yet')+'</div>')+
     '</div>'+
