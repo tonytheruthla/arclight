@@ -21,8 +21,10 @@
 <!--
   ARCLITE TERMINAL
   =================
-  A gmgn.ai-style dense trading terminal, with one column nobody else can show:
-  ODDS — the live graduation market on every coin.
+  One page, five views (Tokens · Launchpad · Launch · Points · Portfolio),
+  RadarDEX-style: hero stats, trending ticker, dense table, right rail with
+  the launchpad top-3 and a live swap feed. Plus the one column nobody else
+  can show: ODDS — the live graduation market on every coin.
 
   Design thesis: gmgn wins on information density and one-click execution. Copying
   that is table stakes. The reason to switch is that every row here carries a market
@@ -54,13 +56,99 @@ body{
 .dsp{font-family:'Space Grotesk',sans-serif;font-weight:700}
 
 /* ---------- shell ---------- */
-.app{display:grid;grid-template-rows:48px 42px 1fr 26px;height:100vh}
+.app{display:grid;grid-template-rows:52px auto 28px 42px 1fr 26px;height:100vh}
 .topbar{
   display:flex;align-items:center;gap:14px;padding:0 14px;
   border-bottom:1px solid var(--hair);background:linear-gradient(180deg,#0d1017,#0a0c11);
 }
-.logo{display:flex;align-items:center;gap:9px;font-weight:700;letter-spacing:.02em;font-size:14px}
+.logo{display:flex;align-items:center;gap:9px;font-weight:700;letter-spacing:.02em;font-size:14px;
+  color:var(--ink);text-decoration:none;flex:0 0 auto}
 .logo .mk{width:22px;height:22px;flex:0 0 22px;filter:drop-shadow(0 0 6px rgba(34,211,238,.45))}
+.logo:hover .mk{filter:drop-shadow(0 0 10px rgba(34,211,238,.8))}
+.sitechip{font:600 9.5px Inter,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);
+  border:1px solid var(--hair);border-radius:5px;padding:2px 6px;margin-left:2px;transition:.14s}
+.logo:hover .sitechip{color:var(--cyan);border-color:rgba(34,211,238,.4)}
+
+/* ---- top nav (RadarDEX-style views) ---- */
+.nav{display:flex;align-items:center;gap:2px;margin-left:6px}
+.navi{font:600 12.5px Inter,sans-serif;padding:7px 11px;border-radius:8px;color:var(--ink2);cursor:pointer;
+  border:1px solid transparent;white-space:nowrap;text-decoration:none;user-select:none;transition:.12s}
+.navi:hover{color:var(--ink);background:var(--panel)}
+.navi.on{color:var(--ink);background:rgba(10,132,255,.13);border-color:rgba(10,132,255,.35)}
+.navi .fire{margin-left:3px}
+.navi .badge{font:600 9px 'JetBrains Mono',monospace;color:var(--cyan);border:1px solid rgba(34,211,238,.35);
+  border-radius:4px;padding:1px 4px;margin-left:5px;vertical-align:1px}
+
+/* ---- hero strip ---- */
+.hero{display:flex;align-items:center;gap:22px;padding:10px 18px;border-bottom:1px solid var(--hair);
+  background:radial-gradient(900px 120px at 12% 0%,rgba(10,132,255,.14),transparent 60%),
+             radial-gradient(700px 120px at 88% 100%,rgba(34,211,238,.09),transparent 60%),var(--bg2)}
+.hero .ttl{display:flex;flex-direction:column;gap:3px;min-width:0}
+.hero .ttl b{font:700 24px/1 'Space Grotesk',sans-serif;letter-spacing:-.02em;
+  background:linear-gradient(90deg,#fff,#9fd0ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero .ttl span{font:500 10.5px 'JetBrains Mono',monospace;letter-spacing:.14em;color:var(--light);text-transform:uppercase}
+.hstats{display:flex;gap:8px;margin-left:auto}
+.hstat{min-width:118px;background:rgba(14,17,24,.85);border:1px solid var(--hair2);border-radius:10px;padding:7px 12px}
+.hstat span{display:block;font:600 9.5px Inter,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3)}
+.hstat b{display:block;font:700 17px 'Space Grotesk',sans-serif;letter-spacing:-.01em;margin-top:2px;font-variant-numeric:tabular-nums}
+.hstat b.dim{font-size:13px;font-weight:500}
+
+/* ---- trending ticker ---- */
+.ticker{display:flex;align-items:center;overflow:hidden;border-bottom:1px solid var(--hair);background:#090b10;
+  font-family:'JetBrains Mono',monospace;font-size:10.5px}
+.ticker .lbl{flex:0 0 auto;padding:0 12px;color:var(--cyan);letter-spacing:.12em;font-weight:600;
+  border-right:1px solid var(--hair);height:100%;display:flex;align-items:center;gap:6px}
+.ticker .track{display:flex;gap:26px;white-space:nowrap;padding-left:14px;animation:tick 48s linear infinite;will-change:transform}
+.ticker:hover .track{animation-play-state:paused}
+.ticker .ti{color:var(--ink2);cursor:pointer}
+.ticker .ti:hover{color:var(--ink)}
+.ticker .ti .rk{color:var(--ink3);margin-right:5px}
+.ticker .ti b{color:var(--ink);font-weight:600;margin-right:6px}
+@keyframes tick{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+
+/* ---- full-width panel views (Launch / Points) ---- */
+.panel{overflow:auto;min-height:0;padding:22px 26px;grid-column:1 / -1}
+.ph{display:flex;align-items:flex-end;gap:16px;margin-bottom:16px;flex-wrap:wrap}
+.ph h1{font:700 26px/1.1 'Space Grotesk',sans-serif;letter-spacing:-.02em}
+.ph h1 em{font-style:normal;color:var(--light)}
+.ph .sub{font-size:12.5px;color:var(--ink2);line-height:1.5;max-width:640px}
+.cards3{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-bottom:16px}
+.cardk{background:var(--panel);border:1px solid var(--hair);border-radius:11px;padding:13px 14px}
+.cardk .t{font-weight:600;font-size:13px;margin-bottom:4px}
+.cardk .d{font-size:11.5px;color:var(--ink2);line-height:1.5}
+.pillrow{display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+.lb{width:100%;border-collapse:collapse}
+.lb th{position:static;font:600 10px Inter,sans-serif;letter-spacing:.09em;text-transform:uppercase;color:var(--ink3);
+  text-align:right;padding:8px 12px;border-bottom:1px solid var(--hair)}
+.lb th.l,.lb td.l{text-align:left}
+.lb td{padding:9px 12px;border-bottom:1px solid rgba(28,34,48,.55);text-align:right;font-family:'JetBrains Mono',monospace;font-size:12px}
+.lb tr.me td{background:rgba(10,132,255,.09)}
+.lb .rk1{color:var(--amber)} .lb .rk2{color:#cfd6e4} .lb .rk3{color:#d9a066}
+.grid2{display:grid;grid-template-columns:1.4fr 1fr;gap:14px;align-items:start}
+.form{background:var(--panel);border:1px solid var(--hair);border-radius:12px;padding:16px}
+.form h3{font:600 13px Inter,sans-serif;margin-bottom:3px}
+.form .sub{font-size:11.5px;color:var(--ink3);margin-bottom:12px;line-height:1.5}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.summ .kv b{font-size:12.5px}
+.lock{margin-top:12px;padding:10px 12px;border:1px solid rgba(48,209,88,.3);border-radius:9px;font-size:11.5px;color:#a9f0bb;line-height:1.5}
+.warnbox{margin-top:12px;padding:10px 12px;border:1px solid rgba(255,214,10,.35);border-radius:9px;font-size:11.5px;color:#ffe58a;line-height:1.5}
+.gate{display:grid;place-items:center;padding:60px 20px;text-align:center;color:var(--ink2);line-height:1.6}
+.gate .dsp{font-size:17px;color:var(--ink);margin-bottom:6px}
+
+/* ---- rail: live feed + top 3 ---- */
+.feed{display:flex;flex-direction:column}
+.fr{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(28,34,48,.55);
+  font-family:'JetBrains Mono',monospace;font-size:11px;animation:fadein .35s}
+.fr .sd{font-weight:700;min-width:32px}
+.fr .sy{color:var(--ink);font-weight:600;min-width:52px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fr .am{margin-left:auto}
+.fr .tm{color:var(--ink3);min-width:28px;text-align:right}
+.top3 .fr{cursor:pointer}
+.top3 .rk{color:var(--ink3);min-width:14px}
+.hdrow{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.hdrow h3{margin:0}
+.hdrow a{font-size:10.5px;color:var(--light);text-decoration:none}
+.livedot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--green);animation:blip 2s infinite;margin-right:5px}
 
 /* ---- explorer (scanner mode) ---- */
 .chg{font-family:'JetBrains Mono',monospace;font-weight:600}
@@ -275,7 +363,9 @@ td.l{text-align:left}
   font-size:12.5px;opacity:0;transition:.25s;z-index:99;max-width:88vw}
 .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
 .toast.err{border-color:rgba(255,69,58,.5)}
-@media (max-width:1000px){ .main{grid-template-columns:1fr} .rail{display:none} }
+@media (max-width:1100px){ .hstats{display:none} }
+@media (max-width:1000px){ .main{grid-template-columns:1fr} .rail{display:none} .grid2{grid-template-columns:1fr} .nav .navi{padding:7px 8px;font-size:12px} .search{display:none} }
+@media (max-width:760px){ .hero{display:none} .app{grid-template-rows:52px 0 28px 42px 1fr 26px} .sitechip{display:none} }
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;
     transition-duration:.01ms!important}
@@ -288,7 +378,16 @@ td.l{text-align:left}
 
   <!-- ================= top bar ================= -->
   <div class="topbar">
-    <div class="logo"><svg class="mk" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><linearGradient id="markGrad" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#0a84ff"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs><path d="M 8 54 Q 22 51 36 41 Q 51 30 55 11" stroke="url(#markGrad)" stroke-width="7.5" stroke-linecap="round"/><circle cx="54" cy="10" r="6.5" fill="#7dd3fc"/></svg>ARCLITE<span style="color:var(--ink3);font-weight:500">/terminal</span></div>
+    <!-- Logo is the switch between the two surfaces: here → the website, and the
+         website's logo → back here. -->
+    <a class="logo" href="/home.html" title="Switch to the Arclite website" aria-label="Arclite website"><svg class="mk" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><linearGradient id="markGrad" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#0a84ff"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs><path d="M 8 54 Q 22 51 36 41 Q 51 30 55 11" stroke="url(#markGrad)" stroke-width="7.5" stroke-linecap="round"/><circle cx="54" cy="10" r="6.5" fill="#7dd3fc"/></svg>ARCLITE<span class="sitechip">site ↗</span></a>
+    <nav class="nav" id="nav" aria-label="Terminal views">
+      <a class="navi" data-view="tokens" href="#tokens">Tokens</a>
+      <a class="navi" data-view="launchpad" href="#launchpad">Launchpad<span class="fire">🔥</span></a>
+      <a class="navi" data-view="launch" href="#launch">Launch</a>
+      <a class="navi" data-view="points" href="#points">Points<span class="badge">PTS</span></a>
+      <a class="navi" data-view="portfolio" href="#portfolio">Portfolio</a>
+    </nav>
     <div class="pill live" id="netPill">arc testnet</div>
     <div class="search">
       <span style="color:var(--ink3)">⌕</span>
@@ -312,8 +411,25 @@ td.l{text-align:left}
     <button class="btn primary" id="connectBtn">Connect</button>
   </div>
 
+  <!-- ================= hero strip ================= -->
+  <div class="hero" id="hero">
+    <div class="ttl"><b id="heroTitle">ARCLITE</b><span id="heroTag">[ track, launch and trade tokens on arc ]</span></div>
+    <div class="hstats" id="hstats">
+      <div class="hstat"><span id="hs1k">Tokens</span><b id="hs1" class="dim">—</b></div>
+      <div class="hstat"><span id="hs2k">24h volume</span><b id="hs2" class="dim">—</b></div>
+      <div class="hstat"><span id="hs3k">24h txns</span><b id="hs3" class="dim">—</b></div>
+      <div class="hstat"><span id="hs4k">24h traders</span><b id="hs4" class="dim">—</b></div>
+    </div>
+  </div>
+
+  <!-- ================= trending ticker ================= -->
+  <div class="ticker" id="ticker">
+    <div class="lbl">↗ TRENDING 24H</div>
+    <div class="track" id="tickTrack"><span class="ti dim">waiting for data…</span></div>
+  </div>
+
   <!-- ================= toolbar ================= -->
-  <div class="toolbar">
+  <div class="toolbar" id="toolbar">
     <div class="tab scan-only" data-f="trending">Trending <span class="n" id="c-trending">0</span></div>
     <div class="tab on" data-f="new">New <span class="n" id="c-new">0</span></div>
     <div class="tab scan-only" data-f="gainers">Gainers <span class="n" id="c-gainers">0</span></div>
@@ -323,7 +439,7 @@ td.l{text-align:left}
     <div class="tab launch-only" data-f="near">Near grad <span class="n" id="c-near">0</span></div>
     <div class="tab launch-only" data-f="grad">Graduated <span class="n" id="c-grad">0</span></div>
     <div class="tab launch-only" data-f="odds">Best odds <span class="n" id="c-odds">0</span></div>
-    <div class="tab" data-f="portfolio">Portfolio</div>
+    <a class="btn primary launch-only" href="#launch" style="padding:5px 11px;text-decoration:none;margin-left:4px">🚀 Launch a token</a>
     <div class="vr"></div>
     <div class="presets">
       <span class="lbl">Buy</span>
@@ -372,6 +488,8 @@ td.l{text-align:left}
         <tbody id="rows"></tbody>
       </table>
     </div>
+    <!-- full-width views: Launch, Points -->
+    <div class="panel" id="panel" hidden></div>
 
     <!-- right rail -->
     <div class="rail" id="rail">
@@ -545,6 +663,9 @@ const PUMP_ABI = [
   'function curves(address) view returns (address,uint64,uint64,uint8,uint256,uint256,bool,bool,uint256,uint256)',
   'function buy(address,uint256) payable returns (uint256)',
   'function quoteBuy(address,uint256) view returns (uint256)',
+  'function createToken(string,string) payable returns (address)',
+  'function deploymentFee() view returns (uint256)',
+  'function lastLaunchAt(address) view returns (uint64)',
   'event Bought(address indexed token,address indexed buyer,uint256 usdcIn,uint256 tokensOut)',
   'event Sold(address indexed token,address indexed seller,uint256 tokensIn,uint256 usdcOut)',
   'event TokenCreated(address indexed token,address indexed creator,string name,string symbol)'
@@ -643,6 +764,24 @@ function toast(msg, err){
 let GRAD_TARGET = 8000;
 let coins = [];          // merged coin + market rows
 let filter = (typeof NET!=='undefined' && NET.mode==='scanner') ? 'trending' : 'new';
+
+/* ---------------------------------------------------------------
+   VIEWS — the RadarDEX-style top nav. One page, five views, hash-routed
+   so every view has a URL (#tokens, #launchpad, #launch, #points,
+   #portfolio) and the back button works.
+     tokens     — Arc mainnet explorer (indexer / Uniswap). Needs mainnet.
+     launchpad  — Arclite curve + odds. Needs the pump contract on this net.
+     launch     — create a token on the pump.
+     points     — leaderboard + your rank. Indexer API, any net.
+     portfolio  — your wallet, any net.
+--------------------------------------------------------------- */
+const VIEWS = ['tokens','launchpad','launch','points','portfolio'];
+let VIEW = (function(){
+  const h = (location.hash||'').replace('#','');
+  if(VIEWS.includes(h)) return h;
+  return (typeof NET!=='undefined' && NET.mode==='scanner') ? 'tokens' : 'launchpad';
+})();
+const hasPump = () => !!PUMP;
 let selected = -1;
 let portfolioDust = []; // last-rendered dust rows, for the Sweep button delegate
 let buyAmt = 1, betAmt = 1;
@@ -894,7 +1033,7 @@ async function load(){
       const indexed = await loadFromIndexer();
       if(indexed){
         coins = indexed;
-        render();
+        render(); ticker(); paintHero(); if(selected<0) rail();
         document.getElementById('lastSync').textContent =
           'synced '+new Date().toLocaleTimeString()+' · '+coins.length+' tokens · indexer';
         return;
@@ -927,6 +1066,7 @@ async function load(){
     return;
   }
 
+  if(!pumpR){ render(); return; }
   try{
     GRAD_TARGET = Number(E(await retry(()=>pumpR.graduationUsdc())));
 
@@ -988,7 +1128,7 @@ async function load(){
       };
     }).reverse(); // newest first
 
-    render();
+    render(); ticker(); paintHero(); if(selected<0) rail();
     document.getElementById('lastSync').textContent =
       'synced '+new Date().toLocaleTimeString()+' · '+coins.length+' coins · 2 rpc calls';
   }catch(e){
@@ -1192,119 +1332,11 @@ async function renderPortfolio(){
         : '<div class="pfempty">You haven’t launched a coin yet.</div>')+
 
       '<div class="pfsec">Trades</div>'+
-      '<div class="pfempty">Trade history needs an indexer — eth_getLogs caps at 10k blocks, '+
-        'so we can’t reconstruct your full history from the browser. It’s the next thing we’re building.</div>'+
+      '<div class="pfempty">Your launchpad trades and points are on the <a href="#points" style="color:var(--light)">Points</a> tab. '+
+        'Full per-wallet trade history from the indexer lands with the next update.</div>'+
 
-      '<div class="pfsec">Referrals</div>'+
-      '<div id="pfRef"><div class="pfempty">Reading the referral graph…</div></div>'+
     '</div>'
   );
-
-  // Referral panel fills in after the main render so a slow RPC can't block the page.
-  (async ()=>{
-    const el = document.getElementById('pfRef');
-    if(!el) return;
-    if(!refAddr()){
-      el.innerHTML='<div class="pfempty">The referral contract is deployed on Arc testnet. '+
-        'Switch to Testnet to use it — it isn’t on mainnet yet.</div>';
-      return;
-    }
-    const s = await myReferralStats();
-    if(!s){ el.innerHTML='<div class="pfempty">Couldn’t reach the referral contract.</div>'; return; }
-    const zero = '0x0000000000000000000000000000000000000000';
-    el.innerHTML =
-      '<div class="pfgrid" style="margin-bottom:12px">'+
-        '<div class="pfcard"><div class="k">People you referred</div>'+
-          '<div class="v mono">'+s.count+'</div></div>'+
-        '<div class="pfcard"><div class="k">Referred by</div>'+
-          '<div class="v mono" style="font-size:14px">'+
-            (s.referrer && s.referrer!==zero ? short(s.referrer) : 'nobody')+'</div></div>'+
-      '</div>'+
-      '<button class="btn" onclick="copyRefLink()">Copy your referral link</button>'+
-      '<div style="font-size:11.5px;color:var(--ink3);margin-top:10px;line-height:1.5">'+
-        'The graph is on-chain and permanent — '+
-        '<a href="'+EXPLORER+'/address/'+refAddr()+'" target="_blank" rel="noopener" '+
-        'style="color:var(--light)">read the contract</a>. It has no owner and no admin functions, '+
-        'so nobody can edit who referred whom. Points are computed from trade volume once the '+
-        'indexer ships — the graph is live now, the scoring isn’t.</div>';
-  })();
-}
-
-/* ==================================================================
-   REFERRALS  —  ArcliteReferrals, on-chain, no admin functions
-
-   Live on Arc testnet at 0x69631D92…f957. The graph is permanent and
-   permissionless: you bind yourself, once, forever, and nobody
-   (including us) can edit it afterwards.
-
-   Deliberately NOT automatic. Binding is a real transaction that costs
-   real gas and can never be undone — prompting for it behind the user's
-   back would be exactly the kind of thing this contract exists to make
-   impossible. We ask.
-================================================================== */
-const REFERRALS = { 5042002:'0x69631D926954b3bB72efb9C70AbC428BE0d7f957' };
-const REF_ABI = [
-  'function bindReferrer(address)',
-  'function referrerOf(address) view returns (address)',
-  'function referralCount(address) view returns (uint256)',
-  'function hasReferrer(address) view returns (bool)'
-];
-const refAddr = () => REFERRALS[NET.chainId] || null;
-
-function pendingRef(){
-  try{
-    const q = new URLSearchParams(location.search).get('ref');
-    if(q && /^0x[0-9a-fA-F]{40}$/.test(q)){ localStorage.setItem('ark_ref', q); return q; }
-    return localStorage.getItem('ark_ref');
-  }catch(e){ return null; }
-}
-
-async function maybeBindReferrer(){
-  const addr = refAddr();
-  const ref  = pendingRef();
-  if(!addr || !ref || !me) return;
-  if(ref.toLowerCase() === me.toLowerCase()) return;         // self-referral reverts anyway
-  try{
-    const c = new ethers.Contract(addr, REF_ABI, provider);
-    if(await retry(()=>c.hasReferrer(me), 2, 8000)) return;   // already bound, permanently
-    const who = short(ref);
-    if(!confirm(
-      'Someone referred you to Arclite.\n\n'+
-      'Link your wallet to '+who+' on-chain?\n\n'+
-      '• Costs about $0.002 in gas\n'+
-      '• PERMANENT — it can never be changed or undone\n'+
-      '• Records who referred you, nothing else\n\n'+
-      'You can decline and use Arclite normally.'
-    )) return;
-    const cw = new ethers.Contract(addr, REF_ABI, signer);
-    const tx = await cw.bindReferrer(ref);
-    toast('Binding referral…');
-    await tx.wait();
-    localStorage.removeItem('ark_ref');
-    toast('Referral bound to '+who);
-  }catch(e){
-    toast('Referral not bound: '+String(e.shortMessage||e.message||e).slice(0,70), 1);
-  }
-}
-
-async function myReferralStats(){
-  const addr = refAddr();
-  if(!addr || !me) return null;
-  try{
-    const c = new ethers.Contract(addr, REF_ABI, provider);
-    return {
-      referrer: await retry(()=>c.referrerOf(me), 2, 8000),
-      count: Number(await retry(()=>c.referralCount(me), 2, 8000))
-    };
-  }catch(e){ return null; }
-}
-
-function copyRefLink(){
-  if(!me){ toast('Connect a wallet first',1); return; }
-  const link = location.origin + '/app/terminal.html?ref=' + me;
-  navigator.clipboard.writeText(link)
-    .then(()=>toast('Referral link copied'))
-    .catch(()=>toast('Copy failed — link: '+link, 1));
 }
 
 function scanDeeper(){
@@ -1315,8 +1347,25 @@ function scanDeeper(){
 
 function render(){
   counts();
-  if(filter==='portfolio'){ renderPortfolio(); return; }
-  const v=view(), tb=document.getElementById('rows');
+  if(VIEW==='portfolio'){ renderPortfolio(); return; }
+  if(VIEW==='launch'){ renderLaunch(); return; }
+  if(VIEW==='points'){ renderPoints(); return; }
+  const tb=document.getElementById('rows');
+  // View/network mismatch: say exactly what to do instead of an empty table.
+  if(VIEW==='tokens' && NET.mode!=='scanner'){
+    tb.innerHTML='<tr><td colspan="9"><div class="gate"><div><div class="dsp">The token explorer reads Arc mainnet.</div>'+
+      'Every USDC-paired token on Uniswap V3 + V4, indexed live. You\'re on testnet.<br>'+
+      '<button class="btn primary" style="margin-top:14px" onclick="switchNet(\'mainnet\')">Switch to mainnet</button></div></div></td></tr>';
+    return;
+  }
+  if(VIEW==='launchpad' && !hasPump()){
+    tb.innerHTML='<tr><td colspan="9"><div class="gate"><div><div class="dsp">The Arclite launchpad goes live on mainnet at deploy.</div>'+
+      'Bonding curve, graduation at $'+GRAD_TARGET.toLocaleString()+', 80% of trade fees to creators, and a live odds market on every coin. '+
+      'It\'s running on testnet today.<br>'+
+      '<button class="btn primary" style="margin-top:14px" onclick="switchNet(\'testnet\')">Try it on testnet</button></div></div></td></tr>';
+    return;
+  }
+  const v=view();
   if(!v.length){ tb.innerHTML='<tr><td colspan="9" class="empty">Nothing here yet.</td></tr>'; return; }
   if(NET.mode==='scanner'){
     tb.innerHTML=v.map((c,i)=>{
@@ -1388,8 +1437,10 @@ function render(){
    RIGHT RAIL
 ================================================================== */
 function rail(){
-  const v=view(), c=v[selected], el=document.getElementById('rail');
-  if(!c){ el.innerHTML='<div class="empty">Select a token<br><span style="color:var(--ink3);font-size:11px">↑ ↓ to move · Enter to open · ★ to watch</span></div>'; return; }
+  const el=document.getElementById('rail');
+  if(VIEW!=='tokens' && VIEW!=='launchpad'){ el.innerHTML=''; return; }
+  const v=view(), c=v[selected];
+  if(!c){ railDefault(el); return; }
   if(NET.mode==='scanner'){ railScan(c, el); return; }
   const m=c.market;
   el.innerHTML =
@@ -1427,6 +1478,7 @@ function rail(){
        : '<button class="btn primary" data-act="buy" data-i="'+selected+'">Buy $'+buyAmt+'</button>')+
      '<a class="btn" style="display:block;text-align:center;text-decoration:none;margin-top:7px" '+
        'href="'+EXPLORER+'/address/'+c.addr+'" target="_blank" rel="noopener">View on explorer ↗</a>'+
+     '<button class="btn" data-share="'+c.addr+'" data-sym="'+(c.symbol||'')+'" style="margin-top:7px">Share on X · +1 pt</button>'+
    '</div>'+
    (!c.scanner && c.creator
      ? '<div class="card"><h3>Creator check</h3>'+
@@ -1470,9 +1522,307 @@ function railScan(c, el){
    '<div class="card"><h3>Trade</h3>'+
      '<a class="btn primary" style="display:block;text-align:center;text-decoration:none" href="'+poolHref+'" target="_blank" rel="noopener">Open pool ↗</a>'+
      '<a class="btn" style="display:block;text-align:center;text-decoration:none;margin-top:7px" href="'+EXPLORER+'/token/'+c.addr+'" target="_blank" rel="noopener">Token on explorer ↗</a>'+
+     '<button class="btn" data-share="'+c.addr+'" data-sym="'+(named?c.symbol:'')+'" style="margin-top:7px">Share on X · +1 pt</button>'+
      '<div class="hint">This is a Uniswap pool on Arc, not an Arclite curve — in-terminal swaps land once the Arc swap router is verified. Arclite launches (BUY, odds markets) show here the day the launchpad goes live on mainnet.</div>'+
    '</div>';
 }
+
+/* ==================================================================
+   HERO STATS + TRENDING TICKER + LIVE FEED  (indexer API)
+   All three read the same API the token table does. Every call is
+   best-effort: a miss leaves the previous numbers up, never an error.
+================================================================== */
+const API = () => (NETWORKS.mainnet.indexerApi||'').replace(/\/$/,'');
+async function apiGet(path, ms=6000){
+  if(!API()) return null;
+  try{ const r=await deadline(fetch(API()+path,{cache:'no-store'}), ms, path); return r.ok ? await r.json() : null; }
+  catch(e){ return null; }
+}
+let STATS=null, FEED=[];
+const kfmt = n => { n=Number(n)||0; return n>=1e6?(n/1e6).toFixed(2)+'M':n>=1e3?(n/1e3).toFixed(1)+'K':String(Math.round(n)); };
+function paintHero(){
+  const set=(k,v,lbl)=>{ const el=document.getElementById(k); if(!el) return; el.textContent=v; el.classList.toggle('dim', v==='—'); if(lbl){ const l=document.getElementById(k+'k'); if(l) l.textContent=lbl; } };
+  const tag=document.getElementById('heroTag');
+  if(VIEW==='launchpad' || VIEW==='launch'){
+    if(tag) tag.textContent='[ tokens born on arclite · live from first trade ]';
+    const live=coins.filter(c=>!c.scanner);
+    const vol=live.reduce((a,c)=>a+(c.raised||0),0);
+    const grads=live.filter(c=>c.phase===2).length;
+    set('hs1', hasPump()? String(live.length) : (STATS? String(STATS.launched):'—'), 'Launched');
+    set('hs2', hasPump()? fmtUsd(vol) : (STATS? fmtUsd(STATS.launchVolume24h):'—'), hasPump()?'Raised on curves':'24h volume');
+    set('hs3', hasPump()? String(grads) : '—', 'Graduated');
+    set('hs4', '$'+GRAD_TARGET.toLocaleString(), 'Grad target');
+    return;
+  }
+  if(tag) tag.textContent = VIEW==='points'
+    ? '[ earn as you trade · 1 point per usdc · 1 per share ]'
+    : '[ track, launch and trade tokens on arc mainnet ]';
+  set('hs1', STATS? Number(STATS.tokens).toLocaleString():'—', 'Tokens');
+  set('hs2', STATS? fmtUsd(STATS.volume24h):'—', '24h volume');
+  set('hs3', STATS? kfmt(STATS.txns24h):'—', '24h txns');
+  set('hs4', STATS? kfmt(STATS.traders24h):'—', '24h traders');
+}
+async function loadStats(){ const st=await apiGet('/api/v1/stats'); if(st){ STATS=st; } paintHero(); }
+
+function ticker(){
+  const el=document.getElementById('tickTrack'); if(!el) return;
+  const num = x => (x==null||isNaN(x)) ? -Infinity : Number(x);
+  let top;
+  if(NET.mode==='scanner'){
+    top = coins.filter(c=>c.change24h!=null && c.txns24h>0 && c.symbol && c.symbol!=='—')
+               .sort((a,b)=>num(b.volume24h)-num(a.volume24h)).slice(0,10);
+  } else {
+    top = coins.filter(c=>c.phase===1).sort((a,b)=>b.pct-a.pct).slice(0,10);
+  }
+  if(!top.length){ el.innerHTML='<span class="ti dim">'+(NET.mode==='scanner'?'no 24h movers yet':'no coins on the curve yet')+'</span>'; el.style.animation='none'; return; }
+  const items = top.map((c,i)=>{
+    const chg = NET.mode==='scanner' ? c.change24h : null;
+    const tail = NET.mode==='scanner'
+      ? '<span class="'+(chg>=0?'up':'dn')+'">'+(chg>=0?'+':'')+Number(chg).toFixed(2)+'%</span>'
+      : '<span class="up">'+c.pct.toFixed(0)+'% to grad</span>';
+    return '<span class="ti" data-jump="'+c.addr+'"><span class="rk">#'+(i+1)+'</span><b>'+c.symbol+'</b>'+tail+'</span>';
+  }).join('');
+  el.style.animation='';
+  // The marquee translates by exactly -50%, so the track must be two identical
+  // halves. Pad a short list by repeating it so the half is wider than the bar.
+  const unit = items.repeat(Math.max(1, Math.ceil(12/top.length)));
+  el.innerHTML = unit + unit;
+}
+
+async function feed(){
+  const d=await apiGet('/api/v1/swaps/recent?limit=24'); if(!d||!Array.isArray(d.swaps)) return;
+  FEED=d.swaps;
+  if((VIEW==='tokens'||VIEW==='launchpad') && selected<0) railDefault(document.getElementById('rail'));
+}
+function feedRows(){
+  if(!FEED.length) return '<div class="empty" style="padding:16px 4px">Waiting for swaps…</div>';
+  return '<div class="feed">'+FEED.slice(0,18).map(sw=>{
+    const named = sw.meta_ok && sw.symbol;
+    return '<div class="fr" data-jump="'+sw.token_address+'"><span class="sd '+(sw.side==='buy'?'up':'dn')+'">'+(sw.side==='buy'?'BUY':'SELL')+'</span>'+
+      '<span class="sy">'+(named?sw.symbol:short(sw.token_address))+'</span>'+
+      '<span class="am">'+fmtUsd(sw.usdc_amount)+'</span>'+
+      '<span class="tm">'+age(Math.floor(new Date(sw.block_time).getTime()/1000))+'</span></div>';
+  }).join('')+'</div>';
+}
+function railDefault(el){
+  // Launchpad top 3 (by mcap on the curve / by volume on the explorer) + live feed —
+  // the RadarDEX right rail, with our data.
+  const isScan = NET.mode==='scanner';
+  const top3 = (isScan
+    ? coins.filter(c=>c.metaOk && c.symbol && c.symbol!=='—').sort((a,b)=>(b.volume24h||0)-(a.volume24h||0))
+    : coins.filter(c=>c.phase===1).sort((a,b)=>b.mcap-a.mcap)).slice(0,3);
+  el.innerHTML =
+    '<div class="card top3"><div class="hdrow"><h3>'+(isScan?'Top volume 24h':'Arclite launchpad')+'</h3>'+
+      (isScan ? '<a href="#launchpad">Launchpad ›</a>' : '<a href="#launch">Launch a token ›</a>')+'</div>'+
+      (top3.length ? top3.map((c,i)=>'<div class="fr" data-jump="'+c.addr+'"><span class="rk">'+(i+1)+'</span>'+
+          '<span class="sy">$'+c.symbol+'</span>'+
+          '<span class="am">'+(isScan?fmtUsd(c.volume24h):fmtUsd(c.mcap))+'</span>'+
+          (isScan && c.change24h!=null ? '<span class="tm '+(c.change24h>=0?'up':'dn')+'">'+(c.change24h>=0?'+':'')+Number(c.change24h).toFixed(1)+'%</span>'
+                                       : '<span class="tm up">'+(c.pct||0).toFixed(0)+'%</span>')+
+        '</div>').join('')
+        : '<div class="empty" style="padding:14px 4px">'+(isScan?'Indexing…':'No coins launched yet')+'</div>')+
+    '</div>'+
+    '<div class="card"><div class="hdrow"><h3><span class="livedot"></span>Live feed</h3><span class="dim" style="font-size:10px">arc mainnet · uniswap</span></div>'+feedRows()+'</div>'+
+    '<div class="empty" style="padding:10px 4px"><span style="font-size:11px">↑ ↓ to move · Enter to open · ★ to watch</span></div>';
+}
+
+/* ==================================================================
+   LAUNCH VIEW — createToken on the Arclite pump.
+   Everything about the token is fixed by the contract; the form is
+   name + ticker and nothing else, exactly like the contract call.
+================================================================== */
+let launchFee = null;   // native USDC wei, read from the pump
+async function renderLaunch(){
+  const el=document.getElementById('panel');
+  const fixed = [
+    ['Supply','1,000,000,000'],['Curve seed','$3,000 virtual USDC'],['Graduates at','$'+GRAD_TARGET.toLocaleString()+' raised'],
+    ['Trade fee','1%'],['Creator share','80% of every trade fee, claim any time'],['Launch fee', launchFee==null?'reading…':(launchFee===0n?'free':fmtUsd(Number(E(launchFee)),2))],
+    ['Cooldown','10 min per wallet'],['Tax / mint / owner','none · none · none'],
+  ];
+  if(!hasPump()){
+    el.innerHTML='<div class="ph"><h1>Launch a token on <em>Arc</em></h1></div>'+
+      '<div class="gate"><div><div class="dsp">Mainnet launches open the day the Arclite contracts deploy.</div>'+
+      'Same curve, same graduation, same 80% creator share you can try on testnet right now — nothing about the mechanics changes.<br>'+
+      '<button class="btn primary" style="margin-top:14px" onclick="switchNet(\'testnet\')">Launch on testnet</button></div></div>';
+    return;
+  }
+  el.innerHTML =
+    '<div class="ph"><div><h1>Launch a token on <em>Arc</em></h1>'+
+      '<div class="sub">Straight onto a bonding curve — live from the first buy. No presale, no allocation, no admin keys on the token. '+
+      'It graduates at $'+GRAD_TARGET.toLocaleString()+' raised, and every trade pays you 80% of the fee, forever.</div></div>'+
+      '<div class="pillrow" style="margin:0 0 0 auto"><span class="pill">1B supply</span><span class="pill">~$2.8K start mcap</span><span class="pill">fee 1% · 80% → creator</span><span class="pill">'+NET.label+'</span></div></div>'+
+    '<div class="grid2">'+
+      '<div class="form"><h3>Token</h3><div class="sub">Fixed 1,000,000,000 supply. No owner, no mint, no tax. The contract has no levers to pull.</div>'+
+        '<div class="row2">'+
+          '<label class="fld"><span>Name</span><input id="lpName" maxlength="32" placeholder="Your token name" autocomplete="off"></label>'+
+          '<label class="fld"><span>Ticker</span><input id="lpSym" class="mono" maxlength="10" placeholder="TICKER" autocomplete="off" style="text-transform:uppercase"></label>'+
+        '</div>'+
+        '<div class="hint" id="lpHint">Name and ticker are written on-chain and cannot be changed. Everything else about the token is the contract\'s, not yours.</div>'+
+        '<button class="btn primary" id="lpGo" style="width:100%;margin-top:14px;padding:11px">'+(me?'Launch token':'Connect wallet to launch')+'</button>'+
+        '<div class="log" id="lpLog" hidden></div>'+
+      '</div>'+
+      '<div class="form summ"><h3>Summary</h3><div class="sub">Everything below is fixed by the contract.</div>'+
+        fixed.map(([k,v])=>'<div class="kv"><span>'+k+'</span><b>'+v+'</b></div>').join('')+
+        '<div class="lock">🔒 <b>Liquidity can\'t be pulled.</b> USDC raised sits in the curve contract until graduation; until the DEX migration ships, every holder can redeem at the curve price — nothing can strand funds.</div>'+
+        '<div class="warnbox">You can lock your own first buy (7/30/90 days) from the coin\'s page after launch, so holders can see you can\'t dump.</div>'+
+      '</div>'+
+    '</div>';
+  document.getElementById('lpGo').addEventListener('click', doLaunch);
+  if(launchFee==null && pumpR){
+    try{ launchFee = await retry(()=>pumpR.deploymentFee(),2,8000); if(VIEW==='launch') renderLaunch(); }catch(e){ launchFee=0n; }
+  }
+}
+async function doLaunch(){
+  if(!signer) return connect();
+  const name=(document.getElementById('lpName').value||'').trim();
+  const sym=(document.getElementById('lpSym').value||'').trim().toUpperCase();
+  if(name.length<2) return toast('Give it a name (2–32 chars)',1);
+  if(!/^[A-Z0-9]{2,10}$/.test(sym)) return toast('Ticker: 2–10 letters/numbers',1);
+  const btn=document.getElementById('lpGo'); btn.disabled=true; btn.textContent='Launching…';
+  try{
+    const fee = launchFee==null ? await retry(()=>pumpR.deploymentFee(),2,8000) : launchFee;
+    logTo('lpLog','creating <b>'+name+'</b> ($'+sym+') on '+NET.label+(fee>0n?' · fee '+fmtUsd(Number(E(fee)),2):' · free'));
+    const tx = await pumpW.createToken(name, sym, {value: fee});
+    logTo('lpLog','sent <a href="'+EXPLORER+'/tx/'+tx.hash+'" target="_blank" rel="noopener" style="color:var(--cyan)">'+tx.hash.slice(0,14)+'… ↗</a>');
+    const rc = await tx.wait();
+    let tokenAddr=null;
+    try{ const iface=new ethers.Interface(PUMP_ABI); for(const lg of rc.logs){ try{ const p=iface.parseLog(lg); if(p&&p.name==='TokenCreated'){ tokenAddr=p.args.token; break; } }catch{} } }catch{}
+    logTo('lpLog','<span class="ok">live</span> '+(tokenAddr?'token '+short(tokenAddr):'')+' — first buy is yours to make','ok');
+    toast('$'+sym+' is live on the curve ✓');
+    await load();
+    setView('launchpad');
+    if(tokenAddr){ const i=view().findIndex(c=>c.addr.toLowerCase()===tokenAddr.toLowerCase()); if(i>=0){ selected=i; render(); rail(); } }
+  }catch(e){
+    const m=String(e.shortMessage||e.message||e);
+    logTo('lpLog','error: '+m.slice(0,160),'bad');
+    toast(/LaunchCooldown/i.test(m)?'Cooldown: one launch per wallet every 10 minutes':'Launch failed: '+m.slice(0,80),1);
+    btn.disabled=false; btn.textContent='Launch token';
+  }
+}
+
+/* ==================================================================
+   POINTS VIEW — 1 point per USDC traded on the launchpad, 1 per share.
+   Computed by the indexer from chain events + signed share claims;
+   nothing here is a number in our database that someone typed in.
+================================================================== */
+let BOARD=null, MYPTS=null, BOARD_ERR=false;
+async function renderPoints(){
+  const el=document.getElementById('panel');
+  const rules = (BOARD&&BOARD.rules)||{};
+  const pre = !BOARD || rules.season!=='live';
+  const rowsHtml = () => {
+    if(!BOARD) return '<tr><td colspan="6" class="empty">'+(BOARD_ERR
+      ? 'Couldn\'t reach the points API. <button class="btn" style="margin-left:8px;padding:4px 9px;font-size:11px" onclick="loadPoints(true)">Retry</button>'
+      : 'Loading the board…')+'</td></tr>';
+    if(!BOARD.leaderboard.length) return '<tr><td colspan="6" class="empty">Nobody on the board yet. Trade or share to be first.</td></tr>';
+    return BOARD.leaderboard.map((r,i)=>'<tr class="'+(me&&r.wallet===me.toLowerCase()?'me':'')+'">'+
+      '<td class="l '+(i<3?'rk'+(i+1):'dim')+'">'+(i+1)+'</td>'+
+      '<td class="l">'+(me&&r.wallet===me.toLowerCase()?'<b>you</b> · ':'')+short(r.wallet)+'</td>'+
+      '<td>'+fmtUsd(r.volume,0)+'</td><td>'+r.trades+'</td><td>'+r.shares+'</td>'+
+      '<td><b style="color:var(--light)">'+Number(r.points).toLocaleString()+'</b></td></tr>').join('');
+  };
+  const big = 'font-size:22px;font-family:\'Space Grotesk\',sans-serif';
+  const mine = !me
+    ? '<div class="cardk" style="display:flex;align-items:center;gap:14px;justify-content:space-between;flex-wrap:wrap"><span style="color:var(--ink2)">Connect your wallet to see your rank and points.</span><button class="btn primary" onclick="connect()">Connect wallet</button></div>'
+    : '<div class="cards3" style="margin-bottom:0">'+
+        '<div class="cardk"><div class="d">Your rank</div><div class="t" style="'+big+'">'+(MYPTS&&MYPTS.rank?'#'+MYPTS.rank:'—')+'</div></div>'+
+        '<div class="cardk"><div class="d">Your points</div><div class="t" style="'+big+';color:var(--light)">'+(MYPTS?Number(MYPTS.points).toLocaleString():'—')+'</div></div>'+
+        '<div class="cardk"><div class="d">Launchpad volume</div><div class="t" style="'+big+'">'+(MYPTS?fmtUsd(MYPTS.volume,0):'—')+'</div></div>'+
+        '<div class="cardk"><div class="d">Shares today</div><div class="t" style="'+big+'">'+(MYPTS?MYPTS.sharesToday+' / '+MYPTS.shareDailyCap:'—')+'</div></div>'+
+      '</div>';
+  el.innerHTML =
+    '<div class="ph"><div><h1>Arclite <em>Points</em></h1><div class="sub">Earn as you trade. Every point is computed from chain events by our indexer — nothing is assigned by hand, and nobody (including us) can edit the board.</div></div>'+
+      '<div class="pillrow" style="margin:0 0 0 auto">'+
+        (pre ? '<span class="pill warn">Pre-season · live at mainnet launch</span>' : '<span class="pill live">Season 1 · live</span>')+
+        '<span class="pill">'+(BOARD?BOARD.traders:'—')+' earning</span></div></div>'+
+    '<div class="cards3">'+
+      '<div class="cardk"><div class="t">💵 1 point per $1 traded</div><div class="d">Every buy and sell on the Arclite launchpad, floored per wallet. Volume is volume — both sides count.</div></div>'+
+      '<div class="cardk"><div class="t">📣 1 point per share</div><div class="d">Hit <b>Share on X</b> on any token and sign the claim with your wallet. One per token per day, up to '+(rules.shareDailyCap||10)+' a day.</div></div>'+
+      '<div class="cardk"><div class="t">🏆 Climb the board</div><div class="d">Top 100 by points, ties broken by volume. Your rank updates as the indexer sees your trades — no claiming, no snapshots.</div></div>'+
+    '</div>'+
+    (pre ? '<div class="warnbox" style="margin:0 0 14px">'+
+      'Volume points start the day the launchpad is on mainnet — there\'s nothing to trade on until then. Share points count from today. '+
+      (hasPump()?'':'Testnet trades don\'t count; testnet USDC isn\'t money.')+'</div>' : '')+
+    mine+
+    '<div style="margin-top:16px" class="hdrow"><h3 style="font:600 11px Inter;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3)">Leaderboard · top 100 by points</h3>'+
+      '<button class="btn" style="padding:5px 10px;font-size:11px" onclick="loadPoints(true)">Refresh</button></div>'+
+    '<table class="lb"><thead><tr><th class="l" style="width:40px">#</th><th class="l">Trader</th><th>Volume</th><th>Trades</th><th>Shares</th><th>Points</th></tr></thead>'+
+    '<tbody>'+rowsHtml()+'</tbody></table>';
+}
+async function loadPoints(force){
+  if(BOARD && !force && Date.now()-(BOARD._at||0) < 30000){ if(VIEW==='points') renderPoints(); return; }
+  const [b, m] = await Promise.all([apiGet('/api/v1/points/leaderboard?limit=100'), me ? apiGet('/api/v1/points/'+me) : null]);
+  if(b){ b._at=Date.now(); BOARD=b; BOARD_ERR=false; } else if(!BOARD) BOARD_ERR=true;
+  if(m) MYPTS=m;
+  if(VIEW==='points') renderPoints();
+}
+
+/* Share → open the X composer, then ask the wallet to sign a claim the API
+   verifies. The signature is over (wallet, token, UTC day) so it can't be
+   forged for someone else or replayed tomorrow; the API caps it per day. */
+const utcDay = () => new Date().toISOString().slice(0,10);
+async function sharePoint(tokenAddr, sym){
+  const url = location.origin+'/app/terminal.html?net='+(NET.chainId===5042?'mainnet':'testnet')+'#'+(NET.mode==='scanner'?'tokens':'launchpad');
+  const text = (sym?'$'+sym+' on Arc':'This token on Arc')+' — live price, holders and '+(NET.mode==='scanner'?'volume':'graduation odds')+' on Arclite Terminal ⚡\n'+url+'\n\n@ArcLiteFun @arc';
+  window.open('https://twitter.com/intent/tweet?text='+encodeURIComponent(text),'_blank','noopener');
+  if(!signer){ toast('Shared. Connect a wallet to claim the point.'); return; }
+  if(!API()){ toast('Shared. Points API not configured.'); return; }
+  try{
+    const day=utcDay();
+    const msg='Arclite share\nwallet: '+me.toLowerCase()+'\ntoken: '+tokenAddr.toLowerCase()+'\nday: '+day;
+    const signature = await signer.signMessage(msg);
+    const r = await deadline(fetch(API()+'/api/v1/points/share',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({wallet:me, token:tokenAddr, day, signature})}), 8000, 'share');
+    const j = await r.json();
+    if(r.ok && j.awarded) toast('+1 point · '+j.sharesToday+'/'+j.cap+' shares today');
+    else if(r.ok) toast('Already credited for this token today ('+j.sharesToday+'/'+j.cap+')');
+    else if(r.status===429) toast('Daily share cap reached ('+j.cap+')',1);
+    else toast('Share not credited: '+(j.error||r.status),1);
+    BOARD=null; if(me) MYPTS=null;
+  }catch(e){ toast('Signature declined — share not credited',1); }
+}
+
+/* ==================================================================
+   VIEW ROUTING
+================================================================== */
+function switchNet(key){
+  if(!NETWORKS[key] || NETWORKS[key].chainId===NET.chainId) return;
+  try{ localStorage.setItem('ark_net', key); }catch{}
+  location.href = location.pathname+'?net='+key+location.hash;
+}
+function setView(v){
+  if(!VIEWS.includes(v)) v='tokens';
+  VIEW=v;
+  if(location.hash!=='#'+v) history.replaceState(null,'','#'+v);
+  paintView();
+}
+function paintView(){
+  document.querySelectorAll('.navi').forEach(a=>a.classList.toggle('on', a.dataset.view===VIEW));
+  const tableViews = VIEW==='tokens' || VIEW==='launchpad';
+  const panelViews = VIEW==='launch' || VIEW==='points';
+  const tw=document.querySelector('.tablewrap');
+  tw.style.display = (tableViews || VIEW==='portfolio') ? '' : 'none';
+  document.getElementById('panel').hidden = !panelViews;
+  document.getElementById('rail').style.display = tableViews ? '' : 'none';
+  tw.style.borderRight = tableViews ? '' : '0';
+  tw.style.gridColumn = tableViews ? '' : '1 / -1';
+  document.getElementById('toolbar').style.visibility = tableViews ? 'visible' : 'hidden';
+  // filter tabs belong to a view, not to a network
+  const scan = VIEW==='tokens';
+  document.querySelectorAll('.scan-only').forEach(t=>t.style.display = scan ? '' : 'none');
+  document.querySelectorAll('.launch-only').forEach(t=>t.style.display = scan ? 'none' : '');
+  document.getElementById('thScan').style.display   = scan ? '' : 'none';
+  document.getElementById('thLaunch').style.display = scan ? 'none' : '';
+  document.querySelectorAll('.presets, .toolbar .vr').forEach(el=>el.style.display = scan ? 'none' : '');
+  const badFilter = scan ? ['near','grad','odds','climbing'] : ['trending','gainers','holders','watch'];
+  if(badFilter.includes(filter)) filter = scan ? 'trending' : 'new';
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on', x.dataset.f===filter));
+  selected=-1;
+  paintHero(); ticker();
+  if(VIEW==='points') loadPoints();
+  render(); rail();
+}
+window.addEventListener('hashchange',()=>{ const h=location.hash.replace('#',''); if(VIEWS.includes(h) && h!==VIEW) setView(h); });
 
 /* ==================================================================
    CREATOR TRANSPARENCY
@@ -1612,7 +1962,7 @@ async function connect(){
     document.getElementById('connectBtn').textContent = short(me);
     toast('Connected '+short(me));
     refreshBalance();
-    maybeBindReferrer();
+    if(VIEW==='launch'||VIEW==='points'){ MYPTS=null; render(); if(VIEW==='points') loadPoints(true); }
   }catch(e){ toast('Connect failed: '+String(e.message||e).slice(0,90),1); }
 }
 
@@ -1827,7 +2177,12 @@ async function tape(){
   const el=document.getElementById('tape');
   // No launchpad on mainnet — without an address, getLogs would sweep the whole
   // chain. Uniswap swap events need the indexer; say so rather than fake it.
-  if(!PUMP){ el.innerHTML='<span class="ev">live trade feed needs the indexer — coming</span>'; return; }
+  if(!PUMP){
+    el.innerHTML = FEED.length
+      ? FEED.slice(0,12).map(sw=>'<span class="ev"><span class="'+(sw.side==='buy'?'up':'dn')+'">'+(sw.side==='buy'?'BUY':'SELL')+'</span> '+((sw.meta_ok&&sw.symbol)?sw.symbol:short(sw.token_address))+' '+fmtUsd(sw.usdc_amount)+'</span>').join('')
+      : '<span class="ev">waiting for mainnet swaps…</span>';
+    return;
+  }
   try{
     const head = await retry(()=>provider.getBlockNumber());
     const from = Math.max(0, head-4000);
@@ -1865,31 +2220,14 @@ document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
 function paintNet(){
   document.querySelectorAll('.netopt').forEach(o=>
     o.classList.toggle('on', NETWORKS[o.dataset.net] && NETWORKS[o.dataset.net].chainId===NET.chainId));
-  // Everything below swaps the UI between "explorer" (mainnet: Uniswap pools,
-  // read-only, no router) and "launchpad" (Arclite curve + odds markets).
-  const scanner = NET.mode==='scanner';
-  document.querySelectorAll('.scan-only').forEach(t=>t.style.display = scanner ? '' : 'none');
-  document.querySelectorAll('.launch-only').forEach(t=>t.style.display = scanner ? 'none' : '');
-  document.getElementById('thScan').style.display   = scanner ? '' : 'none';
-  document.getElementById('thLaunch').style.display = scanner ? 'none' : '';
-  // Buy/Bet presets drive launchpad calls — hide both rather than show a $1 chip
-  // that can't do anything on a Uniswap pool.
-  document.querySelectorAll('.presets, .toolbar .vr').forEach(el=>el.style.display = scanner ? 'none' : '');
   const pill=document.getElementById('netPill');
-  if(pill){ pill.textContent = scanner ? 'arc mainnet' : 'arc testnet'; pill.classList.add('live'); }
-  const badFilter = scanner ? ['near','grad','odds','climbing'] : ['trending','gainers','holders','watch'];
-  if(badFilter.includes(filter)) filter = scanner ? 'trending' : 'new';
-  // Always sync the highlighted tab to the real filter — the markup hard-codes
-  // "New" as active, which is wrong the moment the explorer opens on Trending.
-  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on', x.dataset.f===filter));
+  if(pill){ pill.textContent = NET.mode==='scanner' ? 'arc mainnet' : 'arc testnet'; pill.classList.add('live'); }
+  // Fund modal copy: testnet bridges to Arc_Testnet, mainnet to Arc.
+  const ro=document.querySelector('#pane-bridge .ro'); if(ro) ro.textContent='Arc '+NET.label+' · your same address';
 }
-document.querySelectorAll('.netopt').forEach(o=>o.addEventListener('click',()=>{
-  const key=o.dataset.net;
-  if(!NETWORKS[key] || NETWORKS[key].chainId===NET.chainId) return;
-  try{ localStorage.setItem('ark_net', key); }catch{}
-  location.search = '?net='+key;
-}));
+document.querySelectorAll('.netopt').forEach(o=>o.addEventListener('click',()=>switchNet(o.dataset.net)));
 paintNet();
+paintView();
 document.querySelectorAll('.chip[data-amt]').forEach(c=>c.addEventListener('click',()=>{
   document.querySelectorAll('.chip[data-amt]').forEach(x=>x.classList.remove('on'));
   c.classList.add('on'); buyAmt=Number(c.dataset.amt); rail();
@@ -1900,7 +2238,7 @@ document.querySelectorAll('.chip[data-bet]').forEach(c=>c.addEventListener('clic
 }));
 document.getElementById('q').addEventListener('input',()=>{selected=-1;render();rail();});
 document.getElementById('connectBtn').addEventListener('click',connect);
-document.getElementById('refreshBtn').addEventListener('click',()=>{load();tape();});
+document.getElementById('refreshBtn').addEventListener('click',()=>{load();tape();loadStats();feed();if(VIEW==='points')loadPoints(true);});
 
 document.body.addEventListener('click',e=>{
   const b=e.target.closest('[data-act]');
@@ -1915,6 +2253,18 @@ document.body.addEventListener('click',e=>{
   }
   const w=e.target.closest('[data-watch]');
   if(w){ e.stopPropagation(); toggleWatch(w.dataset.watch); return; }
+  const sh=e.target.closest('[data-share]');
+  if(sh){ e.stopPropagation(); sharePoint(sh.dataset.share, sh.dataset.sym||''); return; }
+  const jp=e.target.closest('[data-jump]');
+  if(jp){
+    e.stopPropagation();
+    const a=jp.dataset.jump.toLowerCase();
+    if(VIEW!=='tokens' && VIEW!=='launchpad') setView(NET.mode==='scanner'?'tokens':'launchpad');
+    const i=view().findIndex(c=>c.addr.toLowerCase()===a);
+    if(i>=0){ selected=i; render(); rail(); const tr=document.querySelector('tr[data-i="'+i+'"]'); if(tr) tr.scrollIntoView({block:'nearest'}); }
+    else toast('Not in the current list — try Trending or New');
+    return;
+  }
   const cp=e.target.closest('[data-copy]');
   if(cp){ e.stopPropagation(); navigator.clipboard.writeText(cp.dataset.copy).then(()=>toast('Address copied')).catch(()=>{}); return; }
   const ds=e.target.closest('[data-dust]');
@@ -1983,6 +2333,7 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){ closeFund(); document.getElementById('q').blur(); return; }
   if(e.key==='f' && !inSearch){ e.preventDefault(); openFund(); return; }
   if(inSearch) return;
+  if(VIEW!=='tokens' && VIEW!=='launchpad') return;   // j/k/b/y/n only mean something on a table
   const v=view();
   if(e.key==='j'||e.key==='ArrowDown'){ e.preventDefault(); selected=Math.min(v.length-1,selected+1); render(); rail(); }
   if(e.key==='k'||e.key==='ArrowUp'){ e.preventDefault(); selected=Math.max(0,selected-1); render(); rail(); }
@@ -1992,12 +2343,21 @@ document.addEventListener('keydown',e=>{
   if(e.key==='n') doBet(c,false);
 });
 
+/* Test/debug surface. Read-only view of state that lives in this script's
+   lexical scope, plus a way for test-terminal.js to stand in a wallet without
+   a browser extension. Not used by the page itself. */
+window.__term = { get VIEW(){ return VIEW; }, get coins(){ return coins; }, get filter(){ return filter; },
+  setWallet(s, a){ signer=s; me=a; }, setView, render, rail, sharePoint, loadPoints };
+
 /* ==================================================================
    BOOT
 ================================================================== */
 load().then(tape);
+loadStats(); feed();
 setInterval(load, 20000);
 setInterval(tape, 30000);
+setInterval(loadStats, 30000);
+setInterval(feed, 15000);
 setInterval(refreshBalance, 25000);
 // If a wallet is already authorised, pick it up silently so the balance nag works.
 (async()=>{ try{
