@@ -572,13 +572,16 @@
 
 <nav id="nav">
   <div class="nav-inner">
-    <div class="logo" onclick="goLanding()">
+    <!-- Logo is the switch between the two surfaces: here → the terminal, and the
+         terminal's logo → back to this site. -->
+    <a class="logo" href="/app/terminal.html" title="Switch to the Arclite terminal" aria-label="Open the Arclite terminal" style="text-decoration:none;color:inherit">
       <svg class="logo-mark" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M 8 54 Q 22 51 36 41 Q 51 30 55 11" stroke="url(#markGrad)" stroke-width="7.5" stroke-linecap="round"/>
         <circle cx="54" cy="10" r="6.5" fill="#7dd3fc"/>
       </svg>
       Arclite
-    </div>
+      <span style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 6px;border-radius:5px;border:1px solid rgba(34,211,238,.35);color:#22d3ee;margin-left:2px">terminal ↗</span>
+    </a>
     <div class="nav-links">
       <button class="nav-link" data-tab="launch" onclick="enterApp('launch')">Launch</button>
       <button class="nav-link" data-tab="trade" onclick="enterApp('trade')">Trade</button>
@@ -595,7 +598,7 @@
         <span style="font-size:9px;font-weight:700;letter-spacing:.07em;padding:2px 5px;border-radius:4px;
                      background:rgba(34,211,238,.16);color:#22d3ee">NEW</span>
       </a>
-      <a class="nav-link" href="/app/points.html" style="text-decoration:none;display:inline-flex;align-items:center;gap:5px">
+      <a class="nav-link" href="/app/terminal.html#points" style="text-decoration:none;display:inline-flex;align-items:center;gap:5px">
         Points
         <span style="font-size:9px;font-weight:700;letter-spacing:.07em;padding:2px 5px;border-radius:4px;
                      background:rgba(48,209,88,.16);color:#30d158">NEW</span>
@@ -716,7 +719,7 @@
         </div>
       </div>
     </div>
-    <p class="rv rv4" style="font-size:12.5px;color:var(--ink-3);margin-top:16px;">Light points are just for fun today — soon they'll boost tokens up the board. 🔆</p>
+    <p class="rv rv4" style="font-size:12.5px;color:var(--ink-3);margin-top:16px;">Light points are just for fun. Real points come from trading and sharing — see <a href="/app/terminal.html#points" style="color:var(--accent-2)">Points</a>. 🔆</p>
   </div>
 
   <!-- scene 5: closer -->
@@ -864,7 +867,7 @@
     <button class="pp-btn" onclick="copyAddr()">Copy address</button>
     <button class="pp-btn danger" onclick="disconnectWallet()">Disconnect</button>
   </div>
-  <div class="pp-note">Light points will unlock rewards &amp; token boosts.<br>Play ASCENT to earn more. 🔆</div>
+  <div class="pp-note">Light points are a game score, nothing more.<br>Trading &amp; sharing earn the real ones → Points tab. 🔆</div>
 </div>
 
 <div id="walletModal" onclick="if(event.target===this) closeWalletModal()">
