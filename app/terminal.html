@@ -353,6 +353,14 @@ td.l{text-align:left}
   margin-right:8px;transition:.14s;text-decoration:none;flex:0 0 auto}
 .xlink:hover{color:var(--ink);border-color:var(--hair2);background:var(--panel)}
 
+/* ---- chain switcher (dexscreener/gmgn style) ---- */
+.chsw{display:flex;gap:2px;padding:2px;background:var(--panel2);border:1px solid var(--hair);border-radius:9px;margin-left:6px}
+.chsw button{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border:0;border-radius:7px;background:none;color:var(--ink3);
+  font:700 11px var(--fs);letter-spacing:.06em;cursor:pointer;transition:.12s}
+.chsw button:hover{color:var(--ink2)}
+.chsw button.on{background:var(--panel);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.4)}
+.chsw button.on[data-chain="arc"]{color:var(--info)} .chsw button.on[data-chain="hood"]{color:#7cff8a} .chsw button.on[data-chain="sol"]{color:#c4b5fd}
+.navi.offchain{opacity:.45}
 /* ---- network switcher ---- */
 .netsw{display:flex;gap:2px;padding:2px;background:var(--panel2);
   border:1px solid var(--hair);border-radius:9px;margin-right:8px}
@@ -523,6 +531,107 @@ tbody tr.new{animation:newrow 6s ease-out}
 @media (max-width:1300px){ .lanes{grid-template-columns:repeat(2,minmax(0,1fr))} .lane:nth-child(3){grid-column:1 / -1;border-top:1px solid var(--hair)} }
 /* phones: one long scroll, three stacked sections — every lane stays reachable */
 @media (max-width:900px){ .lanes{display:block;overflow:auto} .lane{border-right:0;border-bottom:1px solid var(--hair)} .lane .cards{overflow:visible;flex:none} .laneh{position:sticky;top:0} }
+
+/* =====================================================================
+   LUCKY TRENCHER — the hourly draw
+   ===================================================================== */
+.dw{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:14px;align-items:start}
+.dwhead{display:flex;align-items:center;gap:18px;padding:16px 18px;border-radius:14px;margin-bottom:14px;position:relative;overflow:hidden;
+  background:radial-gradient(700px 200px at 0% 0%,rgba(255,214,10,.10),transparent 60%),radial-gradient(600px 200px at 100% 100%,rgba(139,125,255,.16),transparent 60%),var(--panel);
+  border:1px solid var(--hair2)}
+.dwhead h1{font:800 22px/1 var(--fd);letter-spacing:.02em;background:linear-gradient(90deg,#fff 0%,#ffd60a 60%,#ff7a1a 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.dwhead .sub{font:500 11px var(--fm);letter-spacing:.12em;text-transform:uppercase;color:var(--ink2);margin-top:6px}
+.dwhead .phase{margin-left:auto;text-align:right}
+.phasepill{display:inline-flex;align-items:center;gap:7px;font:700 11px var(--fs);letter-spacing:.1em;text-transform:uppercase;padding:6px 11px;border-radius:999px;border:1px solid var(--hair2);color:var(--ink2)}
+.phasepill.open{color:var(--pos);border-color:rgba(48,209,88,.4);background:var(--pos-bg)}
+.phasepill.last{color:var(--hot);border-color:rgba(255,122,26,.5);background:var(--hot-bg);animation:blip 1s infinite}
+.phasepill.closed{color:var(--warn);border-color:rgba(255,214,10,.4);background:var(--warn-bg)}
+.phasepill.drawing{color:#c4b5fd;border-color:rgba(139,125,255,.5);background:var(--violet-bg);animation:blip .7s infinite}
+.phasepill.paid{color:var(--pos);border-color:rgba(48,209,88,.4);background:var(--pos-bg)}
+/* countdown ring */
+.ring{position:relative;width:92px;height:92px;flex:0 0 92px}
+.ring svg{width:92px;height:92px;transform:rotate(-90deg)}
+.ring circle{fill:none;stroke-width:6}
+.ring .bg{stroke:var(--hair2)}
+.ring .fg{stroke:var(--pos);stroke-linecap:round;transition:stroke-dashoffset 1s linear,stroke .3s}
+.ring.last .fg{stroke:var(--hot)} .ring.closed .fg{stroke:var(--warn)} .ring.drawing .fg{stroke:var(--violet)}
+.ring .t{position:absolute;inset:0;display:grid;place-items:center;text-align:center}
+.ring .t b{font:700 17px var(--fm);letter-spacing:-.02em;display:block}
+.ring .t span{font:600 8.5px var(--fs);letter-spacing:.12em;text-transform:uppercase;color:var(--ink3)}
+/* jackpot bar */
+.jack{display:flex;align-items:center;gap:14px;padding:12px 16px;border-radius:12px;margin-bottom:14px;
+  background:linear-gradient(90deg,rgba(255,214,10,.14),rgba(255,122,26,.08) 50%,transparent);border:1px solid rgba(255,214,10,.3)}
+.jack .lbl{font:800 10.5px var(--fd);letter-spacing:.14em;color:var(--warn)}
+.jack .amt{font:800 26px var(--fm);letter-spacing:-.02em;color:#fff;text-shadow:0 0 18px rgba(255,214,10,.5)}
+.jack .amt.grow{animation:jackgrow .8s ease-out}
+@keyframes jackgrow{0%{transform:scale(1)}30%{transform:scale(1.12);color:var(--warn)}100%{transform:scale(1)}}
+.jack .odds{font:500 11px var(--fs);color:var(--ink2);margin-left:auto;text-align:right;line-height:1.4}
+/* tier cards */
+.tiers{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.tier{position:relative;background:var(--panel);border:1px solid var(--hair);border-radius:14px;padding:14px 15px;overflow:hidden;transition:border-color .2s}
+.tier::before{content:'';position:absolute;inset:0 0 auto 0;height:3px;background:var(--tc)}
+.tier.t0{--tc:var(--pos)} .tier.t1{--tc:var(--violet)} .tier.t2{--tc:var(--warn)}
+.tier.mine{border-color:rgba(139,125,255,.45)}
+.tier .nm{display:flex;align-items:baseline;gap:8px}
+.tier .nm b{font:800 12px var(--fd);letter-spacing:.08em;text-transform:uppercase;color:var(--tc)}
+.tier .nm span{font:600 11px var(--fm);color:var(--ink3)}
+.tier .pot{font:800 30px/1.05 var(--fm);letter-spacing:-.03em;margin:10px 0 2px;color:#fff}
+.tier .pot.bump{animation:potbump .5s ease-out}
+@keyframes potbump{0%{transform:translateY(0)}35%{transform:translateY(-3px);color:var(--tc)}100%{transform:translateY(0)}}
+.tier .meta{font:500 11px var(--fm);color:var(--ink3);display:flex;gap:10px;flex-wrap:wrap}
+.tier .you{margin-top:10px;padding:8px 10px;border-radius:9px;background:var(--bg2);border:1px solid var(--hair);font:500 11px var(--fm);display:flex;justify-content:space-between;color:var(--ink2)}
+.tier .you b{color:var(--ink)}
+.tier .you .odds{color:var(--tc);font-weight:700}
+.stepper{display:flex;align-items:center;gap:6px;margin-top:10px}
+.stepper button{width:32px;height:32px;border-radius:8px;border:1px solid var(--hair2);background:var(--panel2);color:var(--ink);font:700 15px var(--fm);cursor:pointer}
+.stepper button:disabled{opacity:.35;cursor:default}
+.stepper .n{flex:1;text-align:center;font:700 15px var(--fm)}
+.stepper .buy{flex:2;height:32px;border-radius:8px;border:1px solid var(--tc);background:var(--tc);color:#07080c;font:800 12px var(--fs);letter-spacing:.04em;cursor:pointer;transition:.12s}
+.stepper .buy:hover{filter:brightness(1.1)}
+.stepper .buy:disabled{opacity:.4;cursor:default;filter:none}
+.tier .max{font:500 10px var(--fs);color:var(--ink3);margin-top:6px;text-align:right}
+/* draw stage */
+.stage{background:var(--panel);border:1px solid var(--hair2);border-radius:14px;padding:16px;margin-bottom:14px}
+.stage h3{font:800 10.5px var(--fd);letter-spacing:.14em;text-transform:uppercase;color:var(--ink2);margin-bottom:12px;display:flex;align-items:center;gap:10px}
+.stage h3 .rn{font:500 10.5px var(--fm);color:var(--ink3);letter-spacing:0;text-transform:none}
+.reels{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.reel{border-radius:12px;border:1px solid var(--hair);background:var(--bg2);overflow:hidden;position:relative}
+.reel .rh{display:flex;justify-content:space-between;padding:8px 11px;border-bottom:1px solid var(--hair);font:700 10px var(--fs);letter-spacing:.1em;text-transform:uppercase}
+.reel .win{height:132px;overflow:hidden;position:relative}
+.reel .win::before,.reel .win::after{content:'';position:absolute;left:0;right:0;height:44px;z-index:2;pointer-events:none}
+.reel .win::before{top:0;background:linear-gradient(180deg,var(--bg2),transparent)}
+.reel .win::after{bottom:0;background:linear-gradient(0deg,var(--bg2),transparent)}
+.reel .marker{position:absolute;top:44px;left:0;right:0;height:44px;border-top:1px solid rgba(255,214,10,.55);border-bottom:1px solid rgba(255,214,10,.55);background:rgba(255,214,10,.06);z-index:1;pointer-events:none}
+.reel .strip{will-change:transform}
+.reel .cell{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;font:600 12.5px var(--fm);color:var(--ink2);border-bottom:1px dashed rgba(28,34,48,.7)}
+.reel .cell .ix{color:var(--ink3);font-size:11px}
+.reel .cell.hit{color:#fff}
+.reel.spinning .strip{transition:transform var(--dur,4.2s) cubic-bezier(.12,.82,.2,1)}
+.reel .res{padding:10px 11px;border-top:1px solid var(--hair);font:500 11.5px var(--fm);display:none}
+.reel.done .res{display:block;animation:fadein .5s}
+.reel .res b{color:var(--pos);font-size:15px;display:block}
+.reel .res .jp{display:inline-block;margin-top:4px;font:800 10px var(--fd);letter-spacing:.1em;color:var(--warn);border:1px solid rgba(255,214,10,.45);border-radius:6px;padding:2px 7px;animation:blip .8s infinite}
+.reel.refund .win,.reel.empty .win{display:grid;place-items:center;color:var(--ink3);font:500 11.5px var(--fs);text-align:center;padding:0 14px;line-height:1.5}
+.proof{margin-top:12px;background:var(--bg2);border:1px dashed var(--hair2);border-radius:10px;padding:10px 12px;font:500 10.5px var(--fm);color:var(--ink2);line-height:1.7;word-break:break-all}
+.proof b{color:var(--info)} .proof .ok{color:var(--pos)}
+.proof summary{cursor:pointer;color:var(--ink);font-family:var(--fs);font-weight:600;font-size:11px}
+/* confetti */
+.confetti{position:fixed;inset:0;pointer-events:none;z-index:200;overflow:hidden}
+.confetti i{position:absolute;top:-12px;width:8px;height:12px;border-radius:2px;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(110vh) rotate(720deg);opacity:.2}}
+/* rail: tape + winners wall */
+.dwrail .card{margin-bottom:12px}
+.tape2 .fr{cursor:default}
+.tape2 .fr .who{color:var(--ink);min-width:0;overflow:hidden;text-overflow:ellipsis}
+.tape2 .fr.fresh{animation:newrow 3s ease-out}
+.wall .fr .pz{color:var(--pos);font-weight:700}
+.wall .fr .tr{font:700 9px var(--fs);letter-spacing:.08em;padding:1px 5px;border-radius:4px;border:1px solid var(--hair2);color:var(--ink3)}
+.wall .fr .tr.t0{color:var(--pos)} .wall .fr .tr.t1{color:#c4b5fd} .wall .fr .tr.t2{color:var(--warn)}
+.wall .fr .jpf{color:var(--warn);font-weight:800}
+.claimbar{display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:10px;margin-bottom:14px;background:var(--pos-bg);border:1px solid rgba(48,209,88,.4);font:600 12.5px var(--fs)}
+.claimbar .btn{margin-left:auto}
+.navi .livedot{margin-right:4px}
+@media (max-width:1100px){ .dw{grid-template-columns:1fr} .tiers,.reels{grid-template-columns:1fr} }
 </style>
 </head>
 <body>
@@ -537,9 +646,11 @@ tbody tr.new{animation:newrow 6s ease-out}
       <a class="navi" data-view="tokens" href="#tokens">Tokens</a>
       <a class="navi" data-view="launchpad" href="#launchpad">Launchpad<span class="fire">🔥</span></a>
       <a class="navi" data-view="launch" href="#launch">Launch</a>
+      <a class="navi" data-view="draw" href="#draw"><span class="livedot"></span>Draw</a>
       <a class="navi" data-view="points" href="#points">Points<span class="badge">PTS</span></a>
       <a class="navi" data-view="portfolio" href="#portfolio">Portfolio</a>
     </nav>
+    <div class="chsw" id="chsw" title="Chain"><button data-chain="arc">◠ ARC</button><button data-chain="hood">🪶 HOOD</button><button data-chain="sol">◎ SOL</button></div>
     <div class="pill live" id="netPill">arc testnet</div>
     <div class="search">
       <span style="color:var(--ink3)">⌕</span>
@@ -746,6 +857,10 @@ const NETWORKS = {
     mode:'launchpad',
     pump:'0xe6e185c2b77AB49C63774f24a53e87B7A17826E1',
     pred:'0x1DC7fAe3157b9Ef003903599762fe8842478bE0b',
+    // LuckyTrencher (hourly draw) — set from deployment-draw.json after `node deploy-draw.js`
+    draw:'',
+    // ArcliteLimit (limit orders on the curve) — set after `node deploy-limit.js`
+    limit:'',
   },
   mainnet: {
     label:'Mainnet', chainId:5042,
@@ -771,6 +886,10 @@ const NETWORKS = {
     // Mixing these up is a 10^12 error. See AUDIT.md §2.1.
     usdc:'0x3600000000000000000000000000000000000000',
     usdcDecimals:6,
+    // LuckyTrencher (hourly draw) — set from deployment-draw.json after `node deploy-draw.js`
+    draw:'',
+    // ArcliteLimit (limit orders on the curve) — set after `node deploy-limit.js`
+    limit:'',
   },
 };
 
@@ -789,6 +908,73 @@ let RPC      = NET.rpc;
 let EXPLORER = NET.explorer;
 let PUMP     = NET.pump;
 let PRED     = NET.pred;
+
+/* ==================================================================
+   CHAINS — dexscreener-style chain switcher.
+   ARC  : our own indexer + launchpad + draw + points (everything).
+   HOOD : Robinhood Chain (4663). Explorer via GeckoTerminal's free API.
+   SOL  : Solana. Explorer via GeckoTerminal's free API.
+   Non-Arc chains are read-only here: trading deep-links to the DEX.
+   GeckoTerminal is keyless (30 req/min); we make 2 calls per refresh.
+================================================================== */
+const CHAINS = {
+  arc:  { key:'arc',  label:'ARC',  name:'Arc',             gecko:null,        color:'var(--info)',  glyph:'◠' },
+  hood: { key:'hood', label:'HOOD', name:'Robinhood Chain', gecko:'robinhood', color:'#7cff8a',      glyph:'🪶', chainId:4663,
+          explorer:'https://explorer.robinhood.com', screener:'https://dexscreener.com/robinhood/' },
+  sol:  { key:'sol',  label:'SOL',  name:'Solana',          gecko:'solana',    color:'#c4b5fd',      glyph:'◎',
+          explorer:'https://solscan.io', screener:'https://dexscreener.com/solana/' },
+};
+let CHAIN = (function(){ try{ const q=new URLSearchParams(location.search).get('chain'); if(q && CHAINS[q]) return q; const s=localStorage.getItem('ark_chain'); return (s && CHAINS[s]) ? s : 'arc'; }catch(e){ return 'arc'; } })();
+const onArc = () => CHAIN==='arc';
+function setChain(k){
+  if(!CHAINS[k] || k===CHAIN) return;
+  CHAIN=k; try{ localStorage.setItem('ark_chain', k); }catch(e){}
+  coins=[]; selected=-1; SEEN=null;
+  if(!onArc() && VIEW!=='tokens') VIEW='tokens';
+  paintChain(); paintView(); load(); loadStats();
+}
+function paintChain(){
+  document.querySelectorAll('[data-chain]').forEach(b=>b.classList.toggle('on', b.dataset.chain===CHAIN));
+  const sw=document.getElementById('netsw'); if(sw) sw.style.display = onArc() ? '' : 'none';
+  const pill=document.getElementById('netPill');
+  if(pill && !onArc()){ pill.textContent = CHAINS[CHAIN].name.toLowerCase(); pill.classList.add('live'); }
+  else if(pill){ pill.textContent = NET.mode==='scanner' ? 'arc mainnet' : 'arc testnet'; }
+  document.querySelectorAll('.navi').forEach(a=>{ if(a.dataset.view!=='tokens') a.classList.toggle('offchain', !onArc()); });
+}
+/* GeckoTerminal pool → the same coin shape the explorer already renders. */
+function geckoCoin(p, chainKey){
+  const a=p.attributes, ch=CHAINS[chainKey];
+  const base=(p.relationships && p.relationships.base_token && p.relationships.base_token.data.id) || '';
+  const addr=base.includes('_') ? base.slice(base.indexOf('_')+1) : base;
+  const sym=(a.name||'').split('/')[0].trim() || '—';
+  const tx=a.transactions && a.transactions.h24 || {};
+  const created=a.pool_created_at ? Math.floor(new Date(a.pool_created_at).getTime()/1000) : null;
+  return {
+    addr, name:sym, symbol:sym, phase:1, scanner:true, metaOk:true, chain:chainKey,
+    price:Number(a.base_token_price_usd)||0, priceStale:!(Number(a.base_token_price_usd)>0),
+    volume24h:Number(a.volume_usd && a.volume_usd.h24)||0,
+    change24h: a.price_change_percentage && a.price_change_percentage.h24!=null ? Number(a.price_change_percentage.h24) : null,
+    txns24h:(Number(tx.buys)||0)+(Number(tx.sells)||0), traders24h:(Number(tx.buyers)||0)+(Number(tx.sellers)||0),
+    holders:null, liq:Number(a.reserve_in_usd)||0, mcap:Number(a.fdv_usd)||0, firstSeenAt:created, block:created,
+    pool:a.address, dex:(p.relationships && p.relationships.dex && p.relationships.dex.data.id)||'dex',
+    poolUrl: ch.screener + a.address,
+    tokenUrl: chainKey==='sol' ? ch.explorer+'/token/'+addr : ch.explorer+'/token/'+addr,
+    tradeUrl: chainKey==='sol' ? 'https://jup.ag/swap/USDC-'+addr : ch.screener + a.address,
+    raised:0, sold:0, pct:0, market:null,
+  };
+}
+async function loadFromGecko(){
+  const g=CHAINS[CHAIN].gecko; if(!g) return null;
+  const get = async path => { const r=await deadline(fetch('https://api.geckoterminal.com/api/v2'+path,{headers:{accept:'application/json'},cache:'no-store'}), 8000, 'gecko'); if(!r.ok) throw new Error('gecko '+r.status); return (await r.json()).data||[]; };
+  const [trending, fresh] = await Promise.all([get('/networks/'+g+'/trending_pools?page=1'), get('/networks/'+g+'/new_pools?page=1')]);
+  const seen=new Map();
+  for(const p of [...trending, ...fresh]){ const c=geckoCoin(p, CHAIN); if(!c.addr) continue; if(!seen.has(c.addr)){ c.trending = trending.includes(p); seen.set(c.addr,c); } }
+  return [...seen.values()];
+}
+function chainStats(){
+  const v=coins;
+  return { tokens:v.length, volume24h:v.reduce((a,c)=>a+(c.volume24h||0),0), txns24h:v.reduce((a,c)=>a+(c.txns24h||0),0), traders24h:v.reduce((a,c)=>a+(c.traders24h||0),0) };
+}
 
 /* eth_getLogs is capped at a 10,000-block range on Arc, and head is ~13.5M.
    Full history from a browser would be ~1,350 requests, so we scan a recent
@@ -930,7 +1116,7 @@ let filter = (typeof NET!=='undefined' && NET.mode==='scanner') ? 'trending' : '
      points     — leaderboard + your rank. Indexer API, any net.
      portfolio  — your wallet, any net.
 --------------------------------------------------------------- */
-const VIEWS = ['tokens','launchpad','launch','points','portfolio'];
+const VIEWS = ['tokens','launchpad','launch','draw','points','portfolio'];
 let VIEW = (function(){
   const h = (location.hash||'').replace('#','');
   if(VIEWS.includes(h)) return h;
@@ -1182,6 +1368,20 @@ async function load(){
   const tb=document.getElementById('rows');
   if(!coins.length){ if(lanesOn()) renderLanes(); else tb.innerHTML = Array.from({length:9},()=>'<tr><td colspan="9" class="skel"></td></tr>').join(''); }
 
+  // ---- other chains: GeckoTerminal explorer, read-only
+  if(!onArc()){
+    try{
+      const list = await loadFromGecko();
+      coins = list || [];
+      render(); ticker(); paintHero(); if(selected<0) rail();
+      document.getElementById('lastSync').textContent = 'synced '+new Date().toLocaleTimeString()+' · '+coins.length+' pools · '+CHAINS[CHAIN].name+' · GeckoTerminal';
+    }catch(e){
+      tb.innerHTML='<tr><td colspan="9" class="empty"><div style="font-size:13px;color:var(--ink2);margin-bottom:6px">Could not reach GeckoTerminal for '+CHAINS[CHAIN].name+'.</div>'+
+        '<div style="font-size:11.5px;color:var(--ink3);margin-bottom:14px">'+String(e&&(e.message||e)).slice(0,120)+'</div><button class="btn" onclick="load()">Retry</button></td></tr>';
+      document.getElementById('lastSync').textContent='offline · '+new Date().toLocaleTimeString();
+    }
+    return;
+  }
   // ---- mainnet: scanner mode, no launchpad contracts involved
   if(NET.mode==='scanner'){
     try{
@@ -1327,7 +1527,7 @@ function view(){
   const q=(document.getElementById('q').value||'').trim().toLowerCase();
   let v=coins.filter(c=>!q || c.name.toLowerCase().includes(q) ||
         c.symbol.toLowerCase().includes(q) || c.addr.toLowerCase().includes(q));
-  if(NET.mode==='scanner'){
+  if(NET.mode==='scanner' || !onArc()){
     // Explorer sorts. Anything unverified (no real decimals yet) sorts to the
     // bottom of price-based views rather than polluting them with nulls.
     const num = x => (x==null||isNaN(x)) ? -Infinity : Number(x);
@@ -1392,6 +1592,7 @@ async function renderPortfolio(){
   }
 
   cell('<div class="pf"><div class="pfempty">Reading your positions…</div></div>');
+  if(!LO.loaded) await loadOrders();
 
   let native=0n;
   try{ native = await retry(()=>provider.getBalance(me)); }catch{}
@@ -1481,6 +1682,9 @@ async function renderPortfolio(){
             '</div>').join('')
         : '<div class="pfempty">Nothing to clean up.</div>')+
 
+      '<div class="pfsec">Open limit orders'+(LO.orders.length?' ('+LO.orders.length+')':'')+'</div>'+
+      '<div id="pfOrders">'+ordersHtml()+'</div>'+
+
       '<div class="pfsec">Launched by you</div>'+
       (NET.mode!=='launchpad'
         ? '<div class="pfempty">Launches are tracked on testnet, where the Arclite launchpad lives. '+
@@ -1504,12 +1708,26 @@ function scanDeeper(){
 
 function render(){
   counts();
-  if(VIEW==='portfolio'){ renderPortfolio(); return; }
-  if(VIEW==='launch'){ renderLaunch(); return; }
-  if(VIEW==='points'){ renderPoints(); return; }
+  if(onArc()){
+    if(VIEW==='portfolio'){ renderPortfolio(); return; }
+    if(VIEW==='launch'){ renderLaunch(); return; }
+    if(VIEW==='points'){ renderPoints(); return; }
+    if(VIEW==='draw'){ renderDraw(); return; }
+  } else if(VIEW!=='tokens'){
+    // off-Arc, a panel view: show the gate in the panel rather than the table
+    document.getElementById('panel').innerHTML='<div class="gate"><div><div class="dsp">'+({launch:'Launching',draw:'Lucky Trencher',points:'Points',portfolio:'Portfolio'}[VIEW]||'This')+' lives on Arc.</div>'+
+      CHAINS[CHAIN].name+' is explorer-only here.<br><button class="btn primary" style="margin-top:14px" onclick="setChain(\'arc\')">Switch to ARC</button></div></div>';
+    if(VIEW==='portfolio'||VIEW==='launchpad'){ /* table views: fall through to the table gate below */ } else return;
+  }
   const tb=document.getElementById('rows');
   // View/network mismatch: say exactly what to do instead of an empty table.
-  if(VIEW==='tokens' && NET.mode!=='scanner'){
+  if(!onArc() && VIEW!=='tokens'){
+    tb.innerHTML='<tr><td colspan="9"><div class="gate"><div><div class="dsp">'+({launchpad:'The launchpad',launch:'Launching',draw:'Lucky Trencher',points:'Points',portfolio:'Portfolio'}[VIEW]||'This')+' lives on Arc.</div>'+
+      CHAINS[CHAIN].name+' is explorer-only here — every pool, live, with links to trade on its DEX.<br>'+
+      '<button class="btn primary" style="margin-top:14px" onclick="setChain(\'arc\')">Switch to ARC</button></div></div></td></tr>';
+    return;
+  }
+  if(VIEW==='tokens' && onArc() && NET.mode!=='scanner'){
     tb.innerHTML='<tr><td colspan="9"><div class="gate"><div><div class="dsp">The token explorer reads Arc mainnet.</div>'+
       'Every USDC-paired token on Uniswap V3 + V4, indexed live. You\'re on testnet.<br>'+
       '<button class="btn primary" style="margin-top:14px" onclick="switchNet(\'mainnet\')">Switch to mainnet</button></div></div></td></tr>';
@@ -1528,7 +1746,7 @@ function render(){
   const v=view();
   if(!v.length){ tb.innerHTML='<tr><td colspan="9" class="empty">Nothing here yet.</td></tr>'; return; }
   const fresh = markNew(v);
-  if(NET.mode==='scanner'){
+  if(NET.mode==='scanner' || !onArc()){
     tb.innerHTML=v.map((c,i)=>{
       const named = c.symbol && c.symbol!=='—';
       const chg = c.change24h;
@@ -1542,7 +1760,7 @@ function render(){
           '<div class="av" style="background:'+avGrad(c.addr)+'">'+
             (named ? c.symbol.slice(0,3) : c.addr.slice(2,4).toUpperCase())+'</div>'+
           '<div><div class="cname">'+(named ? c.name : '<span class="unnamed">'+short(c.addr)+'</span>')+
-            '<span class="dexb '+(c.dex==='v4'?'v4':'')+'">'+(c.dex||'v3').toUpperCase()+'</span></div>'+
+            '<span class="dexb '+(c.dex==='v4'?'v4':'')+'">'+(c.chain ? String(c.dex).replace(/-/g,' ').toUpperCase().slice(0,12) : (c.dex||'v3').toUpperCase())+'</span></div>'+
             '<div class="csym">'+(named ? c.symbol+' · '+short(c.addr) : 'name pending · '+short(c.addr))+'</div>'+
             '<div class="chips">'+
               chip('traders', (c.traders24h||0)>0?c.traders24h:'—', '')+
@@ -1613,7 +1831,7 @@ function rail(){
   if(VIEW!=='tokens' && VIEW!=='launchpad'){ el.innerHTML=''; return; }
   const v=view(), c=v[selected];
   if(!c){ railDefault(el); return; }
-  if(NET.mode==='scanner'){ railScan(c, el); return; }
+  if(NET.mode==='scanner' || !onArc()){ railScan(c, el); return; }
   const m=c.market;
   el.innerHTML =
    '<div class="card">'+
@@ -1652,6 +1870,7 @@ function rail(){
        'href="'+EXPLORER+'/address/'+c.addr+'" target="_blank" rel="noopener">View on explorer ↗</a>'+
      '<button class="btn" data-share="'+c.addr+'" data-sym="'+(c.symbol||'')+'" style="margin-top:7px">Share on X · +1 pt</button>'+
    '</div>'+
+   '<div class="card"><h3>Limit order</h3>'+limitFormHtml(c)+'</div>'+
    (!c.scanner && c.creator
      ? '<div class="card"><h3>Creator check</h3>'+
        '<div id="railCreator" class="dim" style="font-size:11.5px">Reading the chain…</div></div>'
@@ -1663,7 +1882,7 @@ function railScan(c, el){
   const named = c.symbol && c.symbol!=='—';
   const verified = c.metaOk && !c.priceStale;
   const chg = c.change24h;
-  const poolHref = c.dex==='v4' ? EXPLORER+'/address/'+NET.v4PoolManager : EXPLORER+'/address/'+c.pool;
+  const poolHref = c.tradeUrl || (c.dex==='v4' ? EXPLORER+'/address/'+NET.v4PoolManager : EXPLORER+'/address/'+c.pool);
   const stat = (k,val,title) => '<div class="stat"'+(title?' title="'+title+'"':'')+'><span>'+k+'</span><b>'+val+'</b></div>';
   el.innerHTML =
    '<div class="card">'+
@@ -1693,9 +1912,10 @@ function railScan(c, el){
    '</div>'+
    '<div class="card"><h3>Trade</h3>'+
      '<a class="btn primary" style="display:block;text-align:center;text-decoration:none" href="'+poolHref+'" target="_blank" rel="noopener">Open pool ↗</a>'+
-     '<a class="btn" style="display:block;text-align:center;text-decoration:none;margin-top:7px" href="'+EXPLORER+'/token/'+c.addr+'" target="_blank" rel="noopener">Token on explorer ↗</a>'+
-     '<button class="btn" data-share="'+c.addr+'" data-sym="'+(named?c.symbol:'')+'" style="margin-top:7px">Share on X · +1 pt</button>'+
-     '<div class="hint">This is a Uniswap pool on Arc, not an Arclite curve — in-terminal swaps land once the Arc swap router is verified. Arclite launches (BUY, odds markets) show here the day the launchpad goes live on mainnet.</div>'+
+     '<a class="btn" style="display:block;text-align:center;text-decoration:none;margin-top:7px" href="'+(c.tokenUrl || EXPLORER+'/token/'+c.addr)+'" target="_blank" rel="noopener">Token on explorer ↗</a>'+
+     (c.chain ? '<a class="btn" style="display:block;text-align:center;text-decoration:none;margin-top:7px" href="'+c.poolUrl+'" target="_blank" rel="noopener">Pool on DexScreener ↗</a>' : '')+
+     (c.chain==='sol' ? '' : '<button class="btn" data-share="'+c.addr+'" data-sym="'+(named?c.symbol:'')+'" style="margin-top:7px">Share on X · +1 pt</button>')+
+     (c.chain ? '<div class="hint">'+CHAINS[c.chain].name+' pool via GeckoTerminal — liquidity '+fmtUsd(c.liq||0)+', FDV '+fmtUsd(c.mcap||0)+'. Trade opens the DEX; nothing here is custodial.</div>' : '<div class="hint">This is a Uniswap pool on Arc, not an Arclite curve — in-terminal swaps land once the Arc swap router is verified. Arclite launches (BUY, odds markets) show here the day the launchpad goes live on mainnet.</div>')+
    '</div>';
 }
 
@@ -1726,21 +1946,37 @@ function paintHero(){
     set('hs4', '$'+GRAD_TARGET.toLocaleString(), 'Grad target');
     return;
   }
+  if(VIEW==='draw'){
+    if(tag) tag.textContent='[ lucky trencher · every hour on the hour · utc ]';
+    const has=hasDraw() && DW.cur;
+    set('hs1', has? fmtUsd(Number(E(DW.jackpot)),2):'—', 'Mega jackpot');
+    set('hs2', has? fmtUsd(Number(E(DW.totalPaid)),0):'—', 'Paid out');
+    set('hs3', has? fmtUsd(Number(E(DW.biggestPot)),0):'—', 'Biggest pot');
+    set('hs4', has? '#'+DW.round:'—', 'Round');
+    return;
+  }
   if(tag) tag.textContent = VIEW==='points'
     ? '[ earn as you trade · 1 point per usdc · 1 per share ]'
     : '[ track, launch and trade tokens on arc mainnet ]';
+  if(!onArc()){
+    const cs=chainStats(); const has=coins.length>0;
+    set('hs1', has? String(cs.tokens):'—', 'Pools shown'); set('hs2', has? fmtUsd(cs.volume24h):'—', '24h volume');
+    set('hs3', has? kfmt(cs.txns24h):'—', '24h txns'); set('hs4', has? kfmt(cs.traders24h):'—', '24h traders');
+    if(tag) tag.textContent='[ '+CHAINS[CHAIN].name.toLowerCase()+' · explorer · via geckoterminal ]';
+    return;
+  }
   set('hs1', STATS? Number(STATS.tokens).toLocaleString():'—', 'Tokens');
   set('hs2', STATS? fmtUsd(STATS.volume24h):'—', '24h volume');
   set('hs3', STATS? kfmt(STATS.txns24h):'—', '24h txns');
   set('hs4', STATS? kfmt(STATS.traders24h):'—', '24h traders');
 }
-async function loadStats(){ const st=await apiGet('/api/v1/stats'); if(st){ STATS=st; } paintHero(); }
+async function loadStats(){ if(!onArc()){ paintHero(); return; } const st=await apiGet('/api/v1/stats'); if(st){ STATS=st; } paintHero(); }
 
 function ticker(){
   const el=document.getElementById('tickTrack'); if(!el) return;
   const num = x => (x==null||isNaN(x)) ? -Infinity : Number(x);
   let top, byChange = false;
-  if(NET.mode==='scanner'){
+  if(NET.mode==='scanner' || !onArc()){
     // Preferred: real 24h movers. But % change needs verified decimals, and a
     // token whose metadata we haven't read yet has neither a name nor a change.
     // Rather than show an empty ticker on a chain that is visibly trading, fall
@@ -1755,10 +1991,10 @@ function ticker(){
   }
   if(!top.length){ el.innerHTML='<span class="ti dim">'+(NET.mode==='scanner'?'no trading in the last 24h':'no coins on the curve yet')+'</span>'; el.style.animation='none'; return; }
   const lbl=document.querySelector('.ticker .lbl');
-  if(lbl) lbl.textContent = NET.mode!=='scanner' ? '↗ CLOSEST TO GRADUATION' : (byChange ? '↗ TRENDING 24H' : '↗ TOP VOLUME 24H');
+  if(lbl) lbl.textContent = (NET.mode!=='scanner' && onArc()) ? '↗ CLOSEST TO GRADUATION' : (byChange ? '↗ TRENDING 24H' : '↗ TOP VOLUME 24H');
   const items = top.map((c,i)=>{
     const named = c.symbol && c.symbol!=='—';
-    const tail = NET.mode!=='scanner'
+    const tail = (NET.mode!=='scanner' && onArc())
       ? '<span class="up">'+c.pct.toFixed(0)+'% to grad</span>'
       : byChange
         ? '<span class="'+(c.change24h>=0?'up':'dn')+'">'+(c.change24h>=0?'+':'')+Number(c.change24h).toFixed(2)+'%</span>'
@@ -1773,6 +2009,7 @@ function ticker(){
 }
 
 async function feed(){
+  if(!onArc()) return;
   const d=await apiGet('/api/v1/swaps/recent?limit=24'); if(!d||!Array.isArray(d.swaps)) return;
   FEED=d.swaps;
   if((VIEW==='tokens'||VIEW==='launchpad') && selected<0) railDefault(document.getElementById('rail'));
@@ -1809,7 +2046,8 @@ function railDefault(el){
         '</div>').join('')
         : '<div class="empty" style="padding:14px 4px">'+(isScan?'Indexing…':'No coins launched yet')+'</div>')+
     '</div>'+
-    '<div class="card"><div class="hdrow"><h3><span class="livedot"></span>Live feed</h3><span class="dim" style="font-size:10px">arc mainnet · uniswap</span></div>'+feedRows()+'</div>'+
+    (onArc() ? '<div class="card"><div class="hdrow"><h3><span class="livedot"></span>Live feed</h3><span class="dim" style="font-size:10px">arc mainnet · uniswap</span></div>'+feedRows()+'</div>'
+             : '<div class="card"><h3>'+CHAINS[CHAIN].name+'</h3><div class="hint" style="margin-top:0">Read-only explorer via GeckoTerminal. Trade on the pool\'s own DEX — links on every card. Launchpad, draw and points are Arc-only.</div></div>')+
     '<div class="empty" style="padding:10px 4px"><span style="font-size:11px">↑ ↓ to move · Enter to open · ★ to watch</span></div>';
 }
 
@@ -1948,9 +2186,9 @@ async function loadPoints(force){
    verifies. The signature is over (wallet, token, UTC day) so it can't be
    forged for someone else or replayed tomorrow; the API caps it per day. */
 const utcDay = () => new Date().toISOString().slice(0,10);
-async function sharePoint(tokenAddr, sym){
+async function sharePoint(tokenAddr, sym, textOverride){
   const url = location.origin+'/app/terminal.html?net='+(NET.chainId===5042?'mainnet':'testnet')+'#'+(NET.mode==='scanner'?'tokens':'launchpad');
-  const text = (sym?'$'+sym+' on Arc':'This token on Arc')+' — live price, holders and '+(NET.mode==='scanner'?'volume':'graduation odds')+' on Arclite Terminal ⚡\n'+url+'\n\n@ArcLiteFun @arc';
+  const text = textOverride || ((sym?'$'+sym+' on Arc':'This token on Arc')+' — live price, holders and '+(NET.mode==='scanner'?'volume':'graduation odds')+' on Arclite Terminal ⚡\n'+url+'\n\n@ArcLiteFun @arc');
   window.open('https://twitter.com/intent/tweet?text='+encodeURIComponent(text),'_blank','noopener');
   if(!signer){ toast('Shared. Connect a wallet to claim the point.'); return; }
   if(!API()){ toast('Shared. Points API not configured.'); return; }
@@ -2015,7 +2253,7 @@ function cardHtml(c, i, fresh){
     const ageTs = c.firstSeenAt;
     return '<div class="tcard'+sel+isNew+'" data-i="'+i+'" data-addr="'+c.addr+'">'+
       '<div class="av" style="background:'+avGrad(c.addr)+'">'+(named?c.symbol.slice(0,3):c.addr.slice(2,4).toUpperCase())+
-        '<span class="dx '+(c.dex==='v4'?'v4':'')+'">'+(c.dex||'v3').toUpperCase()+'</span></div>'+
+        '<span class="dx '+(c.dex==='v4'?'v4':'')+'">'+(c.chain ? CHAINS[c.chain].label : (c.dex||'v3').toUpperCase())+'</span></div>'+
       '<div class="body">'+
         '<div class="t1"><span class="nm">'+(named?c.name:'<span class="unnamed">Unnamed</span>')+'</span>'+(named?'<span class="sy">$'+c.symbol+'</span>':'')+'</div>'+
         '<div class="t2">'+(ageTs?'<span class="age '+ageCls(ageTs)+'">'+age(ageTs)+'</span>':'')+
@@ -2031,9 +2269,10 @@ function cardHtml(c, i, fresh){
         (chg!=null && c.txns24h>0 ? chip('24h',(chg>=0?'+':'')+Number(chg).toFixed(1)+'%', chg>=0?'ok':'bad') : '')+
         chip('holders', (c.holders||0)>0?Number(c.holders).toLocaleString():'—', 'info')+
         chip('traders', (c.traders24h||0)>0?c.traders24h:'—', '')+
+        (c.chain && (c.liq||0)>0 ? chip('liq', fmtUsd(c.liq), 'vio') : '')+
         (ageTs && (Math.floor(Date.now()/1000)-ageTs)<3600 ? chip('', 'NEW', 'hot') : '')+
         '<span class="spacer"></span>'+
-        '<a class="mini" style="text-decoration:none" target="_blank" rel="noopener" href="'+(c.dex==='v4' ? EXPLORER+'/address/'+NET.v4PoolManager : EXPLORER+'/address/'+c.pool)+'" title="Open the Uniswap pool">POOL ↗</a>'+
+        '<a class="mini" style="text-decoration:none" target="_blank" rel="noopener" href="'+(c.poolUrl || (c.dex==='v4' ? EXPLORER+'/address/'+NET.v4PoolManager : EXPLORER+'/address/'+c.pool))+'" title="Open the pool">'+(c.chain?'TRADE ↗':'POOL ↗')+'</a>'+
         share+star+
       '</div>'+
     '</div>';
@@ -2070,6 +2309,11 @@ function cardHtml(c, i, fresh){
 
 function laneDefs(){
   const num = x => (x==null||isNaN(x)) ? -Infinity : Number(x);
+  if(!onArc()) return [
+    { key:'new',   title:'New pairs',     cls:'hot',  empty:'No new pools reported',   pick: v => v.filter(c=>!c.trending).sort((a,b)=>num(b.firstSeenAt)-num(a.firstSeenAt)) },
+    { key:'trend', title:'Trending',      cls:'warn', empty:'Nothing trending',        pick: v => v.filter(c=>c.trending).sort((a,b)=>num(b.volume24h)-num(a.volume24h)) },
+    { key:'liq',   title:'Top liquidity', cls:'info', empty:'No liquidity data',       pick: v => v.filter(c=>(c.liq||0)>0).sort((a,b)=>num(b.liq)-num(a.liq)) },
+  ];
   if(NET.mode==='scanner') return [
     { key:'new',   title:'New pairs',    cls:'hot',  empty:'No new USDC pairs yet',        pick: v => v.slice().sort((a,b)=>num(b.firstSeenAt??b.block)-num(a.firstSeenAt??a.block)) },
     { key:'trend', title:'Trending 24h', cls:'warn', empty:'No volume in the last 24h',     pick: v => v.filter(c=>(c.volume24h||0)>0).sort((a,b)=>num(b.volume24h)-num(a.volume24h)) },
@@ -2101,6 +2345,375 @@ function renderLanes(){
 }
 
 /* ==================================================================
+   LUCKY TRENCHER — hourly draw view (#draw)
+   Everything on screen is read from the LuckyTrencher contract and its
+   events; the proof panel recomputes the winner in the browser from the
+   revealed secret + sealed blockhash, so a viewer never has to trust us.
+================================================================== */
+const DRAW_ABI = [
+  'function currentRound() view returns (uint256)',
+  'function roundState(uint256) view returns (uint256[3] pots, uint256[3] tickets, uint32[3] wallets, bool open, bool isSealed, bool isSettled, bool committed, uint256 closeAt, uint256 endAt)',
+  'function tierState(uint256,uint8) view returns (uint256 pot, uint256 tickets, uint32 wallets, bool drawn, bool refunded, address winner, uint256 prize, bool hitJackpot)',
+  'function ticketsOf(uint256,uint8,address) view returns (uint8)',
+  'function ticketOwner(uint256,uint8,uint256) view returns (address)',
+  'function jackpot() view returns (uint256)',
+  'function totalPaid() view returns (uint256)',
+  'function biggestPot() view returns (uint256)',
+  'function claimable(address) view returns (uint256)',
+  'function sealedHash(uint256) view returns (bytes32)',
+  'function revealedSecret(uint256) view returns (bytes32)',
+  'function buy(uint8,uint8) payable',
+  'function claim()',
+  'event TicketsBought(uint256 indexed roundId, uint8 indexed tier, address indexed buyer, uint8 count, uint256 pot, uint32 wallets)',
+  'event Settled(uint256 indexed roundId, bytes32 seed, bool forced)',
+  'event Drawn(uint256 indexed roundId, uint8 indexed tier, address indexed winner, uint256 winningIndex, uint256 tickets, uint256 prize, bool hitJackpot)',
+  'event Refunded(uint256 indexed roundId, uint8 indexed tier, uint256 pot, uint32 wallets)',
+];
+const TIER_META = [
+  { name:'Degen',    price:1,  blurb:'$1 a ticket' },
+  { name:'Trencher', price:5,  blurb:'$5 a ticket' },
+  { name:'Whale',    price:50, blurb:'$50 a ticket' },
+];
+const hasDraw = () => !!NET.draw;
+let drawR = null, drawW = null;
+function drawContracts(){
+  if(!hasDraw()) return;
+  if(!drawR) drawR = new ethers.Contract(NET.draw, DRAW_ABI, provider);
+  if(signer && (!drawW || drawW.runner!==signer)) drawW = new ethers.Contract(NET.draw, DRAW_ABI, signer);
+}
+
+/* All state the view needs, in one object, refreshed on a timer. */
+const DW = { round:null, cur:null, prev:null, prevTiers:null, mine:[0,0,0], jackpot:0n, totalPaid:0n, biggestPot:0n, claimable:0n,
+             tape:[], wall:[], seenTape:new Set(), animated:new Set(), qty:[1,1,1], lastJackpot:null, busy:false, err:null };
+
+async function drawRead(){
+  if(!hasDraw()) return;
+  drawContracts();
+  const r = Number(await retry(()=>drawR.currentRound(),2,8000));
+  const [cur, prev, jackpot, totalPaid, biggestPot] = await Promise.all([
+    retry(()=>drawR.roundState(r),2,8000), r>0 ? retry(()=>drawR.roundState(r-1),2,8000) : null,
+    retry(()=>drawR.jackpot(),2,8000), retry(()=>drawR.totalPaid(),2,8000), retry(()=>drawR.biggestPot(),2,8000),
+  ]);
+  const mine = me ? await Promise.all([0,1,2].map(t=>retry(()=>drawR.ticketsOf(r,t,me),2,8000).then(Number).catch(()=>0))) : [0,0,0];
+  const claimable = me ? await retry(()=>drawR.claimable(me),2,8000).catch(()=>0n) : 0n;
+  let prevTiers = null;
+  if(prev && prev.isSettled){
+    prevTiers = await Promise.all([0,1,2].map(t=>retry(()=>drawR.tierState(r-1,t),2,8000)));
+  }
+  if(DW.lastJackpot!=null && jackpot>DW.lastJackpot) DW.jackBump = true;
+  DW.lastJackpot = jackpot;
+  Object.assign(DW, { round:r, cur, prev, prevTiers, mine, jackpot, totalPaid, biggestPot, claimable, err:null });
+}
+
+/* Live tape + winners wall from events. One address, a few recent chunks —
+   immutable ranges, so the RPC proxy serves repeats from cache. */
+async function drawEvents(){
+  if(!hasDraw()) return;
+  drawContracts();
+  try{
+    const head = await retry(()=>provider.getBlockNumber(),2,8000);
+    const iface = new ethers.Interface(DRAW_ABI);
+    const tBought = iface.getEvent('TicketsBought').topicHash, tDrawn = iface.getEvent('Drawn').topicHash;
+    const logs = [];
+    for(let i=0;i<4;i++){ const to=head-i*9500, from=Math.max(0,to-9499); if(to<0) break;
+      try{ logs.push(...await retry(()=>provider.getLogs({address:NET.draw, topics:[[tBought,tDrawn]], fromBlock:from, toBlock:to}),1,9000)); }catch(e){ break; } }
+    logs.sort((a,b)=>b.blockNumber-a.blockNumber || b.index-a.index);
+    const tape=[], wall=[];
+    for(const lg of logs){
+      let p; try{ p=iface.parseLog({topics:[...lg.topics],data:lg.data}); }catch{ continue; }
+      if(p.name==='TicketsBought' && tape.length<14) tape.push({ key:lg.transactionHash+':'+lg.index, round:Number(p.args.roundId), tier:Number(p.args.tier), buyer:p.args.buyer, count:Number(p.args.count), pot:p.args.pot, block:lg.blockNumber });
+      if(p.name==='Drawn' && wall.length<12) wall.push({ key:lg.transactionHash+':'+lg.index, round:Number(p.args.roundId), tier:Number(p.args.tier), winner:p.args.winner, idx:Number(p.args.winningIndex), n:Number(p.args.tickets), prize:p.args.prize, jp:p.args.hitJackpot, tx:lg.transactionHash });
+    }
+    DW.tape=tape; DW.wall=wall;
+  }catch(e){}
+}
+
+/* ---------- render ---------- */
+function drawPhase(){
+  const now=Math.floor(Date.now()/1000), c=DW.cur; if(!c) return {k:'loading', label:'Loading', until:0};
+  const closeAt=Number(c.closeAt), endAt=Number(c.endAt);
+  if(now<closeAt) return { k: (closeAt-now)<=300 ? 'last' : 'open', label:(closeAt-now)<=300?'Last call':'Sales open', until:closeAt, of:3600-120 };
+  if(now<endAt)   return { k:'closed', label: c.isSealed ? 'Sealed · drawing at :00' : 'Closed · sealing', until:endAt, of:120 };
+  return { k:'drawing', label:'Drawing…', until:endAt+30, of:30 };
+}
+const mmss = s => { s=Math.max(0,s); const m=Math.floor(s/60), r=s%60; return (m<10?'0':'')+m+':'+(r<10?'0':'')+r; };
+function ringHtml(ph){
+  const now=Math.floor(Date.now()/1000), left=ph.until-now, frac=Math.max(0,Math.min(1,left/(ph.of||1)));
+  const C=2*Math.PI*40;
+  return '<div class="ring '+ph.k+'"><svg viewBox="0 0 92 92"><circle class="bg" cx="46" cy="46" r="40"/><circle class="fg" cx="46" cy="46" r="40" stroke-dasharray="'+C.toFixed(1)+'" stroke-dashoffset="'+(C*(1-frac)).toFixed(1)+'"/></svg>'+
+    '<div class="t"><b>'+mmss(left)+'</b><span>'+(ph.k==='open'||ph.k==='last'?'to close':ph.k==='closed'?'to draw':'drawing')+'</span></div></div>';
+}
+function tierCard(t){
+  const c=DW.cur, ph=drawPhase(), m=TIER_META[t];
+  const pot=c?c.pots[t]:0n, n=c?Number(c.tickets[t]):0, w=c?Number(c.wallets[t]):0, mine=DW.mine[t];
+  const odds = n>0 && mine>0 ? (mine/n*100) : 0;
+  const canBuy = ph.k==='open'||ph.k==='last';
+  const left = Math.max(0,10-mine);
+  const q = Math.min(DW.qty[t], Math.max(1,left));
+  return '<div class="tier t'+t+(mine?' mine':'')+'" data-tier="'+t+'">'+
+    '<div class="nm"><b>'+m.name+'</b><span>'+m.blurb+' · max 10</span></div>'+
+    '<div class="pot" id="pot'+t+'">'+fmtUsd(Number(E(pot)),2)+'</div>'+
+    '<div class="meta"><span>'+n+' ticket'+(n===1?'':'s')+'</span><span>'+w+' wallet'+(w===1?'':'s')+'</span>'+(n>0&&w<2?'<span class="dn">needs 2 wallets or refunds</span>':'')+'</div>'+
+    '<div class="you"><span>Your tickets <b>'+mine+'</b>/10</span><span class="odds">'+(mine?odds.toFixed(2)+'% to win':'—')+'</span></div>'+
+    '<div class="stepper">'+
+      '<button data-q="-" data-tier="'+t+'" '+(q<=1?'disabled':'')+'>−</button><span class="n">'+q+'</span><button data-q="+" data-tier="'+t+'" '+(q>=left?'disabled':'')+'>+</button>'+
+      '<button class="buy" data-buy="'+t+'" '+(!canBuy||left===0||DW.busy?'disabled':'')+'>'+(me ? (left===0?'Max 10 held':'Buy '+q+' · $'+(q*m.price)) : 'Connect to buy')+'</button>'+
+    '</div>'+
+    '<div class="max">'+(canBuy?'pays exactly $'+(q*m.price)+' USDC · closes :58':'sales reopen at :00')+'</div>'+
+  '</div>';
+}
+function stageHtml(){
+  const r=DW.round, p=DW.prev; if(r==null||r===0) return '';
+  const rn='round #'+(r-1)+' · '+new Date((r-1)*3600*1000).toISOString().slice(11,16)+' UTC';
+  if(!p) return '';
+  const anyTickets = p.tickets.some(t=>t>0n);
+  if(!anyTickets) return '<div class="stage"><h3>Last draw <span class="rn">'+rn+'</span></h3><div class="empty" style="padding:14px">No tickets last round. First in wins.</div></div>';
+  if(!p.isSettled) return '<div class="stage"><h3>Last draw <span class="rn">'+rn+'</span></h3><div class="empty" style="padding:14px">'+(p.isSealed?'Sealed. Revealing the secret and drawing…':'Sales closed — sealing the blockhash…')+'</div></div>';
+  const reels=[0,1,2].map(t=>{
+    const ts=DW.prevTiers[t], n=Number(ts.tickets), m=TIER_META[t];
+    const head='<div class="rh"><span style="color:var(--tc)" class="t'+t+'">'+m.name+'</span><span class="dim">'+n+' tickets · '+fmtUsd(Number(E(ts.pot)),2)+'</span></div>';
+    if(n===0) return '<div class="reel empty t'+t+'">'+head+'<div class="win">No tickets</div></div>';
+    if(ts.refunded) return '<div class="reel refund t'+t+'">'+head+'<div class="win">Only one wallet entered.<br>Every ticket refunded — no fee.</div></div>';
+    const idx=(DW.wall.find(x=>x.round===r-1&&x.tier===t)||{}).idx;
+    const win=Number(idx!=null?idx:0);
+    // 37 cells scrolling past; the 34th (index 33 → offset 33*44 − 44 marker) is the winner
+    const cells=[]; for(let i=0;i<37;i++){ const ix=((win-33+i)%n+n)%n; const hit=i===33; cells.push('<div class="cell'+(hit?' hit':'')+'"><span class="ix">#'+ix+'</span><span>'+(hit?short(ts.winner):'·····')+'</span></div>'); }
+    return '<div class="reel t'+t+'" data-reel="'+t+'" data-win="'+win+'">'+head+
+      '<div class="win"><div class="marker"></div><div class="strip">'+cells.join('')+'</div></div>'+
+      '<div class="res">Ticket #'+win+' · '+short(ts.winner)+(me&&ts.winner.toLowerCase()===me.toLowerCase()?' · <span class="up">YOU</span>':'')+
+        '<b>'+fmtUsd(Number(E(ts.prize)),2)+(ts.hitJackpot?' incl. jackpot':'')+'</b>'+(ts.hitJackpot?'<span class="jp">★ MEGA JACKPOT HIT</span>':'')+'</div>'+
+    '</div>';
+  }).join('');
+  return '<div class="stage" id="stage"><h3>Last draw <span class="rn">'+rn+'</span></h3><div class="reels">'+reels+'</div><div id="proof"></div></div>';
+}
+async function proofHtml(){
+  const r=DW.round-1; if(!DW.prev||!DW.prev.isSettled||!hasDraw()) return '';
+  try{
+    const [sealed, secret] = await Promise.all([retry(()=>drawR.sealedHash(r),1,8000), retry(()=>drawR.revealedSecret(r),1,8000)]);
+    const abi=ethers.AbiCoder.defaultAbiCoder();
+    const forced = secret===ethers.ZeroHash;
+    const seed = forced ? ethers.keccak256(abi.encode(['bytes32','uint256'],[sealed,r])) : ethers.keccak256(abi.encode(['bytes32','bytes32','uint256'],[secret,sealed,r]));
+    const rows=[0,1,2].map(t=>{ const ts=DW.prevTiers[t], n=Number(ts.tickets); if(n<2||ts.refunded) return '';
+      const tierSeed=ethers.keccak256(abi.encode(['bytes32','uint8'],[seed,t])); const ix=BigInt(tierSeed)%BigInt(n);
+      const onchain=(DW.wall.find(x=>x.round===r&&x.tier===t)||{}).idx;
+      const jp = BigInt(ethers.keccak256(abi.encode(['bytes32','string'],[tierSeed,'jackpot'])))%20n===0n;
+      return TIER_META[t].name+': keccak(seed, '+t+') % '+n+' = <b>#'+ix+'</b> '+(onchain==null?'':(Number(ix)===onchain?'<span class="ok">✓ matches chain</span>':'<span class="dn">✗ mismatch</span>'))+' · jackpot roll '+(jp?'<span class="ok">HIT</span>':'miss')+'<br>';
+    }).join('');
+    return '<details class="proof"><summary>Verify this draw yourself</summary>'+
+      'sealed blockhash = <b>'+sealed+'</b><br>'+
+      (forced?'no reveal (forced draw) → seed = keccak(sealedHash, round)':'revealed secret = <b>'+secret+'</b><br>seed = keccak(secret, sealedHash, round)')+' = <b>'+seed+'</b><br>'+rows+
+      '<span class="dim">Recomputed in your browser with ethers.js from on-chain values. The commitment keccak(secret, round) was published before any ticket was sold.</span></details>';
+  }catch(e){ return ''; }
+}
+function railDraw(){
+  const tape = DW.tape.map(x=>'<div class="fr '+(DW.seenTape.has(x.key)?'':'fresh')+'"><span class="sd '+['up','vio','warn'][x.tier]+'" style="color:var(--'+['pos','violet','warn'][x.tier]+')">+'+x.count+'</span><span class="who">'+short(x.buyer)+'</span><span class="am">'+TIER_META[x.tier].name+'</span><span class="tm">'+fmtUsd(x.count*TIER_META[x.tier].price,0)+'</span></div>').join('');
+  DW.tape.forEach(x=>DW.seenTape.add(x.key));
+  const wall = DW.wall.map(x=>'<div class="fr"><span class="tr t'+x.tier+'">'+TIER_META[x.tier].name.toUpperCase()+'</span><span class="who">'+short(x.winner)+'</span><span class="am pz">'+fmtUsd(Number(E(x.prize)),0)+'</span>'+(x.jp?'<span class="jpf">★</span>':'')+'<a class="tm" href="'+EXPLORER+'/tx/'+x.tx+'" target="_blank" rel="noopener" style="color:var(--ink3);text-decoration:none">↗</a></div>').join('');
+  return '<div class="dwrail">'+
+    '<div class="card"><div class="hdrow"><h3><span class="livedot"></span>Ticket tape</h3><span class="dim" style="font-size:10px">live</span></div><div class="tape2">'+(tape||'<div class="empty" style="padding:12px 4px">No tickets yet this hour</div>')+'</div></div>'+
+    '<div class="card wall"><div class="hdrow"><h3>Winners wall</h3><span class="dim" style="font-size:10px">last 12 draws</span></div>'+(wall||'<div class="empty" style="padding:12px 4px">First draw pending</div>')+'</div>'+
+    '<div class="card"><h3>How it works</h3><div class="hint" style="margin-top:0">Every hour, UTC. Buy up to 10 tickets per tier. Sales close at :58, the draw lands at :00. One ticket per tier takes the pot minus 2.5%; 0.5% of every pot feeds the Mega Jackpot, which any winning ticket also takes 1 time in 20. A tier with fewer than two wallets refunds everyone. '+
+      'Randomness: operator commit → public blockhash seal → reveal. Nobody can steer it alone; if we ever fail to reveal, anyone can force the draw and our fee goes to the winner.</div></div>'+
+  '</div>';
+}
+async function renderDraw(){
+  const el=document.getElementById('panel');
+  if(!hasDraw()){
+    el.innerHTML='<div class="dwhead"><div><h1>LUCKY TRENCHER</h1><div class="sub">hourly draw · $1 · $5 · $50 tiers · winner takes the pot</div></div></div>'+
+      '<div class="gate"><div><div class="dsp">The draw contract goes live on '+NET.label.toLowerCase()+' with the next deploy.</div>'+
+      'Every hour on the hour, three pots, one ticket each takes it. Commit–reveal randomness you can verify in the browser, a progressive Mega Jackpot, and refunds if a tier is thin.</div></div>';
+    return;
+  }
+  const ph=drawPhase();
+  if(!DW.cur){ el.innerHTML='<div class="dwhead"><div><h1>LUCKY TRENCHER</h1><div class="sub">loading the round…</div></div></div>'+(DW.err?'<div class="gate">'+DW.err+'</div>':''); return; }
+  const jackTxt = fmtUsd(Number(E(DW.jackpot)),2);
+  el.innerHTML =
+    '<div class="dw"><div>'+
+      '<div class="dwhead">'+ringHtml(ph)+
+        '<div><h1>LUCKY TRENCHER</h1><div class="sub">hourly draw · round #'+DW.round+' · '+new Date(DW.round*3600*1000).toISOString().slice(11,16)+'–'+new Date((DW.round+1)*3600*1000).toISOString().slice(11,16)+' UTC · closes :58 · draws :00</div></div>'+
+        '<div class="phase"><span class="phasepill '+ph.k+'"><span class="livedot"></span>'+ph.label+'</span>'+
+          '<div class="dim" style="font-size:10.5px;margin-top:6px">'+(DW.cur.isSealed?'blockhash sealed':DW.cur.committed?'secret committed ✓':'awaiting commit')+'</div>'+
+          '<button class="btn" data-dwshare style="margin-top:8px;padding:5px 10px;font-size:11px">Share · +1 pt</button></div>'+
+      '</div>'+
+      (DW.claimable>0n ? '<div class="claimbar">🎉 You have '+fmtUsd(Number(E(DW.claimable)),2)+' to claim (prize or refund).<button class="btn primary" id="dwClaim">Claim</button></div>' : '')+
+      '<div class="jack"><span class="lbl">★ MEGA JACKPOT</span><span class="amt'+(DW.jackBump?' grow':'')+'" id="jackAmt">'+jackTxt+'</span><span class="odds">hits 1 in 20 winning tickets<br>+0.5% of every pot, every hour</span></div>'+
+      '<div class="tiers">'+[0,1,2].map(tierCard).join('')+'</div>'+
+      stageHtml()+
+    '</div>'+railDraw()+'</div>';
+  DW.jackBump=false;
+  // proof panel is async (two reads); slot it in after paint
+  proofHtml().then(h=>{ const p=document.getElementById('proof'); if(p) p.innerHTML=h; });
+  // run the reel once per settled round
+  if(DW.prev && DW.prev.isSettled && !DW.animated.has(DW.round-1)){ DW.animated.add(DW.round-1); setTimeout(spinReels, 60); }
+  else if(DW.prev && DW.prev.isSettled){ document.querySelectorAll('.reel[data-reel]').forEach(r=>{ const s=r.querySelector('.strip'); if(s) s.style.transform='translateY(-'+(33*44-44)+'px)'; r.classList.add('done'); }); }
+}
+function spinReels(){
+  const reels=[...document.querySelectorAll('.reel[data-reel]')];
+  reels.forEach((r,i)=>{
+    const s=r.querySelector('.strip'); if(!s) return;
+    s.style.transform='translateY(0)';
+    r.style.setProperty('--dur',(3.6+i*0.7)+'s');
+    requestAnimationFrame(()=>{ r.classList.add('spinning'); s.style.transform='translateY(-'+(33*44-44)+'px)'; });
+    setTimeout(()=>{ r.classList.add('done'); const ts=DW.prevTiers&&DW.prevTiers[Number(r.dataset.reel)]; if(ts && me && ts.winner.toLowerCase()===me.toLowerCase()) confetti(); }, (3.6+i*0.7)*1000+80);
+  });
+  if(reels.length) setTimeout(()=>{ if(DW.prevTiers && DW.prevTiers.some(t=>t.hitJackpot)) confetti(); }, 4200);
+}
+function confetti(){
+  const c=document.createElement('div'); c.className='confetti';
+  const cols=['#ffd60a','#30d158','#8b7dff','#22d3ee','#ff7a1a','#fff'];
+  for(let i=0;i<120;i++){ const s=document.createElement('i'); s.style.left=Math.random()*100+'vw'; s.style.background=cols[i%cols.length]; s.style.animationDuration=(2.2+Math.random()*1.8)+'s'; s.style.animationDelay=(Math.random()*.6)+'s'; s.style.transform='rotate('+Math.random()*360+'deg)'; c.appendChild(s); }
+  document.body.appendChild(c); setTimeout(()=>c.remove(),4500);
+}
+async function buyTickets(t){
+  if(!signer) return connect();
+  drawContracts();
+  const q=Math.min(DW.qty[t], Math.max(1,10-DW.mine[t]));
+  const value=ethers.parseEther(String(TIER_META[t].price*q));
+  DW.busy=true; renderDraw();
+  try{
+    toast('Buying '+q+' '+TIER_META[t].name+' ticket'+(q>1?'s':'')+'…');
+    const tx=await drawW.buy(t,q,{value});
+    toast('Sent '+tx.hash.slice(0,12)+'… waiting');
+    await tx.wait();
+    toast('🎟 '+q+' ticket'+(q>1?'s':'')+' in the '+TIER_META[t].name+' draw ✓');
+    await drawRead(); await drawEvents(); DW.busy=false; renderDraw(); refreshBalance();
+    const potEl=document.getElementById('pot'+t); if(potEl) potEl.classList.add('bump');
+  }catch(e){ DW.busy=false; renderDraw(); toast('Buy failed: '+String(e.shortMessage||e.message||e).slice(0,90),1); }
+}
+async function claimDraw(){
+  if(!signer) return connect();
+  drawContracts();
+  try{ const tx=await drawW.claim(); toast('Claiming…'); await tx.wait(); toast('Claimed ✓'); await drawRead(); renderDraw(); refreshBalance(); }
+  catch(e){ toast('Claim failed: '+String(e.shortMessage||e.message||e).slice(0,90),1); }
+}
+function shareDraw(){
+  const c=DW.cur; if(!c) return;
+  const mineTot=DW.mine.reduce((a,b)=>a+b,0);
+  const biggest=[0,1,2].map(t=>Number(E(c.pots[t]))).reduce((a,b)=>Math.max(a,b),0);
+  const text=(mineTot?'I\'m in the Lucky Trencher draw with '+mineTot+' ticket'+(mineTot>1?'s':''):'Lucky Trencher — the hourly draw on Arc')+' 🎟\nPot up to '+fmtUsd(biggest,0)+' · draws at :00 UTC · Mega Jackpot '+fmtUsd(Number(E(DW.jackpot)),0)+'\n'+location.origin+'/app/terminal.html#draw\n\n@ArcLiteFun @arc';
+  sharePoint(NET.draw, 'LUCKY', text).catch(()=>{});
+}
+let drawTimer=null, drawTick=null;
+async function drawLoop(){
+  if(VIEW!=='draw' || !onArc()) return;
+  try{ await drawRead(); }catch(e){ DW.err='Could not read the draw contract: '+String(e.shortMessage||e.message||e).slice(0,80); }
+  renderDraw();
+}
+function startDraw(){
+  stopDraw();
+  drawLoop(); drawEvents().then(()=>{ if(VIEW==='draw') renderDraw(); });
+  drawTimer=setInterval(()=>{ drawLoop(); drawEvents().then(()=>{ if(VIEW==='draw') renderDraw(); }); }, 12000);
+  // the ring + phase repaint every second without re-reading the chain
+  drawTick=setInterval(()=>{ if(VIEW!=='draw'||!DW.cur) return; const ph=drawPhase(); const r=document.querySelector('.dwhead .ring'); if(r) r.outerHTML=ringHtml(ph);
+    const pill=document.querySelector('.phasepill'); if(pill){ pill.className='phasepill '+ph.k; pill.innerHTML='<span class="livedot"></span>'+ph.label; }
+    // roll into the new round the moment the hour turns
+    if(Math.floor(Date.now()/1000)>=Number(DW.cur.endAt) && !DW._rolled){ DW._rolled=true; setTimeout(()=>{ DW._rolled=false; drawLoop(); drawEvents().then(()=>renderDraw()); }, 2500); }
+  }, 1000);
+}
+function stopDraw(){ if(drawTimer) clearInterval(drawTimer); if(drawTick) clearInterval(drawTick); drawTimer=drawTick=null; }
+
+/* ==================================================================
+   LIMIT ORDERS — ArcliteLimit on the launchpad curve.
+   Escrow now, fill only at your limit or better (the pump's own slippage
+   check is the guarantee), 0.3% to whoever executes. Orders live in the
+   rail's Trade card and in Portfolio → Open orders.
+================================================================== */
+const LIMIT_ABI = [
+  'function placeBuy(address token, uint256 limitPrice, uint64 expiry) payable returns (uint256)',
+  'function placeSell(address token, uint256 tokensIn, uint256 limitPrice, uint64 expiry) returns (uint256)',
+  'function cancel(uint256)',
+  'function ordersOf(address) view returns (uint256[])',
+  'function orders(uint256) view returns (address owner,address token,bool isBuy,uint128 amountIn,uint128 limitPrice,uint64 expiry,uint8 status)',
+  'function TIP_BPS() view returns (uint16)',
+];
+const hasLimit = () => !!NET.limit;
+let limitR=null, limitW=null;
+function limitContracts(){
+  if(!hasLimit()) return;
+  if(!limitR) limitR = new ethers.Contract(NET.limit, LIMIT_ABI, provider);
+  if(signer && (!limitW || limitW.runner!==signer)) limitW = new ethers.Contract(NET.limit, LIMIT_ABI, signer);
+}
+const LO = { side:'buy', pct:-5, ttl:86400, orders:[], loaded:false };
+const TTL = [[3600,'1h'],[86400,'24h'],[604800,'7d']];
+const dur = s => { s=Math.max(0,s); if(s<60) return s+'s'; if(s<3600) return Math.floor(s/60)+'m'; if(s<86400) return Math.floor(s/3600)+'h '+Math.floor(s%3600/60)+'m'; return Math.floor(s/86400)+'d '+Math.floor(s%86400/3600)+'h'; };
+
+/* The Limit sub-panel inside the launchpad rail's Trade card. */
+function limitFormHtml(c){
+  if(!hasLimit()) return '<div class="hint">Limit orders arrive with the next contract deploy.</div>';
+  if(c.phase!==1) return '<div class="hint">Curve closed — no limit orders on a graduated coin.</div>';
+  const spot=c.price||0, target=spot*(1+LO.pct/100);
+  const buy=LO.side==='buy';
+  return '<div class="lim">'+
+    '<div class="segs" style="margin:8px 0"><div class="seg '+(buy?'on':'')+'" data-lside="buy">Buy limit</div><div class="seg '+(!buy?'on':'')+'" data-lside="sell">Sell limit</div></div>'+
+    '<label class="fld"><span>'+(buy?'Spend (USDC)':'Sell (tokens)')+'</span><input id="limAmt" class="mono" inputmode="decimal" value="'+(buy?'10':'')+'" placeholder="'+(buy?'10':'amount of '+c.symbol)+'"></label>'+
+    '<div class="fld"><span>Limit price · spot '+fmtPrice(spot)+'</span>'+
+      '<div class="presets" style="gap:4px;flex-wrap:wrap">'+[-20,-10,-5,-2,2,5,10,20].map(p=>'<div class="chip '+(LO.pct===p?'on':'')+'" data-lpct="'+p+'">'+(p>0?'+':'')+p+'%</div>').join('')+'</div>'+
+      '<div class="ro mono" style="margin-top:6px" id="limPx">'+fmtPrice(target)+' <span class="dim">USDC / '+c.symbol+'</span></div></div>'+
+    '<div class="fld"><span>Expires</span><div class="presets" style="gap:4px">'+TTL.map(([s,l])=>'<div class="chip '+(LO.ttl===s?'on':'')+'" data-lttl="'+s+'">'+l+'</div>').join('')+'</div></div>'+
+    '<button class="btn primary" style="width:100%;margin-top:6px" data-lplace="'+c.addr+'">'+(me?(buy?'Place buy limit':'Approve + place sell limit'):'Connect to place')+'</button>'+
+    '<div class="hint">Fills only at this average price or better — the curve\'s own slippage check enforces it. 0.3% goes to whoever executes. Cancel any time; expired orders refund automatically.</div>'+
+  '</div>';
+}
+async function placeLimit(tokenAddr){
+  if(!signer) return connect();
+  limitContracts();
+  const c=coins.find(x=>x.addr.toLowerCase()===tokenAddr.toLowerCase()); if(!c) return;
+  const amt=Number((document.getElementById('limAmt')||{}).value||0);
+  if(!(amt>0)) return toast('Enter an amount',1);
+  const spot=c.price||0; if(!(spot>0)) return toast('No spot price yet',1);
+  const px=ethers.parseEther((spot*(1+LO.pct/100)).toFixed(18));
+  const expiry=Math.floor(Date.now()/1000)+LO.ttl;
+  try{
+    if(LO.side==='buy'){
+      if(amt<1) return toast('Minimum order is $1',1);
+      toast('Placing buy limit…');
+      const tx=await limitW.placeBuy(c.addr, px, expiry, {value: ethers.parseEther(String(amt))});
+      await tx.wait();
+      toast('Buy limit placed ✓ fills at ≤ '+fmtPrice(spot*(1+LO.pct/100)));
+    } else {
+      const tokens=ethers.parseEther(String(amt));
+      const t=new ethers.Contract(c.addr,['function approve(address,uint256) returns (bool)','function allowance(address,address) view returns (uint256)'],signer);
+      const al=await t.allowance(me, NET.limit);
+      if(al<tokens){ toast('Approving '+c.symbol+'…'); await (await t.approve(NET.limit, tokens)).wait(); }
+      toast('Placing sell limit…');
+      const tx=await limitW.placeSell(c.addr, tokens, px, expiry);
+      await tx.wait();
+      toast('Sell limit placed ✓ fills at ≥ '+fmtPrice(spot*(1+LO.pct/100)));
+    }
+    LO.loaded=false; loadOrders(); rail();
+  }catch(e){ toast('Order failed: '+String(e.shortMessage||e.message||e).slice(0,90),1); }
+}
+async function loadOrders(){
+  if(!hasLimit()||!me){ LO.orders=[]; return; }
+  limitContracts();
+  try{
+    const ids=await retry(()=>limitR.ordersOf(me),2,8000);
+    const rows=await Promise.all([...ids].map(async id=>({ id:Number(id), ...(await retry(()=>limitR.orders(id),2,8000)) })));
+    LO.orders=rows.filter(o=>o.status===0n || Number(o.status)===0).map(o=>({ id:o.id, token:o.token, isBuy:o.isBuy, amountIn:o.amountIn, limitPrice:o.limitPrice, expiry:Number(o.expiry) }));
+    LO.loaded=true;
+  }catch(e){ LO.orders=[]; }
+}
+function ordersHtml(){
+  if(!hasLimit()) return '<div class="pfempty">Limit orders arrive with the next contract deploy.</div>';
+  if(!LO.orders.length) return '<div class="pfempty">No open limit orders. Place one from any coin\'s Trade card.</div>';
+  return LO.orders.map(o=>{
+    const c=coins.find(x=>x.addr.toLowerCase()===o.token.toLowerCase());
+    const sym=c?c.symbol:short(o.token);
+    return '<div style="display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px solid var(--hair)">'+
+      '<span class="ch '+(o.isBuy?'ok':'bad')+'">'+(o.isBuy?'BUY':'SELL')+'</span>'+
+      '<div style="flex:1;min-width:0"><div style="font-size:13px">'+(o.isBuy?fmtUsd(Number(E(o.amountIn)),2)+' of '+sym:Number(E(o.amountIn)).toLocaleString(undefined,{maximumFractionDigits:0})+' '+sym)+'</div>'+
+        '<div class="mono" style="font-size:10.5px;color:var(--ink3)">'+(o.isBuy?'≤':'≥')+' '+fmtPrice(Number(E(o.limitPrice)))+' · expires in '+dur(o.expiry-Math.floor(Date.now()/1000))+'</div></div>'+
+      '<button class="mini" data-lcancel="'+o.id+'">Cancel</button></div>';
+  }).join('');
+}
+async function cancelLimit(id){
+  if(!signer) return connect();
+  limitContracts();
+  try{ toast('Cancelling…'); await (await limitW.cancel(id)).wait(); toast('Order cancelled — escrow returned'); LO.loaded=false; await loadOrders(); if(VIEW==='portfolio') renderPortfolio(); else rail(); }
+  catch(e){ toast('Cancel failed: '+String(e.shortMessage||e.message||e).slice(0,90),1); }
+}
+
+/* ==================================================================
    VIEW ROUTING
 ================================================================== */
 function switchNet(key){
@@ -2117,7 +2730,7 @@ function setView(v){
 function paintView(){
   document.querySelectorAll('.navi').forEach(a=>a.classList.toggle('on', a.dataset.view===VIEW));
   const tableViews = VIEW==='tokens' || VIEW==='launchpad';
-  const panelViews = VIEW==='launch' || VIEW==='points';
+  const panelViews = VIEW==='launch' || VIEW==='points' || VIEW==='draw';
   const tw=document.querySelector('.tablewrap');
   tw.style.display = (tableViews || VIEW==='portfolio') ? '' : 'none';
   document.getElementById('panel').hidden = !panelViews;
@@ -2127,6 +2740,7 @@ function paintView(){
   document.getElementById('toolbar').style.visibility = tableViews ? 'visible' : 'hidden';
   // filter tabs belong to a view, not to a network
   const scan = VIEW==='tokens';
+  paintChain();
   document.querySelectorAll('.scan-only').forEach(t=>t.style.display = scan ? '' : 'none');
   document.querySelectorAll('.launch-only').forEach(t=>t.style.display = scan ? 'none' : '');
   document.getElementById('thScan').style.display   = scan ? '' : 'none';
@@ -2142,6 +2756,7 @@ function paintView(){
   selected=-1;
   paintHero(); ticker();
   if(VIEW==='points') loadPoints();
+  if(VIEW==='draw' && onArc()) startDraw(); else stopDraw();
   render(); rail();
 }
 window.addEventListener('hashchange',()=>{ const h=location.hash.replace('#',''); if(VIEWS.includes(h) && h!==VIEW) setView(h); });
@@ -2285,6 +2900,8 @@ async function connect(){
     toast('Connected '+short(me));
     refreshBalance();
     if(VIEW==='launch'||VIEW==='points'){ MYPTS=null; render(); if(VIEW==='points') loadPoints(true); }
+    if(VIEW==='draw') drawLoop();
+    LO.loaded=false; loadOrders().then(()=>{ if(VIEW==='portfolio') renderPortfolio(); });
   }catch(e){ toast('Connect failed: '+String(e.message||e).slice(0,90),1); }
 }
 
@@ -2549,6 +3166,7 @@ function paintNet(){
 }
 document.querySelectorAll('.netopt').forEach(o=>o.addEventListener('click',()=>switchNet(o.dataset.net)));
 paintNet();
+paintChain();
 paintView();
 document.querySelectorAll('.chip[data-amt]').forEach(c=>c.addEventListener('click',()=>{
   document.querySelectorAll('.chip[data-amt]').forEach(x=>x.classList.remove('on'));
@@ -2596,6 +3214,24 @@ document.body.addEventListener('click',e=>{
     if(row) sweepDust(row, ds);
     return;
   }
+  const ls=e.target.closest('[data-lside]');
+  if(ls){ e.stopPropagation(); LO.side=ls.dataset.lside; rail(); return; }
+  const lp=e.target.closest('[data-lpct]');
+  if(lp){ e.stopPropagation(); LO.pct=Number(lp.dataset.lpct); rail(); return; }
+  const lt2=e.target.closest('[data-lttl]');
+  if(lt2){ e.stopPropagation(); LO.ttl=Number(lt2.dataset.lttl); rail(); return; }
+  const lpl=e.target.closest('[data-lplace]');
+  if(lpl){ e.stopPropagation(); placeLimit(lpl.dataset.lplace); return; }
+  const lc=e.target.closest('[data-lcancel]');
+  if(lc){ e.stopPropagation(); cancelLimit(Number(lc.dataset.lcancel)); return; }
+  const qb=e.target.closest('[data-q]');
+  if(qb){ e.stopPropagation(); const t=Number(qb.dataset.tier); DW.qty[t]=Math.max(1,Math.min(10,DW.qty[t]+(qb.dataset.q==='+'?1:-1))); renderDraw(); return; }
+  const bt=e.target.closest('[data-buy]');
+  if(bt){ e.stopPropagation(); buyTickets(Number(bt.dataset.buy)); return; }
+  if(e.target.closest('#dwClaim')){ e.stopPropagation(); claimDraw(); return; }
+  if(e.target.closest('[data-dwshare]')){ e.stopPropagation(); shareDraw(); return; }
+  const chb=e.target.closest('[data-chain]');
+  if(chb){ setChain(chb.dataset.chain); return; }
   const lt=e.target.closest('[data-layout]');
   if(lt){ setLayout(lt.dataset.layout); return; }
   const dn=e.target.closest('[data-setdensity]');
@@ -2674,7 +3310,12 @@ document.addEventListener('keydown',e=>{
    lexical scope, plus a way for test-terminal.js to stand in a wallet without
    a browser extension. Not used by the page itself. */
 window.__term = { get VIEW(){ return VIEW; }, get coins(){ return coins; }, get filter(){ return filter; },
-  setWallet(s, a){ signer=s; me=a; }, setCoins(list){ coins=list; render(); ticker(); paintHero(); rail(); }, setView, render, rail, sharePoint, loadPoints };
+  setWallet(s, a){ signer=s; me=a; }, setCoins(list){ coins=list; render(); ticker(); paintHero(); rail(); },
+  get DW(){ return DW; }, setDraw(addr, state){ NET.draw=addr; stopDraw(); Object.assign(DW, state||{}); paintHero(); renderDraw(); }, spinReels,
+  setDrawContracts(r, w){ drawR=r; drawW=w; },
+  get LO(){ return LO; }, setLimit(addr, r, w){ NET.limit=addr; limitR=r; limitW=w; LO.loaded=false; },
+  get CHAIN(){ return CHAIN; }, setChain, geckoCoin,
+  setView, render, rail, sharePoint, loadPoints };
 
 /* ==================================================================
    BOOT

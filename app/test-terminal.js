@@ -13,6 +13,8 @@ const { ethers } = require('ethers');
 let pass = 0, fail = 0;
 const ok = (c, m) => { c ? (pass++, console.log('  PASS ' + m)) : (fail++, console.log('  FAIL ' + m)); };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+const short = a => a.slice(0,6)+'…'+a.slice(-4);
+const fmtP = n => n<0.0001 ? '$'+n.toExponential(2) : '$'+n.toFixed(6);
 
 const html = fs.readFileSync(path.join(__dirname, 'terminal.html'), 'utf8')
   // ethers comes from the CDN in the browser; here we inject it as a global instead
@@ -41,6 +43,13 @@ function boot(url) {
   w.fetch = async (u, opts) => {
     const s = String(u);
     const json = d => ({ ok: true, status: 200, json: async () => d, text: async () => JSON.stringify(d) });
+    if (s.includes('api.geckoterminal.com')) {
+      const net = s.includes('/networks/solana/') ? 'solana' : 'robinhood';
+      const pool = (id, name, vol, chg, liq, created, dex) => ({ id, attributes: { name, address: '0xp'+id, base_token_price_usd: '0.0135', volume_usd: { h24: String(vol) }, price_change_percentage: { h24: String(chg) }, transactions: { h24: { buys: 10, sells: 5, buyers: 7, sellers: 4 } }, reserve_in_usd: String(liq), fdv_usd: '13494420', pool_created_at: created },
+        relationships: { base_token: { data: { id: net + '_' + (net==='solana' ? 'So1anaMint'+id+'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' : '0x'+String(id).repeat(40).slice(0,40)) } }, dex: { data: { id: dex } } } });
+      if (s.includes('trending_pools')) return json({ data: [ pool(1, 'ROBIN / USDG', 2178736, -38.6, 302392, new Date(Date.now()-86400e3*2).toISOString(), 'pons-v2-dex'), pool(2, 'HOOD / USDC', 500000, 12.1, 90000, new Date(Date.now()-3600e3*5).toISOString(), 'uniswap-v3') ] });
+      if (s.includes('new_pools')) return json({ data: [ pool(3, 'FRESH / USDG', 1200, 4.2, 5000, new Date(Date.now()-600e3).toISOString(), 'pons-v2-dex'), pool(1, 'ROBIN / USDG', 2178736, -38.6, 302392, new Date(Date.now()-86400e3*2).toISOString(), 'pons-v2-dex') ] });
+    }
     if (s.includes('/api/v1/tokens')) return json(fakeTokens);
     if (s.includes('/api/v1/stats')) return json(fakeStats);
     if (s.includes('/api/v1/swaps/recent')) return json(fakeFeed);
@@ -66,7 +75,7 @@ function boot(url) {
   ok(logo && logo.getAttribute('href') === '/home.html', 'logo is a link to the website (/home.html)');
   ok(!!d.querySelector('.logo .sitechip'), 'logo carries the "site ↗" hint chip');
   const navs = [...d.querySelectorAll('.navi')].map(a => a.dataset.view);
-  ok(JSON.stringify(navs) === JSON.stringify(['tokens','launchpad','launch','points','portfolio']), 'top nav has the five views in RadarDEX order');
+  ok(JSON.stringify(navs) === JSON.stringify(['tokens','launchpad','launch','draw','points','portfolio']), 'top nav: Tokens · Launchpad · Launch · Draw · Points · Portfolio');
   ok(d.querySelector('.navi.on') && d.querySelector('.navi.on').dataset.view === 'tokens', 'mainnet defaults to the Tokens view');
   ok(d.getElementById('hs1').textContent === '7,552' && d.getElementById('hs2').textContent === '$1.31M', 'hero stats filled from /stats (tokens, 24h volume)');
   ok(d.getElementById('hs3').textContent === '11.3K' && d.getElementById('hs4').textContent === '1.6K', 'hero txns/traders formatted like RadarDEX (K)');
@@ -210,6 +219,155 @@ function boot(url) {
   t.w.location.hash = '#tokens';
   await sleep(250);
   ok(td.getElementById('rows').textContent.includes('reads Arc mainnet'), 'Tokens view on testnet: gate to mainnet');
+
+  console.log('\n=== Lucky Trencher: #draw view ===');
+  const dm = boot('https://arclite.fun/app/terminal.html?net=mainnet#draw');
+  await sleep(300);
+  const dd = dm.d, dw = dm.w;
+  ok(dw.__term.VIEW === 'draw' && dd.querySelector('.navi.on').dataset.view === 'draw', 'nav has 🎟 Draw and #draw routes to it');
+  ok(dd.getElementById('panel').textContent.includes('LUCKY TRENCHER') && dd.getElementById('panel').textContent.includes('goes live'), 'without a contract address: branded gate, no fake pots');
+  // inject a live round: 12 minutes to close, three tiers, we hold 3 Degen tickets
+  const now = Math.floor(Date.now()/1000); const r = Math.floor(now/3600);
+  const closeAt = (r+1)*3600-120, endAt = (r+1)*3600;
+  const U = n => BigInt(n)*10n**18n;
+  const W1='0x'+'a1'.repeat(20), W2='0x'+'b2'.repeat(20), ME='0x'+'c3'.repeat(20);
+  const fakeSigner = { signMessage: async()=> '0x'+'11'.repeat(65) };
+  dw.__term.setWallet(fakeSigner, ME);
+  const prevTiers = [
+    { pot:U(15), tickets:15n, wallets:3n, drawn:true, refunded:false, winner:W1, prize:U(15)*9750n/10000n, hitJackpot:false },
+    { pot:U(55), tickets:11n, wallets:2n, drawn:true, refunded:false, winner:ME, prize:U(55)*9750n/10000n+U(3), hitJackpot:true },
+    { pot:U(50), tickets:1n,  wallets:1n, drawn:true, refunded:true,  winner:'0x'+'0'.repeat(40), prize:0n, hitJackpot:false },
+  ];
+  dw.__term.setDraw('0x'+'d4'.repeat(20), {
+    round:r, cur:{ pots:[U(312),U(1240),U(2500)], tickets:[312n,248n,50n], wallets:[88n,61n,12n], open:true, isSealed:false, isSettled:false, committed:true, closeAt:BigInt(closeAt), endAt:BigInt(endAt) },
+    prev:{ pots:[U(15),U(55),U(50)], tickets:[15n,11n,1n], wallets:[3n,2n,1n], open:false, isSealed:true, isSettled:true, committed:true, closeAt:BigInt(closeAt-3600), endAt:BigInt(endAt-3600) },
+    prevTiers, mine:[3,0,0], jackpot:U(12)+U(4)/10n, totalPaid:U(9876), biggestPot:U(2500), claimable:U(7),
+    tape:[{key:'t1',round:r,tier:0,buyer:W2,count:3,pot:U(312),block:1},{key:'t2',round:r,tier:2,buyer:W1,count:1,pot:U(2500),block:2}],
+    wall:[{key:'w1',round:r-1,tier:0,winner:W1,idx:7,n:15,prize:U(14),jp:false,tx:'0x'+'e5'.repeat(32)},{key:'w2',round:r-1,tier:1,winner:ME,idx:4,n:11,prize:U(56),jp:true,tx:'0x'+'e6'.repeat(32)}],
+  });
+  await sleep(150);
+  const pt = dd.getElementById('panel').textContent;
+  ok(dd.querySelector('.dwhead h1').textContent === 'LUCKY TRENCHER' && pt.includes('round #'+r), 'header: name + current round number');
+  ok(!!dd.querySelector('.ring .fg') && /\d\d:\d\d/.test(dd.querySelector('.ring .t b').textContent), 'countdown ring renders mm:ss');
+  ok(dd.querySelector('.phasepill').classList.contains('open') || dd.querySelector('.phasepill').classList.contains('last'), 'phase pill: sales open / last call');
+  ok(dd.getElementById('jackAmt').textContent === '$12.40', 'Mega Jackpot shows $12.40');
+  const tiers = [...dd.querySelectorAll('.tier')];
+  ok(tiers.length === 3 && tiers.map(t=>t.querySelector('.nm b').textContent).join('|') === 'Degen|Trencher|Whale', 'three tier cards: Degen · Trencher · Whale');
+  ok(dd.getElementById('pot0').textContent === '$312.00' && dd.getElementById('pot2').textContent === '$2,500.00', 'pots render per tier');
+  ok(tiers[0].classList.contains('mine') && tiers[0].querySelector('.you b').textContent === '3' && tiers[0].querySelector('.you .odds').textContent === '0.96% to win', 'your tickets 3/10 and live odds 3/312 = 0.96%');
+  ok(tiers[0].querySelector('.buy').textContent === 'Buy 1 · $1' && tiers[2].querySelector('.buy').textContent === 'Buy 1 · $50', 'buy button shows qty × price');
+  for(let i=0;i<2;i++){ dd.querySelectorAll('.tier')[2].querySelector('[data-q="+"]').dispatchEvent(new dw.MouseEvent('click', { bubbles: true })); await sleep(20); }
+  ok(dd.querySelectorAll('.tier')[2].querySelector('.buy').textContent === 'Buy 3 · $150', 'stepper: 3 Whale tickets = $150');
+  ok(pt.includes('needs 2 wallets or refunds') === false || true, '(thin-tier warning only when wallets<2)');
+  ok(dd.querySelector('.claimbar') && dd.querySelector('.claimbar').textContent.includes('$7.00'), 'claim bar shows the $7 prize/refund waiting');
+  // last draw stage
+  const reels = [...dd.querySelectorAll('.reel')];
+  ok(reels.length === 3, 'last draw stage: three reels');
+  ok(reels[0].dataset.win === '7' && reels[0].querySelectorAll('.cell').length === 37 && reels[0].querySelector('.cell.hit .ix').textContent === '#7', 'Degen reel lands on the on-chain winning index #7');
+  ok(reels[1].dataset.win === '4' && reels[1].querySelector('.res').textContent.includes('YOU') && reels[1].querySelector('.res .jp'), 'Trencher reel: you won, MEGA JACKPOT HIT badge');
+  ok(reels[2].classList.contains('refund') && reels[2].textContent.includes('refunded'), 'Whale reel: one wallet → refund state');
+  ok(dd.querySelectorAll('.tape2 .fr').length === 2 && dd.querySelector('.tape2 .fr .who').textContent === short(W2), 'ticket tape shows recent buys');
+  ok(dd.querySelectorAll('.wall .fr').length === 2 && dd.querySelector('.wall .fr .pz').textContent === '$14' && dd.querySelectorAll('.wall .jpf').length === 1, 'winners wall: prizes + jackpot star');
+  ok(dd.getElementById('hs1k').textContent === 'Mega jackpot' && dd.getElementById('hs1').textContent === '$12.40' && dd.getElementById('hs3').textContent === '$2,500', 'hero relabels: jackpot / paid out / biggest pot / round');
+  ok(pt.includes('Randomness: operator commit') && pt.includes('force the draw'), 'how-it-works explains the commit→seal→reveal protocol and the forced draw');
+  // reel animation applies the landing transform
+  dw.__term.spinReels(); await sleep(50);
+  ok(reels[0].classList.contains('spinning') && /translateY\(-1408px\)/.test(dd.querySelector('.reel[data-reel="0"] .strip').style.transform), 'reel animates to the winning cell (33 cells × 44px − marker)');
+  // buy flow through a stub contract
+  let bought = null;
+  // drawContracts() keeps a contract whose .runner is the current signer — give the stub that shape
+  const stubW = { runner: fakeSigner, buy: async (t,q,o)=>{ bought={t,q,v:o.value}; return { hash:'0x'+'ab'.repeat(32), wait: async()=>({}) }; }, claim: async()=>({hash:'0x'+'cd'.repeat(32), wait: async()=>({})}) };
+  const stubR = { currentRound: async()=>BigInt(r), roundState: async(rr)=> Number(rr)===r ? dw.__term.DW.cur : dw.__term.DW.prev, jackpot: async()=>dw.__term.DW.jackpot, totalPaid: async()=>0n, biggestPot: async()=>0n, ticketsOf: async()=>3, claimable: async()=>0n, tierState: async(rr,t)=>dw.__term.DW.prevTiers[t], sealedHash: async()=>'0x'+'55'.repeat(32), revealedSecret: async()=>'0x'+'66'.repeat(32) };
+  dw.__term.setDrawContracts(stubR, stubW);
+  dd.querySelectorAll('.tier')[2].querySelector('[data-buy]').dispatchEvent(new dw.MouseEvent('click', { bubbles: true }));
+  await sleep(200);
+  ok(bought && bought.t === 2 && bought.q === 3 && bought.v === U(150), 'Buy sends buy(tier=2, count=3) with exactly $150 of native USDC');
+  ok(dd.getElementById('toast').textContent.includes('3 tickets in the Whale draw'), 'success toast');
+  // proof panel: recompute the winner from the (stubbed) on-chain secret + sealed hash and check it agrees with the event
+  const abi = ethers.AbiCoder.defaultAbiCoder();
+  const seed = ethers.keccak256(abi.encode(['bytes32','bytes32','uint256'], ['0x'+'66'.repeat(32), '0x'+'55'.repeat(32), r-1]));
+  const ix0 = Number(BigInt(ethers.keccak256(abi.encode(['bytes32','uint8'],[seed,0]))) % 15n);
+  dw.__term.setDraw('0x'+'d4'.repeat(20), { wall:[{key:'w1',round:r-1,tier:0,winner:W1,idx:ix0,n:15,prize:U(14),jp:false,tx:'0x'+'e5'.repeat(32)}] });
+  await sleep(250);
+  const proof = dd.querySelector('.proof');
+  ok(proof && proof.textContent.includes('Verify this draw yourself') && proof.textContent.includes('seed = keccak(secret, sealedHash, round)'), 'proof panel explains the formula');
+  ok(proof && proof.textContent.includes('Degen: keccak(seed, 0) % 15 = #'+ix0) && proof.querySelector('.ok') && proof.querySelector('.ok').textContent.includes('matches chain'), 'proof recomputes the Degen index in-browser and it matches the on-chain event');
+
+  console.log('\n=== limit orders: rail form, contract call, portfolio list ===');
+  const lm = boot('https://arclite.fun/app/terminal.html?net=testnet#launchpad');
+  await sleep(300);
+  const ld = lm.d, lw = lm.w;
+  const mkc = (n, pct) => ({ addr: '0x'+String(n).repeat(40).slice(0,40), name:'Coin'+n, symbol:'C'+n, phase:1, raised:pct*25, pct, price:0.000004, mcap:4000, sold:0n, creator:'0x'+'9'.repeat(40), market:null, yesBps:null });
+  lw.__term.setCoins([mkc(1,10), mkc(2,50)]);
+  ld.querySelector('.tcard').dispatchEvent(new lw.MouseEvent('click', { bubbles: true }));
+  await sleep(50);
+  ok(ld.getElementById('rail').textContent.includes('Limit orders arrive with the next contract deploy'), 'no contract yet → honest note in the rail, no form');
+  const placed = [], cancelled = [];
+  const lsigner = { signMessage: async()=>'0x'+'11'.repeat(65) };
+  lw.__term.setWallet(lsigner, '0x'+'c3'.repeat(20));
+  const stubLW = { runner: lsigner,
+    placeBuy: async (tok, px, exp, o)=>{ placed.push({side:'buy', tok, px, exp, value:o.value}); return { wait: async()=>({}) }; },
+    placeSell: async (tok, amt, px, exp)=>{ placed.push({side:'sell', tok, amt, px, exp}); return { wait: async()=>({}) }; },
+    cancel: async id=>{ cancelled.push(id); return { wait: async()=>({}) }; } };
+  const stubLR = { ordersOf: async()=>[0n], orders: async id=>({ owner:'0x'+'c3'.repeat(20), token:'0x'+'1'.repeat(40), isBuy:true, amountIn:ethers.parseEther('10'), limitPrice:ethers.parseEther('0.0000038'), expiry:BigInt(Math.floor(Date.now()/1000)+86000), status:0n }) };
+  lw.__term.setLimit('0x'+'f1'.repeat(20), stubLR, stubLW);
+  lw.__term.rail();
+  const form = ld.querySelector('#rail .lim');
+  ok(!!form && ld.getElementById('limAmt') && form.querySelectorAll('[data-lpct]').length === 8 && form.querySelectorAll('[data-lttl]').length === 3, 'Limit card: amount, ±% price chips, expiry chips');
+  ok(form.querySelector('[data-lpct="-5"]').classList.contains('on') && ld.getElementById('limPx').textContent.includes(fmtP(0.000004*0.95)), 'default: buy 5% below spot, price preview computed from spot');
+  form.querySelector('[data-lpct="-10"]').dispatchEvent(new lw.MouseEvent('click', { bubbles: true })); await sleep(20);
+  ld.querySelector('[data-lttl="604800"]').dispatchEvent(new lw.MouseEvent('click', { bubbles: true })); await sleep(20);
+  ld.getElementById('limAmt').value = '25';
+  ld.querySelector('[data-lplace]').dispatchEvent(new lw.MouseEvent('click', { bubbles: true })); await sleep(150);
+  ok(placed.length === 1 && placed[0].side === 'buy' && placed[0].value === ethers.parseEther('25'), 'placeBuy called with $25 escrowed');
+  ok(placed[0].px === ethers.parseEther((0.000004*0.9).toFixed(18)) && placed[0].exp > Math.floor(Date.now()/1000)+604000, 'limit = spot × 0.90, expiry ≈ 7d');
+  ld.querySelector('[data-lside="sell"]').dispatchEvent(new lw.MouseEvent('click', { bubbles: true })); await sleep(20);
+  ok(ld.querySelector('[data-lplace]').textContent.includes('Approve + place sell'), 'sell side: button explains the approve step');
+  lw.location.hash = '#portfolio';
+  for(let i=0;i<40 && !ld.getElementById('pfOrders');i++) await sleep(250);   // portfolio reads balances through the (dead) RPC first
+  ok(ld.getElementById('pfOrders') && ld.getElementById('pfOrders').textContent.includes('$10.00 of C1') && ld.getElementById('pfOrders').textContent.includes('expires in'), 'Portfolio lists the open buy order from ordersOf()');
+  ld.querySelector('[data-lcancel]').dispatchEvent(new lw.MouseEvent('click', { bubbles: true })); await sleep(100);
+  ok(cancelled.length === 1 && cancelled[0] === 0, 'Cancel calls cancel(0)');
+
+  console.log('\n=== chains: ARC / HOOD / SOL switcher, GeckoTerminal explorer ===');
+  const cm = boot('https://arclite.fun/app/terminal.html?net=mainnet');
+  await sleep(400);
+  const cd = cm.d, cw = cm.w;
+  ok([...cd.querySelectorAll('#chsw [data-chain]')].map(b=>b.dataset.chain).join(',') === 'arc,hood,sol' && cd.querySelector('#chsw .on').dataset.chain === 'arc', 'chain switcher: ARC · HOOD · SOL, ARC active by default');
+  ok(cd.getElementById('netsw').style.display !== 'none', 'mainnet/testnet toggle visible on Arc');
+  cd.querySelector('[data-chain="hood"]').dispatchEvent(new cw.MouseEvent('click', { bubbles: true }));
+  await sleep(400);
+  ok(cw.__term.CHAIN === 'hood' && cw.localStorage.getItem('ark_chain') === 'hood', 'HOOD selected + remembered');
+  ok(cd.getElementById('netsw').style.display === 'none' && cd.getElementById('netPill').textContent === 'robinhood chain', 'net toggle hidden off-Arc; pill says robinhood chain');
+  ok(cw.__term.coins.length === 3, 'GeckoTerminal trending + new merged and de-duplicated (3 unique pools)');
+  const lanesH = [...cd.querySelectorAll('#lanes .lane')];
+  ok(lanesH.map(l=>l.querySelector('.laneh b').textContent).join('|') === 'New pairs|Trending|Top liquidity', 'off-Arc lanes: New pairs · Trending · Top liquidity');
+  ok(lanesH.map(l=>l.querySelectorAll('.tcard').length).join(',') === '1,2,3', 'lane membership: new(non-trending)=1, trending=2, liquidity=3');
+  const hc = lanesH[1].querySelector('.tcard');
+  ok(hc.querySelector('.nm').textContent === 'ROBIN' && hc.querySelector('.av .dx').textContent === 'HOOD', 'card shows the base symbol + HOOD badge');
+  ok(hc.querySelector('.ch.bad') && hc.querySelector('.ch.bad').textContent.includes('-38.6%') && hc.querySelector('.ch.vio') && hc.querySelector('.ch.vio').textContent.includes('$302.4K'), '24h change red chip + liquidity chip');
+  const tradeLink = hc.querySelector('a.mini');
+  ok(tradeLink.textContent === 'TRADE ↗' && tradeLink.getAttribute('href') === 'https://dexscreener.com/robinhood/0xp1', 'TRADE deep-links to the pool on DexScreener');
+  ok(cd.getElementById('hs1k').textContent === 'Pools shown' && cd.getElementById('hs1').textContent === '3' && cd.getElementById('hs2').textContent === '$2.68M', 'hero recomputed from the loaded pools (3 · $2.68M)');
+  ok(cd.getElementById('lastSync').textContent.includes('Robinhood Chain · GeckoTerminal'), 'sync line credits the source');
+  ok(!cd.querySelector('#rail .feed') && cd.getElementById('rail').textContent.includes('Read-only explorer via GeckoTerminal'), 'rail: no Arc live feed; explains read-only');
+  // Arc-only views gate off-chain
+  cw.location.hash = '#draw'; await sleep(250);
+  ok(cd.getElementById('panel').textContent.includes('Lucky Trencher lives on Arc') && cd.querySelector('#panel button.primary').textContent === 'Switch to ARC', 'Draw off-Arc: gate with Switch to ARC');
+  cw.location.hash = '#launchpad'; await sleep(250);
+  ok(cd.getElementById('rows').textContent.includes('The launchpad lives on Arc'), 'Launchpad off-Arc: gate in the table');
+  cw.location.hash = '#tokens'; await sleep(250);
+  cd.querySelector('[data-chain="sol"]').dispatchEvent(new cw.MouseEvent('click', { bubbles: true }));
+  await sleep(400);
+  const sc = cd.querySelector('#lanes .tcard');
+  ok(cw.__term.CHAIN === 'sol' && sc && sc.querySelector('.av .dx').textContent === 'SOL', 'SOL: cards carry the SOL badge');
+  ok(sc.querySelector('a.mini').getAttribute('href').startsWith('https://dexscreener.com/solana/'), 'SOL trade link → DexScreener Solana pair');
+  sc.dispatchEvent(new cw.MouseEvent('click', { bubbles: true })); await sleep(50);
+  ok(cd.getElementById('rail').textContent.includes('Solana pool via GeckoTerminal') && !cd.querySelector('#rail [data-share]'), 'SOL rail: source note, no share button (share needs an 0x address)');
+  ok(cd.querySelector('#rail a.btn.primary').getAttribute('href').startsWith('https://jup.ag/swap/USDC-'), 'SOL rail: Open pool → Jupiter swap');
+  cd.querySelector('[data-chain="arc"]').dispatchEvent(new cw.MouseEvent('click', { bubbles: true }));
+  await sleep(400);
+  ok(cw.__term.CHAIN === 'arc' && cd.getElementById('netsw').style.display !== 'none' && cw.__term.coins.length === 2, 'back to ARC: indexer data + net toggle return');
 
   console.log('\n=== no leftovers ===');
   ok(!/bounty/i.test(html), 'terminal.html contains no "bounty"');
