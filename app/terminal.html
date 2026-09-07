@@ -118,7 +118,9 @@ body{
 .ticker{display:flex;align-items:center;overflow:hidden;border-bottom:1px solid var(--hair);background:#090b10;
   font-family:var(--fm);font-size:10.5px}
 .ticker .lbl{flex:0 0 auto;padding:0 12px;color:var(--cyan);letter-spacing:.12em;font-weight:600;
-  border-right:1px solid var(--hair);height:100%;display:flex;align-items:center;gap:6px}
+  border-right:1px solid var(--hair);height:100%;display:flex;align-items:center;gap:6px;
+  position:relative;z-index:2;background:#090b10;white-space:nowrap}   /* sits above the sliding track */
+.ticker .trackwrap{flex:1;overflow:hidden;height:100%;display:flex;align-items:center}
 .ticker .track{display:flex;gap:26px;white-space:nowrap;padding-left:14px;animation:tick 48s linear infinite;will-change:transform}
 .ticker:hover .track{animation-play-state:paused}
 .ticker .ti{color:var(--ink2);cursor:pointer}
@@ -575,7 +577,7 @@ tbody tr.new{animation:newrow 6s ease-out}
   <!-- ================= trending ticker ================= -->
   <div class="ticker" id="ticker">
     <div class="lbl">↗ TRENDING 24H</div>
-    <div class="track" id="tickTrack"><span class="ti dim">waiting for data…</span></div>
+    <div class="trackwrap"><div class="track" id="tickTrack"><span class="ti dim">waiting for data…</span></div></div>
   </div>
 
   <!-- ================= toolbar ================= -->
