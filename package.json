@@ -3,12 +3,21 @@
   "version": "0.1.0",
   "description": "Arclight v0 skeleton - Arc testnet",
   "scripts": {
-    "deploy": "node deploy.js"
+    "deploy": "node deploy.js",
+    "keepers": "node keepers.js",
+    "test:draw": "node test-draw.js",
+    "test:limit": "node test-limit.js",
+    "compile:extra": "node compile-extra.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "ethers": "^6.13.0"
+    "@ethereumjs/common": "^10.1.2",
+    "@ethereumjs/tx": "^10.1.2",
+    "@ethereumjs/util": "^10.1.2",
+    "@ethereumjs/vm": "^10.1.2",
+    "ethers": "^6.17.0",
+    "solc": "^0.8.26"
   }
 }
