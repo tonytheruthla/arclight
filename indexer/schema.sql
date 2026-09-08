@@ -22,7 +22,12 @@ CREATE TABLE IF NOT EXISTS tokens (
   -- one — but decimals is then only a GUESS, which makes every price derived
   -- from it wrong. So we flag it, retry it later (worker backfillMeta), and the
   -- API refuses to publish a price until this is true.
-  meta_ok           BOOLEAN NOT NULL DEFAULT false
+  meta_ok           BOOLEAN NOT NULL DEFAULT false,
+  -- Where name/symbol came from when it was not eth_call: 'tolly' | 'sharc'.
+  -- meta_ok can also be set by meta.js when a launchpad's quoted price agrees
+  -- with ours under the 18-decimals assumption — that agreement IS the check.
+  meta_source       TEXT,
+  meta_checked_at   TIMESTAMPTZ
 );
 
 CREATE TABLE IF NOT EXISTS swaps (
@@ -116,3 +121,35 @@ CREATE TABLE IF NOT EXISTS share_points (
   PRIMARY KEY (wallet, token_address, day)
 );
 CREATE INDEX IF NOT EXISTS idx_share_points_wallet ON share_points (wallet, day);
+
+-- ============================================================================
+-- Token profiles: logo + socials. NOT on-chain anywhere — every explorer on
+-- Arc gets these from the launchpad the token was created on (Tolly, Sharc,
+-- ours) or from the team. meta.js fills this from the launchpads' public APIs;
+-- POST /api/v1/token-meta lets the creator of an Arclite-launched token set
+-- it with a wallet signature. Keyed by address so it serves both the Uniswap
+-- explorer (tokens) and the bonding-curve launchpad (launch_tokens).
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS token_profiles (
+  address     TEXT PRIMARY KEY,
+  name        TEXT NOT NULL DEFAULT '',
+  symbol      TEXT NOT NULL DEFAULT '',
+  logo_url    TEXT,                 -- http(s):// or ipfs://; 'db' = bytes live in token_images
+  website     TEXT,
+  twitter     TEXT,
+  telegram    TEXT,
+  description TEXT,
+  source      TEXT NOT NULL,        -- 'tolly' | 'sharc' | 'creator'
+  updated_by  TEXT,                 -- creator wallet for source='creator'
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Cached image bytes, so the terminal never hits a public IPFS gateway itself
+-- (they rate-limit and fail CORS). Filled lazily by GET /api/v1/img/:address,
+-- or directly by a creator upload. Small: images are capped at 512 KB.
+CREATE TABLE IF NOT EXISTS token_images (
+  address      TEXT PRIMARY KEY,
+  content_type TEXT NOT NULL,
+  bytes        BYTEA NOT NULL,
+  fetched_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);

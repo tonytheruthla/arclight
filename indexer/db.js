@@ -24,6 +24,11 @@ async function migrate(pool) {
   await pool.query(sql);
   const MIGRATIONS = [
     'ALTER TABLE tokens ADD COLUMN IF NOT EXISTS meta_ok BOOLEAN NOT NULL DEFAULT false',
+    // meta_source records where name/symbol came from when it was not eth_call
+    // ('tolly'/'sharc' launchpad APIs). meta_checked_at lets the resolver skip
+    // tokens it looked at recently.
+    "ALTER TABLE tokens ADD COLUMN IF NOT EXISTS meta_source TEXT",
+    'ALTER TABLE tokens ADD COLUMN IF NOT EXISTS meta_checked_at TIMESTAMPTZ',
   ];
   for (const m of MIGRATIONS) await pool.query(m);
   console.log('[db] schema up to date');

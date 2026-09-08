@@ -485,6 +485,105 @@ function fakeLog(iface, eventName, args, overrides = {}) {
   ok(hstats.launched === 1 && 'volume24h' in hstats, '/stats serves hero-strip numbers');
   const pre = await fetch(base + '/api/v1/points/share', { method:'OPTIONS' });
   ok(pre.status === 204 && pre.headers.get('access-control-allow-methods').includes('POST'), 'CORS preflight allows POST from the browser');
+
+  { // ---- metadata / images / token-meta (scoped)
+  console.log('\n=== meta.js: names/logos/socials from launchpad APIs, no RPC ===');
+  const { resolveOnce, pricesAgree } = require('./meta');
+  const { upsertToken, insertSwap, getProfiles, upsertProfile } = require('./store');
+  const T1 = A(0xd001), T2 = A(0xd002), T3 = A(0xd003);
+  const mnow = new Date();
+  for (const [t, name] of [[T1, ''], [T2, ''], [T3, 'Known']]) {
+    await upsertToken(dbp, { address: t, name, symbol: name ? 'KNW' : '', decimals: 18, dex: 'v3', poolRef: A(0xe000), fee: 3000, usdcIsToken0: true, block: 5, metaOk: !!name });
+  }
+  // our indexed prices (18dp assumed): T1 = 0.0001, T2 = 0.5
+  await insertSwap(dbp, T1, { block: 6, blockTime: mnow, txHash: '0x' + 'd1'.repeat(32), logIndex: 0, trader: A(0xb0), side: 'buy', usdcAmount: '10', tokenAmount: '100000', price: '0.0001' });
+  await insertSwap(dbp, T2, { block: 6, blockTime: mnow, txHash: '0x' + 'd2'.repeat(32), logIndex: 0, trader: A(0xb0), side: 'buy', usdcAmount: '10', tokenAmount: '20', price: '0.5' });
+  const tollyRows = [
+    { address: T1, name: 'Kairo', symbol: 'KAIRO', image_uri: 'ipfs://bafyKAIRO', website: 'https://kairo.market', twitter: 'https://x.com/kairo', telegram: null, price: 0.00012 },
+    { address: T2, name: 'Wrong Decimals', symbol: 'WD', image_uri: 'https://api.tollylabs.com/token-image/x.png', website: null, twitter: null, telegram: null, price: 5000 },
+    { address: A(0xd999), name: 'Not ours', symbol: 'NO', image_uri: 'ipfs://zzz', price: 1 },
+  ];
+  const sharcRows = [{ address: T3, name: 'Sharky', symbol: 'SHRK', metadata: { image: 'https://gateway.pinata.cloud/ipfs/bafySHARK', description: 'fin' }, priceE18: '1000000000000000' }];
+  const mcalls = [];
+  const fakeFetch = async (url) => {
+    mcalls.push(url);
+    const json = url.includes('tollylabs') ? (url.includes('offset=0') ? { tokens: tollyRows, total: 3 } : { tokens: [], total: 3 })
+               : url.includes('sharc.fun') ? sharcRows : null;
+    return { ok: !!json, status: json ? 200 : 404, json: async () => json };
+  };
+  const res = await resolveOnce(dbp, { fetchImpl: fakeFetch });
+  ok(res.found === 4 && mcalls.filter(u => u.includes('tollylabs')).length === 1 && mcalls.filter(u => u.includes('sharc')).length === 1, 'one Tolly page + one Sharc call (list-level, nothing per token)');
+  let t1 = (await dbp.query('SELECT name, symbol, meta_ok, meta_source, decimals FROM tokens WHERE address=$1', [T1.toLowerCase()])).rows[0];
+  ok(t1.name === 'Kairo' && t1.symbol === 'KAIRO' && t1.meta_source === 'tolly', 'T1 named from Tolly');
+  ok(t1.meta_ok === true && t1.decimals === 18, 'T1 meta_ok flipped: Tolly price 0.00012 ≈ ours 0.0001 → 18dp confirmed → price now publishable');
+  let t2 = (await dbp.query('SELECT name, meta_ok FROM tokens WHERE address=$1', [T2.toLowerCase()])).rows[0];
+  ok(t2.name === 'Wrong Decimals' && t2.meta_ok === false, 'T2 named but NOT confirmed: prices disagree 10000× → decimals stay unverified, price stays hidden');
+  ok(pricesAgree(1, 2.9) && !pricesAgree(1, 3.1) && !pricesAgree(0, 1), 'pricesAgree: within 3× either way, never on zero');
+  const t3 = (await dbp.query('SELECT name, symbol FROM tokens WHERE address=$1', [T3.toLowerCase()])).rows[0];
+  ok(t3.name === 'Known' && t3.symbol === 'KNW', 'a token that already has a real name keeps it (launchpad never overwrites eth_call)');
+  const profs = await getProfiles(dbp, [T1, T2, T3, A(0xd999)]);
+  ok(profs.length === 3 && !profs.find(p => p.address === A(0xd999).toLowerCase()), 'profiles written only for tokens we index (3 of 4)');
+  const p1 = profs.find(p => p.address === T1.toLowerCase()), p3 = profs.find(p => p.address === T3.toLowerCase());
+  ok(p1.logo_url === 'ipfs://bafyKAIRO' && p1.website === 'https://kairo.market' && p1.twitter === 'https://x.com/kairo' && p1.source === 'tolly', 'T1 profile: ipfs logo + socials, source=tolly');
+  ok(p3.logo_url.includes('bafySHARK') && p3.description === 'fin' && p3.source === 'sharc', 'T3 profile from Sharc incl. description');
+  // creator outranks aggregator
+  await upsertProfile(dbp, { address: T1, name: 'Kairo', symbol: 'KAIRO', logoUrl: 'db', website: 'https://team.example', source: 'creator', updatedBy: A(0xc001) });
+  const res2 = await resolveOnce(dbp, { fetchImpl: fakeFetch });
+  const p1b = (await getProfiles(dbp, [T1]))[0];
+  ok(p1b.source === 'creator' && p1b.logo_url === 'db' && p1b.website === 'https://team.example', 'a creator-set profile is never overwritten by a launchpad refresh');
+  const lst = await (await fetch(base + '/api/v1/tokens?sort=new&limit=50')).json();
+  const l1 = lst.tokens.find(t => t.address === T1.toLowerCase());
+  ok(l1 && l1.logo_url === 'db' && l1.website === 'https://team.example' && l1.name === 'Kairo' && l1.price !== null, '/tokens rows carry logo_url + socials, and T1 now has a price');
+  const pf = await (await fetch(base + '/api/v1/profiles?addrs=' + [T1, T3, 'junk'].join(','))).json();
+  ok(pf.profiles.length === 2 && pf.profiles[0].logo.startsWith('/api/v1/img/0x'), '/profiles resolves a list and points logos at /img');
+
+  console.log('\n=== api: GET /img/:address — fetch once from IPFS gateway, then serve from Postgres ===');
+  // ASCII payload on purpose: pg-mem round-trips BYTEA through utf-8 and mangles
+  // high bytes (real Postgres does not). The API never inspects image bytes.
+  const png = Buffer.from('PNG-BYTES-STAND-IN-0123456789');
+  let imgFetches = [];
+  app.locals.fetch = async (url) => { imgFetches.push(url); if (url.includes('bafySHARK')) return { ok: true, status: 200, headers: { get: () => 'image/png' }, arrayBuffer: async () => png }; return { ok: false, status: 404, headers: { get: () => '' }, arrayBuffer: async () => new ArrayBuffer(0) }; };
+  let ir = await fetch(base + '/api/v1/img/' + T3);
+  ok(ir.status === 200 && ir.headers.get('content-type') === 'image/png' && Buffer.from(await ir.arrayBuffer()).equals(png), 'first request fetches the gateway and serves image/png');
+  const n1 = imgFetches.length;
+  ir = await fetch(base + '/api/v1/img/' + T3);
+  ok(ir.status === 200 && imgFetches.length === n1 && ir.headers.get('cache-control').includes('max-age=86400'), 'second request is served from the DB cache with a day-long Cache-Control');
+  ir = await fetch(base + '/api/v1/img/' + T2);
+  const n2 = imgFetches.length;
+  ok(ir.status === 404 && n2 > n1, 'a dead logo URL 404s after trying the gateways');
+  ir = await fetch(base + '/api/v1/img/' + T2);
+  ok(ir.status === 404 && imgFetches.length === n2, 'the miss is remembered — no second gateway round-trip');
+  ir = await fetch(base + '/api/v1/img/' + A(0xd999));
+  ok(ir.status === 404, 'unknown token 404s');
+
+  console.log('\n=== api: POST /token-meta — creator-signed logo + socials for Arclite-launched tokens ===');
+  const { metaMessage } = require('./api');
+  const creatorW = ethers.Wallet.createRandom();
+  const LT2 = A(0xabc2);
+  await require('./store').upsertLaunchToken(dbp, { address: LT2, creator: creatorW.address, name: 'Mine', symbol: 'MINE', block: 9, blockTime: mnow });
+  const postMeta = async body => { const r = await fetch(base + '/api/v1/token-meta', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(body) }); return { status: r.status, body: await r.json() }; };
+  const msig = await creatorW.signMessage(metaMessage(creatorW.address, LT2, today));
+  const dataUrl = 'data:image/png;base64,' + png.toString('base64');
+  let mr = await postMeta({ wallet: creatorW.address, token: LT2, day: today, signature: msig, image: dataUrl, twitter: 'https://x.com/mine', website: 'https://mine.fun' });
+  ok(mr.status === 200 && mr.body.logo === '/api/v1/img/' + LT2.toLowerCase(), 'creator sets image + links (200, logo path returned)');
+  ir = await fetch(base + '/api/v1/img/' + LT2);
+  ok(ir.status === 200 && Buffer.from(await ir.arrayBuffer()).equals(png), 'uploaded image is served straight from the DB');
+  const mp = (await (await fetch(base + '/api/v1/profiles?addrs=' + LT2)).json()).profiles[0];
+  ok(mp.source === 'creator' && mp.twitter === 'https://x.com/mine' && mp.name === 'Mine', 'profile stored as source=creator with the launch name');
+  mr = await postMeta({ wallet: creatorW.address, token: LT2, day: today, signature: msig, telegram: 'https://t.me/mine' });
+  const mp2 = (await (await fetch(base + '/api/v1/profiles?addrs=' + LT2)).json()).profiles[0];
+  ok(mr.status === 200 && mp2.telegram === 'https://t.me/mine' && mp2.logo && mp2.twitter === null, 'links-only update keeps the logo (fields not sent are cleared)');
+  const stranger = ethers.Wallet.createRandom();
+  const ssig = await stranger.signMessage(metaMessage(stranger.address, LT2, today));
+  mr = await postMeta({ wallet: stranger.address, token: LT2, day: today, signature: ssig, twitter: 'https://x.com/thief' });
+  ok(mr.status === 403, 'a wallet that did not create the token is refused (403)');
+  mr = await postMeta({ wallet: creatorW.address, token: T1, day: today, signature: await creatorW.signMessage(metaMessage(creatorW.address, T1, today)) });
+  ok(mr.status === 404, 'a non-launchpad token cannot be claimed (404)');
+  mr = await postMeta({ wallet: creatorW.address, token: LT2, day: today, signature: msig, website: 'javascript:alert(1)' });
+  ok(mr.status === 400, 'non-http(s) link rejected');
+  mr = await postMeta({ wallet: creatorW.address, token: LT2, day: today, signature: msig, image: 'data:text/html;base64,PGI+' });
+  ok(mr.status === 400, 'non-image data URL rejected');
+  }
   srv.close();
 
   console.log('\n' + '='.repeat(52));

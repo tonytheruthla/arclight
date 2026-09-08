@@ -131,6 +131,30 @@ Two consequences the code now handles rather than hides:
 - The worker retries those tokens (`backfillMeta`) whenever it's caught up, so they repair
   themselves once quota frees up. No manual intervention, no re-scan.
 
+## Names, logos and socials without an RPC (`meta.js`)
+
+Nothing about a logo is on-chain. Every explorer on Arc gets logos from the launchpad the
+token was created on. `meta.js` runs inside the **API service** (so it keeps working while
+the worker is `PAUSED`) and every `META_INTERVAL_MS` (default 10 min) pulls two public lists:
+
+| source | what | coverage |
+|---|---|---|
+| Tolly `api.tollylabs.com/tokens?scope=all` | name, symbol, `image_uri`, website, X, Telegram, their USD price | ~930 tokens — every Arc token with a pool that trades |
+| Sharc `sharc.fun/api/tokens` | name, symbol, image, description | Sharc's own launches |
+
+It writes names/symbols onto `tokens` (only where ours are blank — an eth_call name is never
+overwritten) and logos/socials into `token_profiles`. A creator-submitted profile
+(`POST /api/v1/token-meta`, wallet-signed, creator only) outranks both.
+
+**Decimals are confirmed for free.** Our price assumes 18 decimals; the launchpad quotes
+its own. If they agree within 3×, the assumption was right and `meta_ok` flips true — that's
+what makes the price show. If they disagree, the name shows and the price stays hidden.
+
+`GET /api/v1/img/:address` serves the logo: first hit fetches it from the launchpad / an IPFS
+gateway and caches the bytes in `token_images`; after that it's Postgres only, with a
+one-day `Cache-Control`. Public IPFS gateways rate-limit and fail CORS, so the browser never
+touches them. `META_RESOLVER=0` disables the loop; `META_INTERVAL_MS` tunes it.
+
 **The free tier is enough — the worker is now sized for it.** Infura credit costs (from their
 published table): `eth_getLogs` 255, `eth_call` / `getBlock` / `blockNumber` 80 each. What the
 worker costs per chunk:

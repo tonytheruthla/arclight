@@ -135,5 +135,64 @@ async function addSharePoint(db, wallet, token, day) {
   return true;
 }
 
+// ---- token profiles (logo + socials) ----------------------------------------
+
+/** Write a profile. Launchpad sources never overwrite a creator-submitted one:
+ *  the team that launched the coin outranks any aggregator, including us. */
+async function upsertProfile(db, p) {
+  const addr = p.address.toLowerCase();
+  const cur = await db.query('SELECT source FROM token_profiles WHERE address = $1', [addr]);
+  if (cur.rows.length && cur.rows[0].source === 'creator' && p.source !== 'creator') return false;
+  if (cur.rows.length) {
+    await db.query(
+      `UPDATE token_profiles SET name=$2, symbol=$3, logo_url=$4, website=$5, twitter=$6, telegram=$7, description=$8, source=$9, updated_by=$10, updated_at=now()
+       WHERE address = $1`,
+      [addr, p.name || '', p.symbol || '', p.logoUrl || null, p.website || null, p.twitter || null, p.telegram || null, p.description || null, p.source, p.updatedBy || null]);
+  } else {
+    await db.query(
+      `INSERT INTO token_profiles (address, name, symbol, logo_url, website, twitter, telegram, description, source, updated_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+      [addr, p.name || '', p.symbol || '', p.logoUrl || null, p.website || null, p.twitter || null, p.telegram || null, p.description || null, p.source, p.updatedBy || null]);
+  }
+  return true;
+}
+
+async function getProfiles(db, addrs) {
+  if (!addrs.length) return [];
+  // Expanded IN list rather than = ANY($1): identical on Postgres, and pg-mem
+  // (the test double) returns nothing for array parameters.
+  const lc = addrs.map(a => a.toLowerCase());
+  const r = await db.query(`SELECT * FROM token_profiles WHERE address IN (${lc.map((_, i) => '$' + (i + 1)).join(',')})`, lc);
+  return r.rows;
+}
+
+/** Fill name/symbol on a tokens row from a launchpad, without touching
+ *  decimals/meta_ok unless the caller has verified them (confirmOk). */
+async function setTokenNames(db, address, { name, symbol, source, confirmOk = false }) {
+  if (confirmOk) {
+    await db.query(
+      `UPDATE tokens SET name = $2, symbol = $3, meta_source = $4, meta_checked_at = now(), meta_ok = true, decimals = 18 WHERE address = $1`,
+      [address.toLowerCase(), name || '', symbol || '', source]);
+  } else {
+    await db.query(
+      `UPDATE tokens SET name = CASE WHEN name = '' THEN $2 ELSE name END,
+                         symbol = CASE WHEN symbol = '' THEN $3 ELSE symbol END,
+                         meta_source = COALESCE(meta_source, $4), meta_checked_at = now()
+       WHERE address = $1`,
+      [address.toLowerCase(), name || '', symbol || '', source]);
+  }
+}
+
+async function putImage(db, address, contentType, bytes) {
+  const addr = address.toLowerCase();
+  const cur = await db.query('SELECT 1 FROM token_images WHERE address = $1', [addr]);
+  if (cur.rows.length) await db.query('UPDATE token_images SET content_type=$2, bytes=$3, fetched_at=now() WHERE address=$1', [addr, contentType, bytes]);
+  else await db.query('INSERT INTO token_images (address, content_type, bytes) VALUES ($1,$2,$3)', [addr, contentType, bytes]);
+}
+async function getImage(db, address) {
+  const r = await db.query('SELECT content_type, bytes, fetched_at FROM token_images WHERE address = $1', [address.toLowerCase()]);
+  return r.rows[0] || null;
+}
+
 module.exports = { getState, setState, upsertToken, getKnownTokens, getTokensMissingMeta, updateTokenMeta, insertSwap, applyTransfer, takeSnapshot,
-  upsertLaunchToken, insertLaunchTrade, sharesToday, addSharePoint, ZERO, DEAD };
+  upsertLaunchToken, insertLaunchTrade, sharesToday, addSharePoint, upsertProfile, getProfiles, setTokenNames, putImage, getImage, ZERO, DEAD };

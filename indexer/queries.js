@@ -67,7 +67,8 @@ async function listTokens(db, { sort = 'new', limit = 50, offset = 0 } = {}) {
     )
     SELECT
       t.address, t.name, t.symbol, t.decimals, t.dex, t.pool_ref, t.first_seen_block, t.first_seen_at,
-      t.meta_ok,
+      t.meta_ok, t.meta_source,
+      p.logo_url, p.website, p.twitter, p.telegram, p.source AS profile_source,
       -- Every price is decimal-adjusted, so it is only meaningful once decimals
       -- was really read from the token. Until then report NULL rather than a
       -- confidently wrong number.
@@ -82,6 +83,7 @@ async function listTokens(db, { sort = 'new', limit = 50, offset = 0 } = {}) {
     LEFT JOIN vol24 v         ON v.token_address = t.address
     LEFT JOIN holders h       ON h.token_address = t.address
     LEFT JOIN chg             ON chg.token_address = t.address
+    LEFT JOIN token_profiles p ON p.address = t.address
     ORDER BY ${sortCol} DESC NULLS LAST
     LIMIT $1 OFFSET $2
   `;
@@ -101,7 +103,8 @@ async function getToken(db, address) {
       WHERE balance > 0 AND holder NOT IN ('${ZERO}', '${DEAD}') GROUP BY token_address
     )
     SELECT t.address, t.name, t.symbol, t.decimals, t.dex, t.pool_ref, t.first_seen_block, t.first_seen_at,
-      t.meta_ok,
+      t.meta_ok, t.meta_source,
+      p.logo_url, p.website, p.twitter, p.telegram, p.description, p.source AS profile_source,
       CASE WHEN t.meta_ok THEN COALESCE(lp.price,0) ELSE NULL END price,
       COALESCE(v.vol,0) volume_24h, COALESCE(v.txns,0) txns_24h,
       COALESCE(v.traders,0) traders_24h, COALESCE(h.holders,0) holders
@@ -109,6 +112,7 @@ async function getToken(db, address) {
     LEFT JOIN latest_price lp ON lp.token_address = t.address
     LEFT JOIN vol24 v ON v.token_address = t.address
     LEFT JOIN holders h ON h.token_address = t.address
+    LEFT JOIN token_profiles p ON p.address = t.address
     WHERE t.address = $1
   `;
   const r = await db.query(sql, [address.toLowerCase()]);
@@ -138,9 +142,10 @@ async function getStats(db) {
 /** Live feed: the most recent DEX swaps with the token's symbol attached. */
 async function recentSwaps(db, limit = 30) {
   const r = await db.query(`
-    SELECT s.token_address, t.symbol, t.name, t.meta_ok, s.block_number, s.block_time, s.tx_hash,
+    SELECT s.token_address, t.symbol, t.name, t.meta_ok, p.logo_url, s.block_number, s.block_time, s.tx_hash,
            s.trader, s.side, s.usdc_amount, s.token_amount, s.price
     FROM swaps s JOIN tokens t ON t.address = s.token_address
+    LEFT JOIN token_profiles p ON p.address = s.token_address
     ORDER BY s.id DESC LIMIT $1
   `, [limit]);
   return r.rows;
