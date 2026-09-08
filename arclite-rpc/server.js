@@ -176,7 +176,7 @@ async function forwardOnce(payload, ignoreCooloff) {
   const order = [];
   for (let i = 0; i < pool.length; i++) order.push(pool[(Math.max(started, 0) + i) % pool.length]);
 
-  let lastErr = null, sawExhausted = false, tried = 0;
+  let lastErr = null, sawExhausted = false, sawTransport = false, tried = 0;
   for (const p of order) {
     if (!ignoreCooloff && Date.now() < p.failUntil) continue;
     tried++;
@@ -188,18 +188,28 @@ async function forwardOnce(payload, ignoreCooloff) {
         // bursts and recovers within seconds, so a 60-second bench turned a
         // two-second blip into a dead terminal ("server response 502").
         p.fail++; p.failUntil = Date.now() + 1_500; sawExhausted = true;
+        stats.quotaFail = (stats.quotaFail || 0) + 1;
         lastErr = new Error('upstream exhausted');
         continue;
       }
       p.ok++; p.healthy = true; p.ms = Date.now() - t0;
       return { res };
     } catch (e) {
-      // A transport error is different: the box may really be down.
-      p.fail++; p.failUntil = Date.now() + 15_000; p.healthy = false;
+      // A socket hang-up, a reset or a timeout. Previously this benched the
+      // upstream for 15 s and set exhausted=false, which made forward() give up
+      // WITHOUT retrying. With a pool of one that turned a single dropped
+      // socket into fifteen seconds of blanket 502s — the likeliest cause of a
+      // 63% error rate at six requests a minute. A transport failure is the
+      // most retryable thing there is, so treat it as such: brief bench, and
+      // tell forward() this is worth another pass.
+      p.fail++; p.failUntil = Date.now() + 3_000; p.healthy = false;
+      sawTransport = true;
+      stats.transportFail = (stats.transportFail || 0) + 1;
+      stats.lastTransportError = String(e && e.message || e).slice(0, 120);
       lastErr = e;
     }
   }
-  return { err: lastErr || new Error('no healthy upstream'), exhausted: sawExhausted, tried };
+  return { err: lastErr || new Error('no healthy upstream'), exhausted: sawExhausted, transport: sawTransport, tried };
 }
 
 /**
@@ -232,7 +242,15 @@ async function forward(payload) {
     const r = await forwardOnce(payload, i > 0);
     if (r.res) return r.res;
     last = r;
-    if (!r.exhausted || i === RETRY_MS.length) break;   // a transport failure won't fix itself
+    if (i === RETRY_MS.length) break;
+    // Retry anything that is not a real answer. Three cases reach here and all
+    // three are worth another pass:
+    //   exhausted  — quota burst, recovers in seconds
+    //   transport  — dropped socket / timeout
+    //   tried === 0 — every upstream was benched, so we asked nobody at all.
+    //                 Giving up here was the fatal one: with a single upstream
+    //                 a 15 s bench meant 15 s of 502s without one retry.
+    if (!r.exhausted && !r.transport && r.tried !== 0) break;
     stats.retries = (stats.retries || 0) + 1;
     await sleep(RETRY_MS[i]);
   }
@@ -259,7 +277,12 @@ setInterval(() => {
 }, 60_000).unref();
 
 // ---------------------------------------------------------------- stats
-const stats = { started: Date.now(), requests: 0, cacheHits: 0, upstreamCalls: 0, rateLimited: 0, errors: 0 };
+// quotaFail / transportFail / lastTransportError are split out because "the
+// upstream failed" was not a useful enough answer: the fix for a quota burst
+// (a second provider) is not the fix for dropped sockets (retry harder), and
+// for a month we had no way to tell which we were looking at.
+const stats = { started: Date.now(), requests: 0, cacheHits: 0, upstreamCalls: 0, rateLimited: 0, errors: 0,
+                retries: 0, quotaFail: 0, transportFail: 0, lastTransportError: null };
 
 // keep headBlock warm so the finalized-block cache rule works
 async function pollHead() {

@@ -236,6 +236,54 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 
   proxy2.kill(); C.close(); D.close();
 
+  // ---- transport failures, single upstream -------------------------------
+  // The live proxy showed 141 client-facing 502s out of 225 requests at six
+  // requests a minute. Not quota: a dropped socket benched the ONE upstream
+  // for 15 s and reported exhausted=false, so forward() returned without a
+  // single retry. Every request in that window 502'd. These two tests pin the
+  // behaviour that fixes it.
+  console.log('\n  transport failures with a single upstream');
+  const E = upstream(19006, { mode: 'ok' });
+  const proxy3 = spawn(process.execPath, [__dirname + '/server.js'], {
+    env: Object.assign({}, process.env, {
+      PORT: '19007', CHAIN_ID: '5042',
+      UPSTREAMS: 'http://127.0.0.1:19006',
+      RATE_PER_MIN: '300',
+    }),
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  await sleep(900);
+
+  // 1. socket dies, then recovers 400 ms later. The retry schedule should ride
+  //    straight over it and the caller should never see the failure.
+  E.state.mode = 'dead';
+  setTimeout(() => { E.state.mode = 'ok'; }, 400);
+  const t1 = await rpc(19007, 'eth_call', [{ to: '0x1' }, 'latest']);
+  ok('a dropped socket is retried, not surfaced as 502',
+     t1.status === 200 && t1.json && t1.json.result === '0x' + (19006).toString(16),
+     `status ${t1.status} ${JSON.stringify(t1.json)}`);
+
+  // 2. drive the sole upstream into its cool-off, then ask again immediately
+  //    while it is perfectly healthy. This is the exact 15-second blackout.
+  E.state.mode = 'dead';
+  await rpc(19007, 'eth_call', [{ to: '0x2' }, 'latest']);   // benches it
+  E.state.mode = 'ok';
+  const t2 = await rpc(19007, 'eth_call', [{ to: '0x3' }, 'latest']);
+  ok('a benched sole upstream does not blanket-502 the next request',
+     t2.status === 200 && t2.json && t2.json.result === '0x' + (19006).toString(16),
+     `status ${t2.status} ${JSON.stringify(t2.json)}`);
+
+  // 3. the split counters must actually distinguish the two failure modes,
+  //    otherwise we are back to guessing which fix a live incident needs.
+  const s3 = await get(19007, '/stats');
+  ok('/stats separates transport failures from quota failures',
+     s3.json && s3.json.transportFail > 0 && s3.json.quotaFail === 0,
+     JSON.stringify({ transportFail: s3.json && s3.json.transportFail, quotaFail: s3.json && s3.json.quotaFail }));
+  ok('/stats reports the last transport error text',
+     !!(s3.json && s3.json.lastTransportError), s3.json && s3.json.lastTransportError);
+
+  proxy3.kill(); E.close();
+
   console.log('  ' + '─'.repeat(46));
   console.log(`  ${pass} passed, ${fail} failed\n`);
   process.exit(fail ? 1 : 0);
