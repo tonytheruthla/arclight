@@ -147,9 +147,21 @@ function boot(url) {
   w.location.hash = '#launch';
   await sleep(250);
   ok(w.__term.VIEW === 'launch', 'routes to Launch');
-  const ltxt = d.getElementById('panel').textContent;
+  let ltxt = d.getElementById('panel').textContent;
   ok(ltxt.includes('Launch a token on'), 'Launch header rendered');
-  ok(ltxt.includes('goes live') || ltxt.includes('open the day the Arclite contracts deploy'), 'mainnet without pump: honest gate, no form');
+  // Mainnet now HAS a pump (deployed Sept 8), so the live form is the expected
+  // path and the gate is the exception. Both are tested, explicitly.
+  ok(!!d.getElementById('lpName') && !!d.getElementById('lpSym'), 'with a pump deployed: the real launch form renders');
+  ok(!!d.getElementById('lpImg') && !!d.getElementById('lpX'), 'launch form carries the logo + socials fields');
+  const liveContracts = { pump: w.__term.NET.pump, pred: w.__term.NET.pred, draw: w.__term.NET.draw, limit: w.__term.NET.limit };
+  ok(/^0x[0-9a-fA-F]{40}$/.test(liveContracts.pump) && /^0x[0-9a-fA-F]{40}$/.test(liveContracts.pred)
+     && /^0x[0-9a-fA-F]{40}$/.test(liveContracts.draw) && /^0x[0-9a-fA-F]{40}$/.test(liveContracts.limit),
+     'mainnet config carries all four deployed addresses: ' + Object.values(liveContracts).map(a=>a.slice(0,8)).join(' '));
+  // now blank them and prove the gate copy still works for a network with none
+  w.__term.setContracts({ pump:'', pred:'', draw:'', limit:'' });
+  w.__term.setView('launch'); await sleep(200);
+  ltxt = d.getElementById('panel').textContent;
+  ok(ltxt.includes('goes live') || ltxt.includes('open the day the Arclite contracts deploy'), 'without a pump: honest gate, no form');
   ok(!d.getElementById('lpName'), 'no form fields when there is no pump on this network');
   ok(!!d.querySelector('#panel button.primary') && /testnet/i.test(d.querySelector('#panel button.primary').textContent), 'gate offers the testnet switch');
   ok(d.getElementById('hs1k').textContent === 'Launched' && d.getElementById('hs4k').textContent === 'Grad target', 'hero stats relabel for the launchpad');
@@ -157,7 +169,8 @@ function boot(url) {
   w.location.hash = '#launchpad';
   await sleep(250);
   ok(w.__term.VIEW === 'launchpad' && d.querySelector('.tablewrap').style.display !== 'none', 'routes to Launchpad, table visible');
-  ok(d.getElementById('rows').textContent.includes('goes live on mainnet at deploy'), 'Launchpad on mainnet: gate copy in the table');
+  ok(d.getElementById('rows').textContent.includes('goes live on mainnet at deploy'), 'Launchpad without a pump: gate copy in the table');
+  w.__term.setContracts(liveContracts);   // restore the real addresses for the rest of the run
   ok(d.querySelector('.tab[data-f="climbing"]').style.display !== 'none' && d.querySelector('.tab[data-f="trending"]').style.display === 'none', 'Launchpad shows curve tabs, hides explorer tabs');
   ok(!!d.querySelector('.toolbar a.launch-only[href="#launch"]'), 'Launchpad toolbar has the "Launch a token" button');
 
@@ -232,10 +245,18 @@ function boot(url) {
   await sleep(300);
   const dd = dm.d, dw = dm.w;
   ok(dw.__term.VIEW === 'draw' && dd.querySelector('.navi.on').dataset.view === 'draw', 'nav has 🎟 Draw and #draw routes to it');
+  ok(/^0x[0-9a-fA-F]{40}$/.test(dw.__term.NET.draw), 'mainnet has a LuckyTrencher address (' + dw.__term.NET.draw.slice(0, 10) + '…)');
+  // the gate is now the exception, not the default — check it with the address cleared
+  const liveDraw = dw.__term.NET.draw;
+  dw.__term.setContracts({ draw: '' }); dw.__term.setView('draw'); await sleep(200);
   ok(dd.getElementById('panel').textContent.includes('LUCKY TRENCHER') && dd.getElementById('panel').textContent.includes('goes live'), 'without a contract address: branded gate, no fake pots');
+  dw.__term.setContracts({ draw: liveDraw });
   // inject a live round: 12 minutes to close, three tiers, we hold 3 Degen tickets
   const now = Math.floor(Date.now()/1000); const r = Math.floor(now/3600);
-  const closeAt = (r+1)*3600-120, endAt = (r+1)*3600;
+  // Relative to NOW, not to the hour boundary: a fixture pinned to (r+1)*3600-120
+  // is genuinely closed whenever the suite runs in the last two minutes of an
+  // hour, which made this section fail for two minutes in every sixty.
+  const closeAt = now + 720, endAt = now + 840;
   const U = n => BigInt(n)*10n**18n;
   const W1='0x'+'a1'.repeat(20), W2='0x'+'b2'.repeat(20), ME='0x'+'c3'.repeat(20);
   const fakeSigner = { signMessage: async()=> '0x'+'11'.repeat(65) };

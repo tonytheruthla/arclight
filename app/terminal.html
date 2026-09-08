@@ -911,10 +911,15 @@ const NETWORKS = {
     // Mixing these up is a 10^12 error. See AUDIT.md §2.1.
     usdc:'0x3600000000000000000000000000000000000000',
     usdcDecimals:6,
-    // LuckyTrencher (hourly draw) — set from deployment-draw.json after `node deploy-draw.js`
-    draw:'',
-    // ArcliteLimit (limit orders on the curve) — set after `node deploy-limit.js`
-    limit:'',
+    /* ---- Arclite's own contracts, deployed to Arc mainnet Sept 8 2026.
+       Verified on chain: all three owner-bearing contracts are owned by the
+       ADMIN wallet (0xCDF74d03…), pendingOwner zero, deployer powerless.
+       graduationUsdc() reads back 1500 USDC; deploymentFee is 0.
+       ArcliteLimit has no owner by design — nobody can administer it.      */
+    pump:'0xa855b64c978118fdAC9746d1795c1E16668dd394',   // ArclitePumpV4  · block 19784… · grad $1,500 · fee 1%, 80% to creator
+    pred:'0xb7148f397Bcd7020eCa3A4dbf3eb7D7DE82C4547',   // ArclitePredictV4 · graduation odds markets
+    draw:'0x9f5dd4c61c84227835CA06E81077Bd6f8f3eDe52',   // LuckyTrencher · block 19785451 · hourly draw
+    limit:'0x5fA7254C761e7AAeB49665662A35923cd8564332',  // ArcliteLimit  · block 19785222 · limit orders on the curve
   },
 };
 
@@ -1057,8 +1062,8 @@ const provider = new ethers.JsonRpcProvider(RPC, net, {
    which would kill the whole script at evaluation time and leave every
    subsequent `let` permanently in the temporal dead zone — a blank page with
    no error in the console. Guard the construction instead. */
-const pumpR = PUMP ? new ethers.Contract(PUMP, PUMP_ABI, provider) : null;
-const predR = PRED ? new ethers.Contract(PRED, PRED_ABI, provider) : null;
+let pumpR = PUMP ? new ethers.Contract(PUMP, PUMP_ABI, provider) : null;
+let predR = PRED ? new ethers.Contract(PRED, PRED_ABI, provider) : null;
 
 let signer=null, me=null, pumpW=null, predW=null;
 
@@ -3268,17 +3273,23 @@ async function doSpend(){
 /* ==================================================================
    LIVE TAPE — recent Bought/Sold/Created from logs
 ================================================================== */
+/** The indexer's recent swaps, formatted for the bottom tape. Used on the
+ *  explorer, and as the fallback whenever the launchpad tape is empty. */
+function indexerTape(emptyMsg){
+  return FEED.length
+    ? FEED.slice(0,12).map(sw=>'<span class="ev"><span class="'+(sw.side==='buy'?'up':'dn')+'">'+(sw.side==='buy'?'BUY':'SELL')+'</span> '+(sw.symbol?sw.symbol:short(sw.token_address))+' '+fmtUsd(sw.usdc_amount)+'</span>').join('')
+    : '<span class="ev">'+(emptyMsg || 'waiting for mainnet swaps…')+'</span>';
+}
 async function tape(){
   const el=document.getElementById('tape');
   // No launchpad on mainnet — without an address, getLogs would sweep the whole
   // chain. Uniswap swap events need the indexer; say so rather than fake it.
   if(!onArc()){ el.innerHTML='<span class="ev">'+CHAINS[CHAIN].name+' · explorer via GeckoTerminal · trading opens on the pool\'s DEX</span>'; return; }
-  if(!PUMP){
-    el.innerHTML = FEED.length
-      ? FEED.slice(0,12).map(sw=>'<span class="ev"><span class="'+(sw.side==='buy'?'up':'dn')+'">'+(sw.side==='buy'?'BUY':'SELL')+'</span> '+(sw.symbol?sw.symbol:short(sw.token_address))+' '+fmtUsd(sw.usdc_amount)+'</span>').join('')
-      : '<span class="ev">waiting for mainnet swaps…</span>';
-    return;
-  }
+  // Paint the indexer feed immediately — the launchpad sweep below is a slow
+  // getLogs that can retry for a while, and an empty ticker for that whole time
+  // is worse than a correct one that gets upgraded a moment later.
+  el.innerHTML = indexerTape();
+  if(!PUMP) return;
   try{
     const head = await retry(()=>provider.getBlockNumber());
     const from = Math.max(0, head-4000);
@@ -3296,8 +3307,12 @@ async function tape(){
         else if(p.name==='TokenCreated') evs.push('<span class="ev"><span style="color:var(--cyan)">NEW</span> '+p.args[3]+'</span>');
       }catch(e){}
     }
-    el.innerHTML = evs.length ? evs.join('') : '<span class="ev">no recent activity</span>';
-  }catch(e){ el.innerHTML='<span class="ev">tape unavailable</span>'; }
+    // A brand-new launchpad has no events yet, and the RPC can refuse the
+    // getLogs sweep entirely. Either way the indexer's chain-wide swap feed is
+    // better than an empty ticker — fall back to it rather than to a dead end.
+    if(evs.length) el.innerHTML = evs.join('');          // our own launchpad wins when it has activity
+    else if(!FEED.length) el.innerHTML = indexerTape('no recent activity');
+  }catch(e){ if(!FEED.length) el.innerHTML = indexerTape('tape unavailable'); }
 }
 
 /* ==================================================================
@@ -3468,13 +3483,23 @@ document.addEventListener('keydown',e=>{
 /* Test/debug surface. Read-only view of state that lives in this script's
    lexical scope, plus a way for test-terminal.js to stand in a wallet without
    a browser extension. Not used by the page itself. */
-window.__term = { get VIEW(){ return VIEW; }, get coins(){ return coins; }, get filter(){ return filter; },
+window.__term = { get VIEW(){ return VIEW; }, get coins(){ return coins; }, get filter(){ return filter; }, get NET(){ return NET; },
   setWallet(s, a){ signer=s; me=a; }, setCoins(list){ coins=list; render(); ticker(); paintHero(); rail(); },
   get DW(){ return DW; }, setDraw(addr, state){ NET.draw=addr; stopDraw(); Object.assign(DW, state||{}); paintHero(); renderDraw(); }, spinReels,
   setDrawContracts(r, w){ drawR=r; drawW=w; },
   get LO(){ return LO; }, setLimit(addr, r, w){ NET.limit=addr; limitR=r; limitW=w; LO.loaded=false; },
   get CHAIN(){ return CHAIN; }, setChain, geckoCoin,
   loadProfiles, logoUrl, publishLaunchMeta, get PROFILES(){ return PROFILES; },
+  /* Tests need both paths: a network with our contracts deployed, and one
+     without (the gate copy). Overrides the live addresses in place. */
+  setContracts(o){
+    Object.assign(NET, o);
+    // PUMP/PRED are hoisted copies of NET.* taken at boot, so both have to move.
+    PUMP = NET.pump; PRED = NET.pred;
+    pumpR = PUMP ? new ethers.Contract(PUMP, PUMP_ABI, provider) : null;
+    predR = PRED ? new ethers.Contract(PRED, PRED_ABI, provider) : null;
+    pumpW = predW = limitR = limitW = drawR = drawW = null;
+  },
   setView, render, rail, sharePoint, loadPoints };
 
 /* ==================================================================
