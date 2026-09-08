@@ -566,6 +566,52 @@ function boot(url) {
   ok(hw.localStorage.getItem('ark_drawpop_dismissed') === String(round), 'dismissing remembers the current round (' + round + '), so it returns next hour');
   }
 
+  console.log('\n=== in-app buy: Uniswap V3 swap from the token rail ===');
+  {
+  const sm = boot('https://arclite.fun/app/terminal.html?net=mainnet');
+  await sleep(600);
+  const sd = sm.d, sw = sm.w;
+  const T = sw.__term;
+
+  // config carries a router, and it is Router02 (no deadline in the struct)
+  ok(/^0x[0-9a-fA-F]{40}$/.test(T.NET.router), 'mainnet config carries a Uniswap router (' + T.NET.router.slice(0,10) + '…)');
+  ok(T.NET.usdcDecimals === 6, 'ERC-20 USDC is 6dp — the figure amountIn is built from');
+
+  // open the ALPHA row (a V3 coin) and check the buy card exists
+  const card = [...sd.querySelectorAll('#lanes .tcard')].find(x => x.dataset.addr === TOK);
+  card.dispatchEvent(new sw.MouseEvent('click', { bubbles: true })); await sleep(400);
+  const rail = sd.getElementById('rail');
+  ok(!!sd.getElementById('swapCard'), 'a V3 explorer token shows an in-app Buy card, not just "Open pool"');
+  ok(!!sd.getElementById('swAmt') && !!sd.querySelector('[data-swbuy]'), 'buy card has an amount field and a Buy button');
+  ok([...sd.querySelectorAll('[data-swusd]')].map(e=>e.dataset.swusd).join(',') === '5,10,25,50,100', 'preset amounts $5–$100');
+  ok([...sd.querySelectorAll('[data-swslip]')].map(e=>e.dataset.swslip).join(',') === '100,300,500,1000', 'slippage presets 1/3/5/10%');
+  ok(rail.textContent.includes('Gas is paid in native USDC'), 'warns that gas USDC is a separate balance from the USDC being spent');
+
+  // a V4 pool must NOT offer the button — it routes through a different contract
+  const v4card = [...sd.querySelectorAll('#lanes .tcard')].find(x => x.dataset.addr === TOK2);
+  v4card.dispatchEvent(new sw.MouseEvent('click', { bubbles: true })); await sleep(300);
+  ok(!sd.getElementById('swapCard'), 'a V4 pool offers no Buy button (Universal Router is not wired)');
+  ok(sd.getElementById('rail').textContent.includes('Uniswap V4 pool'), '...and says why, instead of a button that would fail');
+
+  // ---- the arithmetic, which is where money is lost ----
+  const q = 13195200733409369890121n;          // real quote: $1 -> KAIRO, 18dp
+  const minOut = bps => q * BigInt(10000 - bps) / 10000n;
+  ok(minOut(300) === 12799344711407088793417n, 'minOut at 3% = quote × 9700/10000, computed in base units');
+  ok(minOut(300) < q && minOut(1000) < minOut(300), 'more slippage tolerance = lower floor');
+  ok(minOut(0) === q, 'zero slippage floors at the quote itself');
+  // decimals safety: minOut is never scaled by a decimals figure
+  const src = html.slice(html.indexOf('async function doSwapBuy'), html.indexOf('HERO STATS + TRENDING'));
+  ok(/amountOutMinimum: minOut/.test(src), 'amountOutMinimum is passed through untouched');
+  ok(!/formatUnits\([^)]*minOut|parseUnits\([^)]*minOut/.test(src), 'minOut is never run through parseUnits/formatUnits — an unverified decimals cannot corrupt it');
+  ok(/parseUnits\(String\(amt\), NET\.usdcDecimals\)/.test(src), 'amountIn is built from USDC 6dp, not 18');
+  ok(/approve\(NET\.router, amountIn\)/.test(src), 'approval is for the exact amount, never unlimited');
+  ok(/balanceOf\(me\)/.test(src) && /less than the/.test(src), 'checks the USDC balance first and says so in dollars');
+
+  // display safety: an unverified token prints no token amount
+  const fmtSrc = html.slice(html.indexOf('function fmtTokenOut'), html.indexOf('async function refreshQuote'));
+  ok(/if \(!c\.metaOk \|\| c\.decimals == null\) return null/.test(fmtSrc), 'no token amount is printed until decimals are verified');
+  }
+
   console.log('\n=== no leftovers ===');
   ok(!/bounty/i.test(html), 'terminal.html contains no "bounty"');
   ok(!/REFERRALS\s*=|bindReferrer|copyRefLink/.test(html), 'terminal.html contains no referral code');

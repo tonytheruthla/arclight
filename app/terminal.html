@@ -77,11 +77,18 @@ body{
 .dsp{font-family:var(--fd);font-weight:700}
 
 /* ---------- shell ---------- */
-.app{display:grid;grid-template-rows:52px auto 46px 42px 1fr 26px;height:100vh}
+.app{display:grid;grid-template-rows:52px auto 46px 42px 1fr 26px;height:100vh;
+  /* A grid item's default min-width:auto lets one wide row (the topbar) stretch
+     the whole grid past the viewport — which is what pushed the hero stats off
+     the right edge and cut "24H VOLUME" and "PAID OUT" in half. */
+  width:100%;max-width:100vw;min-width:0}
+.app>*{min-width:0}
 .topbar{
-  display:flex;align-items:center;gap:18px;padding:0 22px;
+  display:flex;align-items:center;gap:18px;padding:0 22px;min-width:0;
+  overflow-x:auto;scrollbar-width:none;
   border-bottom:1px solid var(--hair);background:linear-gradient(180deg,#0d1017,#0a0c11);
 }
+.topbar::-webkit-scrollbar{display:none}
 .logo{display:flex;align-items:center;gap:11px;font-weight:700;letter-spacing:.02em;font-size:14px;
   color:var(--ink);text-decoration:none;flex:0 0 auto;padding-right:6px}
 .logo .mk{width:27px;height:27px;flex:0 0 27px;filter:drop-shadow(0 0 6px rgba(34,211,238,.45))}
@@ -153,7 +160,9 @@ body{
 .hero .ttl span{font:500 11px var(--fm);letter-spacing:.2em;color:var(--light);text-transform:uppercase}
 .hstats{display:flex;gap:12px;margin-left:auto}
 .hstat{min-width:138px;background:rgba(14,17,24,.85);border:1px solid var(--hair2);border-radius:12px;padding:14px 18px}
-.hstat span{display:block;font:600 9.5px var(--fs);letter-spacing:.14em;text-transform:uppercase;color:var(--ink3)}
+.hstat span{display:block;font:600 9.5px var(--fs);letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);
+  white-space:nowrap}
+.hstat b{white-space:nowrap}
 .hstat b{display:block;font:700 19px var(--fd);letter-spacing:-.01em;margin-top:7px;font-variant-numeric:tabular-nums}
 .hstat b.dim{font-size:13px;font-weight:500}
 
@@ -464,7 +473,21 @@ td.l{text-align:left}
   font-size:12.5px;opacity:0;transition:.25s;z-index:99;max-width:88vw}
 .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
 .toast.err{border-color:rgba(255,69,58,.5)}
-@media (max-width:1100px){ .hstats{display:none} }
+/* ---- width budget. The topbar needs ~1810px with everything expanded, so
+   below that things fold in a deliberate order: chain labels, then the word
+   "Lucky", then the countdown chip, then the stats. Nothing is ever cut. ---- */
+@media (max-width:1560px){
+  .chsw button{padding:6px 9px}
+  .chsw button span.lbl{display:none}          /* icons carry the meaning */
+}
+@media (max-width:1420px){
+  .navi.draw .full{display:none}               /* "Lucky Trencher" -> "Trencher" */
+}
+@media (max-width:1300px){
+  .navi.draw .cd{display:none}                 /* drop the timer, keep the glow */
+  .search{display:none}
+}
+@media (max-width:1200px){ .hstats{display:none} }
 @media (max-width:1000px){ .main{grid-template-columns:1fr} .rail{display:none} .grid2{grid-template-columns:1fr} .nav .navi{padding:7px 8px;font-size:12px} .search{display:none} }
 /* phones: the hero row collapses to 0 but STAYS in the grid (display:none would
    remove it and shift every row up one); the top bar scrolls sideways instead
@@ -732,7 +755,7 @@ tbody tr.new{animation:newrow 6s ease-out}
       <a class="navi" data-view="tokens" href="#tokens">Tokens</a>
       <a class="navi" data-view="launchpad" href="#launchpad">Launchpad<span class="fire">🔥</span></a>
       <a class="navi" data-view="launch" href="#launch">Launch</a>
-      <a class="navi draw" data-view="draw" href="#draw" id="naviDraw"><span class="livedot"></span>Lucky Trencher<span class="cd" id="naviCd">--:--</span></a>
+      <a class="navi draw" data-view="draw" href="#draw" id="naviDraw"><span class="livedot"></span><span class="full">Lucky </span>Trencher<span class="cd" id="naviCd">--:--</span></a>
       <a class="navi" data-view="points" href="#points">Points<span class="badge">PTS</span></a>
       <a class="navi" data-view="portfolio" href="#portfolio">Portfolio</a>
     </nav>
@@ -741,14 +764,14 @@ tbody tr.new{animation:newrow 6s ease-out}
         <svg class="ci" viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <circle cx="12" cy="12" r="9.25" stroke="#0a84ff" stroke-width="1.9"/>
           <path d="M12 2.75a9.25 9.25 0 0 1 9.25 9.25" stroke="#22d3ee" stroke-width="2.6" stroke-linecap="round"/>
-        </svg>ARC</button>
+        </svg><span class="lbl">ARC</span></button>
       <button data-chain="hood" title="Robinhood Chain">
         <!-- Robinhood's mark is a feather; drawn as a path so no external asset is fetched -->
         <svg class="ci" viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <path d="M6 20.5c0-7 3.2-13.2 11.4-17-1 5.2-2.1 8.6-4 11.2-1.9 2.6-4.3 4.1-7.4 5.8Z" fill="#7cff8a"/>
           <path d="M6 20.5c2.4-4.6 5.6-8.2 9.7-11.3" stroke="#0b1f10" stroke-width="1.15" stroke-linecap="round"/>
           <path d="M4.2 21.6c1.2-1.1 2.4-1.9 3.6-2.4" stroke="#7cff8a" stroke-width="1.7" stroke-linecap="round"/>
-        </svg>HOOD</button>
+        </svg><span class="lbl">HOOD</span></button>
       <button data-chain="sol" title="Solana">
         <!-- Solana's three slanted bars, in its own green-to-purple gradient -->
         <svg class="ci" viewBox="0 0 24 24" aria-hidden="true">
@@ -759,7 +782,7 @@ tbody tr.new{animation:newrow 6s ease-out}
             <path d="M5.4 3.55a.82.82 0 0 1 .57-.24h14.2c.36 0 .54.43.29.68l-2.86 2.87a.8.8 0 0 1-.57.24H2.83a.4.4 0 0 1-.29-.68Z"/>
             <path d="M18.6 10.19a.8.8 0 0 0-.57-.24H3.83a.4.4 0 0 0-.29.68l2.86 2.87a.8.8 0 0 0 .57.24h14.2a.4.4 0 0 0 .29-.68Z"/>
           </g>
-        </svg>SOL</button>
+        </svg><span class="lbl">SOL</span></button>
     </div>
     <div class="pill live" id="netPill">arc testnet</div>
     <div class="search">
@@ -996,6 +1019,11 @@ const NETWORKS = {
     // Uniswap V3, resolved from SwapRouter.factory() on chain 5042
     v3Factory:'0xf0db7b58379503491d857db50ac9ece64c653918',
     quoter:'0x7dfd4f31be6814d2906bde155c3e1b146eac1468',
+    /* Uniswap SwapRouter02 on Arc. Verified before use, not copied on trust:
+       router.factory() and quoter.factory() both return the v3Factory above,
+       and the runtime bytecode carries exactInputSingle WITHOUT a deadline
+       (0x04e45aaf) — i.e. Router02, not the original SwapRouter. */
+    router:'0x53bf6b0684ec7ef91e1387da3d1a1769bc5a6f77',
     // Uniswap V4 singleton PoolManager. Confirmed live on Arc mainnet — this is
     // the same PoolManager pump.archi's docs cite for their own USDC-quoted
     // markets. V4 has no per-pool contracts (everything routes through this one
@@ -2051,7 +2079,14 @@ function rail(){
   if(VIEW!=='tokens' && VIEW!=='launchpad'){ el.innerHTML=''; return; }
   const v=view(), c=v[selected];
   if(!c){ railDefault(el); return; }
-  if(onExplorer() || c.scanner){ railScan(c, el); return; }
+  if(onExplorer() || c.scanner){
+    railScan(c, el);
+    // Quote as soon as the coin is opened, so the buy button is live on arrival
+    // rather than after the user pokes it. Skipped if we already have this one.
+    if(canSwap(c) && SWAP.key !== c.addr+':'+SWAP.usd) refreshQuote(c);
+    else paintSwap(c);
+    return;
+  }
   const m=c.market;
   el.innerHTML =
    '<div class="card">'+
@@ -2162,13 +2197,141 @@ function railScan(c, el){
        stat('Pair', 'USDC')+
      '</div>'+
    '</div>'+
+   swapCardHtml(c)+
    '<div class="card"><h3>Trade</h3>'+
-     '<a class="btn primary" style="display:block;text-align:center;text-decoration:none" href="'+poolHref+'" target="_blank" rel="noopener">Open pool ↗</a>'+
+     '<a class="btn '+(canSwap(c)?'':'primary')+'" style="display:block;text-align:center;text-decoration:none" href="'+poolHref+'" target="_blank" rel="noopener">Open pool ↗</a>'+
      '<a class="btn" style="display:block;text-align:center;text-decoration:none;margin-top:7px" href="'+(c.tokenUrl || EXPLORER+'/token/'+c.addr)+'" target="_blank" rel="noopener">Token on explorer ↗</a>'+
      (c.chain ? '<a class="btn" style="display:block;text-align:center;text-decoration:none;margin-top:7px" href="'+c.poolUrl+'" target="_blank" rel="noopener">Pool on DexScreener ↗</a>' : '')+
      (c.chain==='sol' ? '' : '<button class="btn" data-share="'+c.addr+'" data-sym="'+(named?c.symbol:'')+'" style="margin-top:7px">Share on X · +1 pt</button>')+
-     (c.chain ? '<div class="hint">'+CHAINS[c.chain].name+' pool via GeckoTerminal — liquidity '+fmtUsd(c.liq||0)+', FDV '+fmtUsd(c.mcap||0)+'. Trade opens the DEX; nothing here is custodial.</div>' : '<div class="hint">This is a Uniswap pool on Arc, not an Arclite curve — in-terminal swaps land once the Arc swap router is verified. Arclite launches (BUY, odds markets) show here the day the launchpad goes live on mainnet.</div>')+
+     (c.chain ? '<div class="hint">'+CHAINS[c.chain].name+' pool via GeckoTerminal — liquidity '+fmtUsd(c.liq||0)+', FDV '+fmtUsd(c.mcap||0)+'. Trade opens the DEX; nothing here is custodial.</div>' : (canSwap(c)
+        ? '<div class="hint">Buying happens above, in-app, through Uniswap\'s router on Arc. This pool is not an Arclite curve — no creator fee share and no graduation market.</div>'
+        : '<div class="hint">This is a Uniswap V4 pool. V4 routes through a different contract, so in-app buying isn\'t wired for it yet — the pool link opens the pair.</div>'))+
    '</div>';
+}
+
+/* ==================================================================
+   IN-APP BUY — Uniswap V3 swaps, USDC -> token, straight from the rail.
+   Before this, clicking a token only offered "Open pool ↗" to a block
+   explorer, which is a dead end for anyone who actually wants the coin.
+
+   THE DECIMALS RULE (AUDIT.md §2.1 is about exactly this): amountIn is
+   ERC-20 USDC, always 6dp. amountOutMinimum comes back from the quoter in
+   the TOKEN's own base units and is passed through untouched — we never
+   multiply or divide it by a decimals figure. So a token whose decimals we
+   failed to read cannot produce a wrong minOut; the worst case is that we
+   can't pretty-print the amount, which is a display problem, not a money one.
+
+   V4 pools are not routed here. V4 needs the Universal Router with a
+   different encoding, so those tokens keep the explorer link rather than a
+   button that would look identical and fail.
+================================================================== */
+const FEE_TIERS = [10000, 3000, 500, 100];        // 1% first: memecoin pools live there
+const QUOTER_ABI = ['function quoteExactInputSingle((address tokenIn,address tokenOut,uint256 amountIn,uint24 fee,uint160 sqrtPriceLimitX96)) returns (uint256 amountOut,uint160 sqrtPriceX96After,uint32 initializedTicksCrossed,uint256 gasEstimate)'];
+const ROUTER_ABI = ['function exactInputSingle((address tokenIn,address tokenOut,uint24 fee,address recipient,uint256 amountIn,uint256 amountOutMinimum,uint160 sqrtPriceLimitX96)) payable returns (uint256 amountOut)'];
+const ERC20_ABI  = ['function allowance(address,address) view returns (uint256)','function approve(address,uint256) returns (bool)','function balanceOf(address) view returns (uint256)','function decimals() view returns (uint8)'];
+
+const canSwap = c => !!(NET.router && NET.quoter && onArc() && c && c.scanner && c.dex !== 'v4' && !c.chain);
+const SWAP = { usd: 10, slipBps: 300, quote: null, quoting: false, key: '' };
+const SLIPS = [[100,'1%'],[300,'3%'],[500,'5%'],[1000,'10%']];
+
+/** Best quote across the fee tiers. Returns null when no pool can fill it. */
+async function bestQuote(tokenAddr, amountIn){
+  const q = new ethers.Contract(NET.quoter, QUOTER_ABI, provider);
+  let best = null;
+  for (const fee of FEE_TIERS){
+    try{
+      const r = await q.quoteExactInputSingle.staticCall({ tokenIn: NET.usdc, tokenOut: tokenAddr, amountIn, fee, sqrtPriceLimitX96: 0 });
+      const out = r[0] ?? r.amountOut;
+      if (out > 0n && (!best || out > best.out)) best = { fee, out };
+    }catch(e){ /* no pool at this tier, or it can't fill — try the next */ }
+  }
+  return best;
+}
+
+/** Human-readable token amount, ONLY when decimals were actually verified. */
+function fmtTokenOut(c, base){
+  if (!c.metaOk || c.decimals == null) return null;
+  const n = Number(ethers.formatUnits(base, c.decimals));
+  return n.toLocaleString(undefined, { maximumFractionDigits: n < 1 ? 6 : n < 1000 ? 3 : 0 });
+}
+
+async function refreshQuote(c){
+  const key = c.addr + ':' + SWAP.usd;
+  SWAP.key = key; SWAP.quote = null; SWAP.quoting = true; paintSwap(c);
+  try{
+    const amountIn = ethers.parseUnits(String(SWAP.usd), NET.usdcDecimals);
+    const b = await bestQuote(c.addr, amountIn);
+    if (SWAP.key !== key) return;                 // a newer amount won the race
+    SWAP.quote = b;
+  }catch(e){ SWAP.quote = null; }
+  SWAP.quoting = false; paintSwap(c);
+}
+
+function swapCardHtml(c){
+  if (!canSwap(c)) return '';
+  const amounts = [5,10,25,50,100];
+  return '<div class="card" id="swapCard"><h3>Buy '+(c.symbol && c.symbol!=='—' ? c.symbol : 'this token')+'</h3>'+
+    '<div class="presets" style="gap:5px;flex-wrap:wrap;margin-bottom:8px">'+
+      amounts.map(a=>'<div class="chip '+(SWAP.usd===a?'on':'')+'" data-swusd="'+a+'">$'+a+'</div>').join('')+
+    '</div>'+
+    '<label class="fld"><span>Spend (USDC)</span><input id="swAmt" class="mono" inputmode="decimal" value="'+SWAP.usd+'"></label>'+
+    '<div class="fld"><span>Max slippage</span><div class="presets" style="gap:4px">'+
+      SLIPS.map(([b,l])=>'<div class="chip '+(SWAP.slipBps===b?'on':'')+'" data-swslip="'+b+'">'+l+'</div>').join('')+
+    '</div></div>'+
+    '<div id="swQuote" class="ro mono" style="margin:8px 0">—</div>'+
+    '<button class="btn primary" style="width:100%" data-swbuy="'+c.addr+'">'+(me?'Buy':'Connect to buy')+'</button>'+
+    '<div class="hint" id="swHint">Swaps USDC for '+(c.symbol||'the token')+' through Uniswap on Arc. Gas is paid in native USDC, which is a separate balance from the USDC being spent.</div>'+
+  '</div>';
+}
+
+function paintSwap(c){
+  const el = document.getElementById('swQuote'); if (!el) return;
+  if (SWAP.quoting){ el.innerHTML = '<span class="dim">quoting…</span>'; return; }
+  if (!SWAP.quote){ el.innerHTML = '<span class="pend">no Uniswap pool can fill $'+SWAP.usd+'</span>'; return; }
+  const pretty = fmtTokenOut(c, SWAP.quote.out);
+  const minOut = SWAP.quote.out * BigInt(10000 - SWAP.slipBps) / 10000n;
+  const minPretty = fmtTokenOut(c, minOut);
+  el.innerHTML = '≈ <b>'+(pretty ?? 'amount pending')+'</b> '+(pretty ? (c.symbol||'') : '')+
+    '<div class="dim" style="font-size:10.5px;margin-top:3px">min '+(minPretty ?? '—')+
+    ' after '+(SWAP.slipBps/100)+'% slippage · '+(SWAP.quote.fee/10000)+'% pool fee</div>'+
+    (pretty ? '' : '<div class="dim" style="font-size:10.5px;margin-top:3px">This token\'s decimals aren\'t verified yet, so we won\'t print a token amount — the trade itself still uses the exact on-chain quote.</div>');
+}
+
+async function doSwapBuy(addr){
+  if (!signer) return connect();
+  const c = view().find(x => x.addr.toLowerCase() === addr.toLowerCase()); if (!c) return;
+  const btn = document.querySelector('[data-swbuy]');
+  const amt = Number((document.getElementById('swAmt')||{}).value || 0);
+  if (!(amt > 0)) return toast('Enter an amount', 1);
+  if (!SWAP.quote) return toast('No pool could quote that amount', 1);
+  const amountIn = ethers.parseUnits(String(amt), NET.usdcDecimals);
+  const minOut = SWAP.quote.out * BigInt(10000 - SWAP.slipBps) / 10000n;
+  if (btn){ btn.disabled = true; btn.textContent = 'Working…'; }
+  try{
+    const usdc = new ethers.Contract(NET.usdc, ERC20_ABI, signer);
+    const bal = await usdc.balanceOf(me);
+    if (bal < amountIn) throw new Error('You have $'+Number(ethers.formatUnits(bal, NET.usdcDecimals)).toFixed(2)+' ERC-20 USDC — less than the $'+amt+' this trade needs.');
+    const allow = await usdc.allowance(me, NET.router);
+    if (allow < amountIn){
+      toast('Approving USDC…');
+      if (btn) btn.textContent = 'Approving…';
+      // Exact-amount approval, not unlimited: a launchpad is the last place to
+      // hand a router an infinite allowance on the user's behalf.
+      await (await usdc.approve(NET.router, amountIn)).wait();
+    }
+    toast('Swapping $'+amt+' for '+(c.symbol||'tokens')+'…');
+    if (btn) btn.textContent = 'Swapping…';
+    const router = new ethers.Contract(NET.router, ROUTER_ABI, signer);
+    const tx = await router.exactInputSingle({ tokenIn: NET.usdc, tokenOut: c.addr, fee: SWAP.quote.fee,
+      recipient: me, amountIn, amountOutMinimum: minOut, sqrtPriceLimitX96: 0 });
+    const rc = await tx.wait();
+    toast('Bought '+(c.symbol||'tokens')+' ✓ block '+rc.blockNumber);
+    refreshBalance(); refreshQuote(c);
+  }catch(e){
+    const m = String(e.shortMessage || e.message || e);
+    toast(/Too little received|STF|slippage/i.test(m) ? 'Price moved past your slippage limit — nothing was spent. Try a higher tolerance.' : ('Buy failed: ' + m.slice(0, 110)), 1);
+  }
+  if (btn){ btn.disabled = false; btn.textContent = 'Buy'; }
 }
 
 /* ==================================================================
@@ -2886,7 +3049,15 @@ function shareDraw(){
 let drawTimer=null, drawTick=null;
 async function drawLoop(){
   if(VIEW!=='draw' || !onArc()) return;
-  try{ await drawRead(); }catch(e){ DW.err='Could not read the draw contract: '+String(e.shortMessage||e.message||e).slice(0,80); }
+  try{ await drawRead(); }catch(e){
+    // "server response 502" told a visitor nothing. The proxy already retries a
+    // busy endpoint, so if it still fails the honest message is that the node is
+    // busy — and the round keeps running on-chain regardless of what we can read.
+    const raw=String(e.shortMessage||e.message||e);
+    DW.err = /50\d|exhausted|rate|quota|timeout|network/i.test(raw)
+      ? 'The Arc node is busy right now — the draw is unaffected and this will refresh on its own.'
+      : ('Could not read the draw contract: '+raw.slice(0,80));
+  }
   renderDraw();
 }
 function startDraw(){
@@ -3487,6 +3658,19 @@ document.querySelectorAll('.chip[data-bet]').forEach(c=>c.addEventListener('clic
   c.classList.add('on'); betAmt=Number(c.dataset.bet); rail();
 }));
 document.getElementById('q').addEventListener('input',()=>{selected=-1;render();rail();});
+/* Amount typed into the buy box: re-quote, debounced, so every keystroke does
+   not fire four eth_calls at the fee tiers. */
+let swDebounce=null;
+document.addEventListener('input', e=>{
+  if(!e.target || e.target.id!=='swAmt') return;
+  const v=Number(e.target.value||0);
+  clearTimeout(swDebounce);
+  swDebounce=setTimeout(()=>{
+    if(!(v>0)) return;
+    SWAP.usd=v;
+    const c=view()[selected]; if(c && canSwap(c)) refreshQuote(c);
+  }, 450);
+});
 document.getElementById('connectBtn').addEventListener('click',connect);
 document.getElementById('refreshBtn').addEventListener('click',()=>{load();tape();loadStats();feed();if(VIEW==='points')loadPoints(true);});
 
@@ -3505,6 +3689,12 @@ document.body.addEventListener('click',e=>{
   if(w){ e.stopPropagation(); toggleWatch(w.dataset.watch); return; }
   const sh=e.target.closest('[data-share]');
   if(sh){ e.stopPropagation(); sharePoint(sh.dataset.share, sh.dataset.sym||''); return; }
+  const su=e.target.closest('[data-swusd]');
+  if(su){ e.stopPropagation(); SWAP.usd=Number(su.dataset.swusd); const c=view()[selected]; if(c){ rail(); refreshQuote(c); } return; }
+  const ss=e.target.closest('[data-swslip]');
+  if(ss){ e.stopPropagation(); SWAP.slipBps=Number(ss.dataset.swslip); const c=view()[selected]; if(c){ rail(); paintSwap(c); } return; }
+  const sb=e.target.closest('[data-swbuy]');
+  if(sb){ e.stopPropagation(); doSwapBuy(sb.dataset.swbuy); return; }
   const em=e.target.closest('[data-editmeta]');
   if(em){ e.stopPropagation(); openProfileForm(em.dataset.editmeta); return; }
   const jp=e.target.closest('[data-jump]');
