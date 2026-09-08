@@ -26,6 +26,7 @@ function upstream(port, opts) {
         if (r.method === 'eth_chainId')     return { jsonrpc: '2.0', id: r.id, result: state.chainId };
         if (r.method === 'eth_blockNumber') return { jsonrpc: '2.0', id: r.id, result: '0x' + (state.head).toString(16) };
         if (r.method === 'eth_getCode')     return { jsonrpc: '2.0', id: r.id, result: '0xdeadbeef' };
+        if (r.method === 'eth_call' && state.mode === 'hex429') return { jsonrpc: '2.0', id: r.id, result: '0x0000000000000000000000000000000000000000000000000000000000004290' };
         if (r.method === 'eth_call')        return { jsonrpc: '2.0', id: r.id, result: '0x' + port.toString(16) };
         if (r.method === 'eth_getTransactionCount') return { jsonrpc: '2.0', id: r.id, result: '0x' + state.calls.toString(16) };
         if (r.method === 'eth_getBlockByNumber') return { jsonrpc: '2.0', id: r.id, result: { number: r.params[0], hash: '0xabc', timestamp: '0x1', transactions: [] } };
@@ -94,6 +95,16 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   const n2 = await rpc(19000, 'eth_getTransactionCount', ['0xabc', 'pending']);
   ok('eth_getTransactionCount is never cached', n1.json.result !== n2.json.result,
      `${n1.json.result} vs ${n2.json.result}`);
+
+  // 3b. regression: a hex RESULT that happens to contain "429" is a normal answer,
+  //     not a rate limit. The old whole-response regex tripped on this and took
+  //     the upstream out for 60 s — the "stuck unhealthy" proxy seen on Sept 8.
+  A.state.mode = 'hex429';
+  const h1 = await rpc(19000, 'eth_call', [{ to: '0x429' }, 'latest']);
+  ok('hex result containing "429" is served, not treated as quota', h1.json.result === '0x0000000000000000000000000000000000000000000000000000000000004290', JSON.stringify(h1.json).slice(0, 90));
+  const hh = await new Promise((resolve) => http.get('http://127.0.0.1:19000/health', res => { let d=''; res.on('data', c => d += c); res.on('end', () => resolve({ status: res.statusCode, json: JSON.parse(d) })); }));
+  ok('  ...and upstream A is still counted healthy afterwards', hh.json.upstreams && hh.json.upstreams.healthy === 2, JSON.stringify(hh.json.upstreams));
+  A.state.mode = 'ok';
 
   // 4. THE important one: upstream quota exhaustion fails over instead of erroring
   A.state.mode = 'quota';

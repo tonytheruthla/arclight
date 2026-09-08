@@ -157,9 +157,14 @@ function post(target, payload) {
 }
 
 /** Quota/rate errors mean this upstream is done for a while, not that the call was bad. */
+/** Quota / rate-limit detection — looks ONLY at JSON-RPC error objects.
+ *  (An earlier version regex-scanned the whole response, so any hex result
+ *  containing the digits "429" took the upstream out of rotation for 60 s.
+ *  With the terminal's eth_call volume that was a near-permanent outage.) */
 function isUpstreamExhausted(json) {
-  const s = JSON.stringify(json || '').toLowerCase();
-  return /exceeded quota|rate limit|too many requests|429|capacity|forbidden|unauthorized/.test(s);
+  const errs = Array.isArray(json) ? json.map(j => j && j.error).filter(Boolean) : (json && json.error ? [json.error] : []);
+  return errs.some(e => e && (e.code === -32005 || e.code === 429 ||
+    /exceeded|quota|rate limit|too many requests|capacity|forbidden|unauthorized|daily request count/i.test(String(e.message || ''))));
 }
 
 async function forward(payload) {
@@ -304,7 +309,9 @@ const server = http.createServer((req, res) => {
   if (req.method === 'GET') {
     const path = req.url.split('?')[0];
     if (path === '/health') {
-      const healthy = pool.filter(p => p.healthy && Date.now() > p.failUntil).length;
+      // An upstream whose cooldown has expired is back in rotation on the next
+      // request even if its last attempt failed, so count it as available.
+      const healthy = pool.filter(p => Date.now() > p.failUntil && p.chainVerified !== false).length;
       const mismatched = pool.filter(p => p.chainVerified === false).length;
       return send(res, healthy ? 200 : 503, {
         ok: healthy > 0, chainId: CHAIN_ID, head: headBlock,
