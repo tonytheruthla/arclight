@@ -44,9 +44,11 @@ function boot(url) {
   const w = dom.window;
   w.ethers = ethers;
   w.localStorage.clear();
-  w.fetch = async (u, opts) => {
+  // Real Response objects, not duck-typed literals: ethers' FetchRequest reads
+  // headers and arrayBuffer(), and the app reads json(). One shape serves both.
+  const stub = async (u, opts) => {
     const s = String(u);
-    const json = d => ({ ok: true, status: 200, json: async () => d, text: async () => JSON.stringify(d) });
+    const json = d => new Response(JSON.stringify(d), { status: 200, headers: { 'content-type': 'application/json' } });
     if (s.includes('api.geckoterminal.com')) {
       const net = s.includes('/networks/solana/') ? 'solana' : 'robinhood';
       const pool = (id, name, vol, chg, liq, created, dex) => ({ id, attributes: { name, address: '0xp'+id, base_token_price_usd: '0.0135', volume_usd: { h24: String(vol) }, price_change_percentage: { h24: String(chg) }, transactions: { h24: { buys: 10, sells: 5, buyers: 7, sellers: 4 } }, reserve_in_usd: String(liq), fdv_usd: '13494420', pool_created_at: created },
@@ -62,9 +64,34 @@ function boot(url) {
     if (s.includes('/api/v1/token-meta')) { metaPosts.push(JSON.parse(opts.body)); return metaReply(); }
     if (s.includes('/api/v1/points/share')) { posted.push(JSON.parse(opts.body)); return json({ ok: true, awarded: true, sharesToday: 1, cap: 10 }); }
     if (s.match(/\/api\/v1\/points\/0x/)) return json({ wallet: '0x', volume: 0, trades: 0, shares: 0, points: 0, rank: null, sharesToday: 0, shareDailyCap: 10 });
-    // Anything else is an RPC call through ethers' FetchRequest — answer chainId, fail the rest quietly.
-    return { ok: false, status: 503, json: async () => ({}), text: async () => '' };
+    // RPC calls arrive here through ethers' FetchRequest. Answer the two reads
+    // the terminal makes against the deployed pump — graduationUsdc() for the
+    // Launch page, tokenCount() for the Launchpad tab — and fail the rest.
+    if (opts && opts.body) {
+      let req = null; try { req = JSON.parse(opts.body); } catch {}
+      const call = Array.isArray(req) ? req[0] : req;
+      if (call && call.method === 'eth_call') {
+        const data = (call.params && call.params[0] && call.params[0].data) || '';
+        const word = n => '0x' + BigInt(n).toString(16).padStart(64, '0');
+        if (data.startsWith('0x8aefa191')) return json({ jsonrpc:'2.0', id:call.id, result: word(1500n * 10n**18n) });  // graduationUsdc
+        if (data.startsWith('0x9f181b5e')) return json({ jsonrpc:'2.0', id:call.id, result: word(0) });                // tokenCount = 0
+      }
+    }
+    return new Response('', { status: 503 });
   };
+  // ethers runs in Node here (w.ethers is the Node module), so its provider uses
+  // Node's global fetch — setting only w.fetch let every contract read escape to
+  // the real network and quietly fail. Intercept both.
+  w.fetch = stub;
+  // ethers v6 does NOT use global fetch — it has its own Node HTTP layer, so
+  // every contract read was escaping the harness and failing silently against
+  // the real RPC. registerGetUrl is the supported hook for redirecting it.
+  ethers.FetchRequest.registerGetUrl(async (req) => {
+    const body = req.hasBody() ? new TextDecoder().decode(req.body) : undefined;
+    const resp = await stub(req.url, { body });
+    return { statusCode: resp.status, statusMessage: 'OK', headers: { 'content-type': 'application/json' },
+             body: new Uint8Array(await resp.arrayBuffer()) };
+  });
   w.open = () => ({});
   w.alert = () => {}; w.confirm = () => true;
   const script = html.match(/<script>([\s\S]*)<\/script>\s*<\/body>/)[1];
@@ -467,6 +494,35 @@ function boot(url) {
   metaReply = () => ({ ok: false, status: 404, json: async () => ({ error: 'not indexed yet' }) });
   await pw.__term.publishLaunchMeta(LT, {website:'https://late.fun'}); await sleep(50);
   ok(JSON.parse(pw.localStorage.getItem('ark_pending_meta'))[LT.toLowerCase()].website === 'https://late.fun', 'API 404 (token not indexed yet) → submission parked in localStorage for retry');
+  }
+
+  console.log('\n=== mainnet is BOTH an explorer and a launchpad (contracts live Sept 8) ===');
+  {
+  const bm = boot('https://arclite.fun/app/terminal.html?net=mainnet');
+  await sleep(600);
+  const bd = bm.d, bw = bm.w;
+  ok(bw.__term.VIEW === 'tokens' && bw.__term.coins.length === 3, 'lands on Tokens with the indexer\'s chain-wide list');
+  const explorerCount = bw.__term.coins.length;
+
+  // The Launch page reads the real graduation target from the contract, not the
+  // 8000 placeholder — the bug that shipped "$8,000 raised" on a $1,500 curve.
+  bw.location.hash = '#launch'; await sleep(600);
+  const summary = bd.getElementById('panel').textContent;
+  ok(summary.includes('$1,500'), 'Launch summary shows the deployed graduation target ($1,500), not the placeholder');
+  ok(!summary.includes('$8,000'), '...and never the 8000 default');
+
+  // Switching to Launchpad must show OUR curve, not the 3 chain-wide tokens.
+  bw.location.hash = '#launchpad'; await sleep(700);
+  ok(bw.__term.VIEW === 'launchpad', 'routes to Launchpad on mainnet');
+  ok(bw.__term.coins.length !== explorerCount || bw.__term.coins.every(c => !c.scanner),
+     'Launchpad does not show the explorer list (was ' + explorerCount + ' chain-wide tokens, now ' + bw.__term.coins.length + ')');
+  ok(bd.getElementById('rows').textContent.includes('No coins launched yet') || bw.__term.coins.length === 0,
+     'empty curve says so honestly instead of borrowing the explorer\'s rows');
+
+  // ...and back again, from cache, without losing the explorer data.
+  bw.location.hash = '#tokens'; await sleep(700);
+  ok(bw.__term.coins.length === explorerCount && bw.__term.coins[0].scanner === true,
+     'back to Tokens: the explorer list returns');
   }
 
   console.log('\n=== no leftovers ===');

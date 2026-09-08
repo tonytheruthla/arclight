@@ -1214,6 +1214,13 @@ let VIEW = (function(){
   return (typeof NET!=='undefined' && NET.mode==='scanner') ? 'tokens' : 'launchpad';
 })();
 const hasPump = () => !!PUMP;
+/* Arc mainnet is BOTH an explorer and a launchpad now (contracts deployed
+   Sept 8). NET.mode is only the network's *default* landing view — it must not
+   decide what the Launchpad tab shows. `onExplorer()` answers the real
+   question: does the current view want chain-wide DEX data, or our own curve?
+   Two caches, because switching tabs shouldn't refetch either one. */
+let COINS_EXPLORER = [], COINS_LAUNCH = [];
+const onExplorer = () => !onArc() || (NET.mode === 'scanner' && VIEW !== 'launchpad');
 let selected = -1;
 let portfolioDust = []; // last-rendered dust rows, for the Sweep button delegate
 let buyAmt = 1, betAmt = 1;
@@ -1475,19 +1482,21 @@ async function load(){
     }
     return;
   }
-  // ---- mainnet: scanner mode, no launchpad contracts involved
+  // ---- the launchpad tab wants OUR coins, on any network that has a pump
+  if(VIEW==='launchpad' && hasPump()){ await loadLaunchpad(); return; }
+  // ---- explorer: chain-wide DEX data from the indexer (or the client scanner)
   if(NET.mode==='scanner'){
     try{
       const indexed = await loadFromIndexer();
       if(indexed){
-        coins = indexed;
+        coins = COINS_EXPLORER = indexed;
         render(); ticker(); paintHero(); if(selected<0) rail();
         document.getElementById('lastSync').textContent =
           'synced '+new Date().toLocaleTimeString()+' · '+coins.length+' tokens · indexer';
         return;
       }
       const [v3, v4] = await Promise.all([scanMainnet(), scanMainnetV4()]);
-      coins = v3.concat(v4);
+      coins = COINS_EXPLORER = v3.concat(v4);
       render();
       const v4n = v4.length;
       document.getElementById('lastSync').textContent =
@@ -1514,12 +1523,27 @@ async function load(){
     return;
   }
 
+  await loadLaunchpad();
+}
+
+/** Coins on the Arclite bonding curve, read straight from the pump contract. */
+async function loadLaunchpad(){
+  const tb=document.getElementById('rows');
   if(!pumpR){ render(); return; }
   try{
     GRAD_TARGET = Number(E(await retry(()=>pumpR.graduationUsdc())));
 
     const n = Number(await retry(()=>pumpR.tokenCount()));
-    if(n===0){ tb.innerHTML='<tr><td colspan="9" class="empty">No coins launched yet.</td></tr>'; return; }
+    if(n===0){
+      // An empty curve must EMPTY the list, not leave whatever the explorer
+      // last loaded sitting there — and it must not stomp on another view's
+      // content (the Tokens-on-testnet gate lives in the same table).
+      coins = COINS_LAUNCH = []; selected=-1;
+      if(VIEW==='launchpad'){ if(lanesOn()) renderLanes(); else tb.innerHTML='<tr><td colspan="9" class="empty">No coins launched yet.</td></tr>'; }
+      else render();
+      ticker(); paintHero(); rail();
+      return;
+    }
 
     // --- one call for the whole token page
     const [addr,phase,sold,raised,creator] = await retry(()=>pumpR.page(0, Math.min(n,100)));
@@ -1575,6 +1599,7 @@ async function load(){
         creator:creator[i], mkt, market:mk, yesBps
       };
     }).reverse(); // newest first
+    COINS_LAUNCH = coins;
 
     render(); ticker(); paintHero(); if(selected<0) rail();
     // logos + socials for launchpad coins arrive from the API a beat later
@@ -1622,7 +1647,7 @@ function view(){
   const q=(document.getElementById('q').value||'').trim().toLowerCase();
   let v=coins.filter(c=>!q || c.name.toLowerCase().includes(q) ||
         c.symbol.toLowerCase().includes(q) || c.addr.toLowerCase().includes(q));
-  if(NET.mode==='scanner' || !onArc()){
+  if(onExplorer()){
     // Explorer sorts. Anything unverified (no real decimals yet) sorts to the
     // bottom of price-based views rather than polluting them with nulls.
     const num = x => (x==null||isNaN(x)) ? -Infinity : Number(x);
@@ -1724,8 +1749,8 @@ async function renderPortfolio(){
   // Launches: tokens created by this wallet (launchpad mode only —
   // on mainnet there is no Arclite factory to ask).
   let launches=[];
-  if(NET.mode==='launchpad'){
-    launches = coins.filter(c=>c.creator && c.creator.toLowerCase()===me.toLowerCase());
+  if(hasPump()){
+    launches = (COINS_LAUNCH.length ? COINS_LAUNCH : coins).filter(c=>c.creator && c.creator.toLowerCase()===me.toLowerCase());
   }
 
   const money = n => '$'+n.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -1751,7 +1776,7 @@ async function renderPortfolio(){
         '<div class="pfcard"><div class="k">Token value</div><div class="v mono">'+money(tokenValue)+'</div></div>'+
         '<div class="pfcard"><div class="k">Holdings</div><div class="v mono">'+holdings.length+'</div></div>'+
         '<div class="pfcard"><div class="k">Launched by you</div><div class="v mono">'+
-          (NET.mode==='launchpad'?launches.length:'—')+'</div></div>'+
+          (hasPump()?launches.length:'—')+'</div></div>'+
       '</div>'+
 
       '<div class="pfsec">Holdings</div>'+
@@ -1781,9 +1806,8 @@ async function renderPortfolio(){
       '<div id="pfOrders">'+ordersHtml()+'</div>'+
 
       '<div class="pfsec">Launched by you</div>'+
-      (NET.mode!=='launchpad'
-        ? '<div class="pfempty">Launches are tracked on testnet, where the Arclite launchpad lives. '+
-          'There is no Arclite factory on mainnet yet.</div>'
+      (!hasPump()
+        ? '<div class="pfempty">No Arclite launchpad on this network.</div>'
         : launches.length ? rowsHtml(launches.map(l=>({...l,amt:0,value:0})))
         : '<div class="pfempty">You haven’t launched a coin yet.</div>')+
 
@@ -1841,7 +1865,7 @@ function render(){
   const v=view();
   if(!v.length){ tb.innerHTML='<tr><td colspan="9" class="empty">Nothing here yet.</td></tr>'; return; }
   const fresh = markNew(v);
-  if(NET.mode==='scanner' || !onArc()){
+  if(onExplorer()){
     tb.innerHTML=v.map((c,i)=>{
       const named = c.symbol && c.symbol!=='—';
       const chg = c.change24h;
@@ -1926,7 +1950,7 @@ function rail(){
   if(VIEW!=='tokens' && VIEW!=='launchpad'){ el.innerHTML=''; return; }
   const v=view(), c=v[selected];
   if(!c){ railDefault(el); return; }
-  if(NET.mode==='scanner' || !onArc()){ railScan(c, el); return; }
+  if(onExplorer() || c.scanner){ railScan(c, el); return; }
   const m=c.market;
   el.innerHTML =
    '<div class="card">'+
@@ -2103,7 +2127,7 @@ function ticker(){
   const el=document.getElementById('tickTrack'); if(!el) return;
   const num = x => (x==null||isNaN(x)) ? -Infinity : Number(x);
   let top, byChange = false;
-  if(NET.mode==='scanner' || !onArc()){
+  if(onExplorer()){
     // Preferred: real 24h movers. But % change needs verified decimals, and a
     // token whose metadata we haven't read yet has neither a name nor a change.
     // Rather than show an empty ticker on a chain that is visibly trading, fall
@@ -2116,12 +2140,12 @@ function ticker(){
   } else {
     top = coins.filter(c=>c.phase===1).sort((a,b)=>b.pct-a.pct).slice(0,10);
   }
-  if(!top.length){ el.innerHTML='<span class="ti dim">'+(NET.mode==='scanner'?'no trading in the last 24h':'no coins on the curve yet')+'</span>'; el.style.animation='none'; return; }
+  if(!top.length){ el.innerHTML='<span class="ti dim">'+(onExplorer()?'no trading in the last 24h':'no coins on the curve yet')+'</span>'; el.style.animation='none'; return; }
   const lbl=document.querySelector('.ticker .lbl');
-  if(lbl) lbl.textContent = (NET.mode!=='scanner' && onArc()) ? '↗ CLOSEST TO GRADUATION' : (byChange ? '↗ TRENDING 24H' : '↗ TOP VOLUME 24H');
+  if(lbl) lbl.textContent = (!onExplorer() && onArc()) ? '↗ CLOSEST TO GRADUATION' : (byChange ? '↗ TRENDING 24H' : '↗ TOP VOLUME 24H');
   const items = top.map((c,i)=>{
     const named = c.symbol && c.symbol!=='—';
-    const tail = (NET.mode!=='scanner' && onArc())
+    const tail = (!onExplorer() && onArc())
       ? '<span class="up">'+c.pct.toFixed(0)+'% to grad</span>'
       : byChange
         ? '<span class="'+(c.change24h>=0?'up':'dn')+'">'+(c.change24h>=0?'+':'')+Number(c.change24h).toFixed(2)+'%</span>'
@@ -2154,7 +2178,7 @@ function feedRows(){
 function railDefault(el){
   // Launchpad top 3 (by mcap on the curve / by volume on the explorer) + live feed —
   // the RadarDEX right rail, with our data.
-  const isScan = NET.mode==='scanner';
+  const isScan = onExplorer();
   // Same fallback as the ticker: rank on volume, which is real even when the
   // token's name isn't readable yet, and show the address when it isn't.
   const top3 = (isScan
@@ -2475,7 +2499,7 @@ function laneDefs(){
     { key:'trend', title:'Trending',      cls:'warn', empty:'Nothing trending',        pick: v => v.filter(c=>c.trending).sort((a,b)=>num(b.volume24h)-num(a.volume24h)) },
     { key:'liq',   title:'Top liquidity', cls:'info', empty:'No liquidity data',       pick: v => v.filter(c=>(c.liq||0)>0).sort((a,b)=>num(b.liq)-num(a.liq)) },
   ];
-  if(NET.mode==='scanner') return [
+  if(onExplorer()) return [
     { key:'new',   title:'New pairs',    cls:'hot',  empty:'No new USDC pairs yet',        pick: v => v.slice().sort((a,b)=>num(b.firstSeenAt??b.block)-num(a.firstSeenAt??a.block)) },
     { key:'trend', title:'Trending 24h', cls:'warn', empty:'No volume in the last 24h',     pick: v => v.filter(c=>(c.volume24h||0)>0).sort((a,b)=>num(b.volume24h)-num(a.volume24h)) },
     { key:'held',  title:'Most held',    cls:'info', empty:'Holder counts still indexing',  pick: v => v.filter(c=>(c.holders||0)>0).sort((a,b)=>num(b.holders)-num(a.holders)) },
@@ -2884,9 +2908,18 @@ function switchNet(key){
 }
 function setView(v){
   if(!VIEWS.includes(v)) v='tokens';
+  const was = VIEW;
   VIEW=v;
   if(location.hash!=='#'+v) history.replaceState(null,'','#'+v);
   paintView();
+  // Tokens and Launchpad are two different datasets on the same table. Swap to
+  // the cached one immediately (so the switch is instant), then refresh it.
+  const dataView = v==='tokens' || v==='launchpad';
+  if(dataView && was!==v && onArc()){
+    const cached = v==='launchpad' ? COINS_LAUNCH : COINS_EXPLORER;
+    if(cached.length){ coins = cached; selected=-1; render(); ticker(); paintHero(); rail(); }
+    load();
+  }
 }
 function paintView(){
   document.querySelectorAll('.navi').forEach(a=>a.classList.toggle('on', a.dataset.view===VIEW));
@@ -3505,8 +3538,19 @@ window.__term = { get VIEW(){ return VIEW; }, get coins(){ return coins; }, get 
 /* ==================================================================
    BOOT
 ================================================================== */
+/* GRAD_TARGET is immutable per deployment and shown on the Launch page, which
+   never triggers a launchpad load on an explorer-first network. Read it once at
+   boot from the contract itself rather than trusting the placeholder default. */
+async function readCurveParams(){
+  if(!pumpR) return;
+  try{
+    const g = Number(E(await retry(()=>pumpR.graduationUsdc(),2,8000)));
+    if(g>0 && g!==GRAD_TARGET){ GRAD_TARGET=g; if(VIEW==='launch') renderLaunch(); paintHero(); }
+  }catch(e){}
+}
+
 load().then(tape);
-loadStats(); feed();
+loadStats(); feed(); readCurveParams();
 setInterval(load, 20000);
 setInterval(tape, 30000);
 setInterval(loadStats, 30000);
