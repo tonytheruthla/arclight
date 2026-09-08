@@ -14,7 +14,7 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  ✓ ' + n); } else { f
 function upstream(port, opts) {
   // chainId defaults to Arc's own (0x13b2 / 5042) so every existing test upstream
   // passes verification for free; only the new mismatch test overrides it.
-  const state = { calls: 0, mode: opts.mode || 'ok', head: 1000, chainId: opts.chainId || '0x13b2' };
+  const state = { calls: 0, mode: opts.mode || 'ok', head: 1000, chainId: opts.chainId || '0x13b2', burst: 0 };
   const s = http.createServer((req, res) => {
     let b = ''; req.on('data', c => b += c);
     req.on('end', () => {
@@ -23,6 +23,9 @@ function upstream(port, opts) {
       const one = (r) => {
         if (state.mode === 'quota')
           return { jsonrpc: '2.0', id: r.id, error: { code: -32005, message: 'project ID exceeded quota' } };
+        // 'burst' models the real endpoint: refuses a few calls, then answers.
+        if (state.mode === 'burst' && state.burst > 0) { state.burst--;
+          return { jsonrpc: '2.0', id: r.id, error: { code: -32005, message: 'project ID exceeded quota' } }; }
         if (r.method === 'eth_chainId')     return { jsonrpc: '2.0', id: r.id, result: state.chainId };
         if (r.method === 'eth_blockNumber') return { jsonrpc: '2.0', id: r.id, result: '0x' + (state.head).toString(16) };
         if (r.method === 'eth_getCode')     return { jsonrpc: '2.0', id: r.id, result: '0xdeadbeef' };
@@ -113,6 +116,28 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
      JSON.stringify(q.json).slice(0, 90));
   ok('  ...and the answer came from the healthy upstream B', q.json.result === '0x' + (19002).toString(16),
      q.json.result);
+
+
+  // 4b. a BURSTY upstream — refuses a few calls then answers. This is the real
+  //     failure that put "Could not read the draw contract: server response 502"
+  //     on screen: one refusal became a 502 instead of a retry.
+  A.state.mode = 'ok'; B.state.mode = 'ok';
+  await sleep(1700);                                   // let the short cooloff lapse
+  A.state.mode = 'burst'; A.state.burst = 3; B.state.mode = 'burst'; B.state.burst = 3;
+  const t0 = Date.now();
+  const burst = await rpc(19000, 'eth_call', [{ to: '0xdraw' }, 'latest']);
+  ok('a bursty refusal is retried, not surfaced as a 502',
+     burst.status === 200 && burst.json.result !== undefined, 'status ' + burst.status + ' ' + JSON.stringify(burst.json).slice(0, 80));
+  ok('...and recovers in a couple of seconds, not a minute', Date.now() - t0 < 8000, (Date.now() - t0) + 'ms');
+  A.state.mode = 'ok'; B.state.mode = 'ok'; A.state.burst = 0; B.state.burst = 0;
+
+  // 4c. a write is NEVER retried — a duplicate broadcast could spend a nonce twice
+  A.state.mode = 'burst'; A.state.burst = 99; B.state.mode = 'burst'; B.state.burst = 99;
+  const wr = await rpc(19000, 'eth_sendRawTransaction', ['0xdeadbeef']);
+  ok('eth_sendRawTransaction is not retried — a duplicate broadcast could spend a nonce twice',
+     wr.status === 502 || !!(wr.json && wr.json.error), 'status ' + wr.status);
+  A.state.mode = 'ok'; B.state.mode = 'ok'; A.state.burst = 0; B.state.burst = 0;
+  await sleep(1700);
 
   // 5. total outage returns a clean 502, not a hang
   A.state.mode = 'quota'; B.state.mode = 'quota';

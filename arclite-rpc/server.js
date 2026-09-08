@@ -167,32 +167,76 @@ function isUpstreamExhausted(json) {
     /exceeded|quota|rate limit|too many requests|capacity|forbidden|unauthorized|daily request count/i.test(String(e.message || ''))));
 }
 
-async function forward(payload) {
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/** One pass over the upstreams. `ignoreCooloff` is used by the retry loop:
+ *  once everything is benched there is nothing to lose by asking again. */
+async function forwardOnce(payload, ignoreCooloff) {
   const started = pool.findIndex(p => p.healthy && Date.now() > p.failUntil);
   const order = [];
   for (let i = 0; i < pool.length; i++) order.push(pool[(Math.max(started, 0) + i) % pool.length]);
 
-  let lastErr = null;
+  let lastErr = null, sawExhausted = false, tried = 0;
   for (const p of order) {
-    if (Date.now() < p.failUntil) continue;
+    if (!ignoreCooloff && Date.now() < p.failUntil) continue;
+    tried++;
     const t0 = Date.now();
     try {
       const res = await post(p.url, payload);
       if (isUpstreamExhausted(res)) {
-        // Cool this upstream off and try the next one rather than passing the
-        // quota error to the caller. This is the exact failure RadarDex ships.
-        p.fail++; p.healthy = false; p.failUntil = Date.now() + 60_000;
+        // Quota / rate limit. Cool off BRIEFLY — this endpoint refuses in
+        // bursts and recovers within seconds, so a 60-second bench turned a
+        // two-second blip into a dead terminal ("server response 502").
+        p.fail++; p.failUntil = Date.now() + 1_500; sawExhausted = true;
         lastErr = new Error('upstream exhausted');
         continue;
       }
       p.ok++; p.healthy = true; p.ms = Date.now() - t0;
-      return res;
+      return { res };
     } catch (e) {
+      // A transport error is different: the box may really be down.
       p.fail++; p.failUntil = Date.now() + 15_000; p.healthy = false;
       lastErr = e;
     }
   }
-  throw lastErr || new Error('no healthy upstream');
+  return { err: lastErr || new Error('no healthy upstream'), exhausted: sawExhausted, tried };
+}
+
+/**
+ * Forward with retries.
+ *
+ * The endpoint behind us answers some calls and refuses others from one second
+ * to the next — eth_chainId succeeds while eth_call returns "exceeded quota".
+ * Passing that straight through put "Could not read the draw contract: server
+ * response 502" on screen for a chain that was reachable a moment later.
+ *
+ * Reads are retried. A write (eth_sendRawTransaction) never is: if the response
+ * is lost we cannot tell a dropped send from a landed one, and a duplicate
+ * broadcast could spend a nonce twice.
+ */
+const RETRY_MS = [120, 300, 700, 1400, 2500];
+function isWrite(payload) {
+  const one = r => r && r.method === 'eth_sendRawTransaction';
+  return Array.isArray(payload) ? payload.some(one) : one(payload);
+}
+async function forward(payload) {
+  if (isWrite(payload)) {
+    const r = await forwardOnce(payload, true);
+    if (r.res) return r.res;
+    throw r.err;
+  }
+  let last = null;
+  for (let i = 0; i <= RETRY_MS.length; i++) {
+    // After the first pass, ignore cool-offs: with a single upstream every
+    // retry would otherwise find it benched and give up without asking.
+    const r = await forwardOnce(payload, i > 0);
+    if (r.res) return r.res;
+    last = r;
+    if (!r.exhausted || i === RETRY_MS.length) break;   // a transport failure won't fix itself
+    stats.retries = (stats.retries || 0) + 1;
+    await sleep(RETRY_MS[i]);
+  }
+  throw (last && last.err) || new Error('no healthy upstream');
 }
 
 // ---------------------------------------------------------------- rate limit
