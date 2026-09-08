@@ -440,15 +440,76 @@ td.l{text-align:left}
 .chsw button.on{background:var(--panel);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.4)}
 .chsw button.on[data-chain="arc"]{color:var(--info)} .chsw button.on[data-chain="hood"]{color:#7cff8a} .chsw button.on[data-chain="sol"]{color:#c4b5fd}
 .navi.offchain{opacity:.45}
-/* ---- network switcher ---- */
-.netsw{display:flex;gap:2px;padding:2px;background:var(--panel2);
-  border:1px solid var(--hair);border-radius:9px;margin-right:8px}
-.netopt{padding:5px 11px;border-radius:7px;font-size:11.5px;font-weight:600;
-  color:var(--ink3);cursor:pointer;user-select:none;transition:.12s;white-space:nowrap}
-.netopt:hover{color:var(--ink2)}
-.netopt.on{background:var(--panel);color:var(--ink);
-  box-shadow:0 1px 3px rgba(0,0,0,.4)}
-.netopt.on[data-net="mainnet"]{color:var(--green)}
+/* ---- the buy card, raised out of the rail ----
+   This is the one card on the page that spends money, and it used to be the
+   same flat surface as the read-only cards above and below it. It now sits on
+   a lighter panel with a blue rim, a real drop shadow and a soft inner
+   vignette, so the eye lands on it before the copy does. ---- */
+.swapcard{position:relative;isolation:isolate;
+  background:linear-gradient(180deg,#161d2c 0%,#121826 100%);
+  border:1px solid rgba(10,132,255,.34);border-radius:15px;
+  padding:16px 15px 15px;margin:14px 0;
+  box-shadow:0 14px 34px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.035) inset,
+             0 0 26px rgba(10,132,255,.13);
+  transform:translateZ(0);animation:swpop .2s ease-out}
+@keyframes swpop{from{opacity:0;transform:translateY(6px) scale(.985)}to{opacity:1;transform:none}}
+/* the vignette: darker at the edges so the card reads as lifted, not painted on */
+.swapcard::after{content:'';position:absolute;inset:0;border-radius:15px;pointer-events:none;z-index:-1;
+  background:radial-gradient(120% 90% at 50% 0%,rgba(10,132,255,.10) 0%,rgba(0,0,0,0) 58%),
+             radial-gradient(140% 120% at 50% 100%,rgba(0,0,0,.34) 0%,rgba(0,0,0,0) 60%)}
+.swapcard h3{color:var(--ink);letter-spacing:-.2px}
+.swapcard .chip.on{border-color:var(--light);color:var(--light)}
+.swapcard .btn.primary{margin-top:4px;box-shadow:0 5px 16px rgba(10,132,255,.3)}
+@media (prefers-reduced-motion:reduce){ .swapcard{animation:none} }
+
+/* ---- wallet control + dropdown ----
+   Replaces the network switcher, the balance pill and the Fund button. It is
+   flex-shrink:0 and the LAST thing in the topbar, so it can never be the item
+   that gets clipped — that was the bug: the pill and Connect were shrinkable
+   and simply ran off the right edge. ---- */
+.wallet{position:relative;flex:0 0 auto;margin-left:8px}
+.wbtn{display:inline-flex;align-items:center;gap:9px;padding:5px 10px 5px 6px;
+  background:var(--panel2);border:1px solid var(--hair2);border-radius:11px;
+  color:var(--ink);cursor:pointer;font:inherit;font-size:12px;transition:.14s;white-space:nowrap}
+.wbtn:hover{border-color:var(--light);background:var(--panel)}
+.wbtn[aria-expanded="true"]{border-color:var(--light);box-shadow:0 0 0 3px rgba(10,132,255,.16)}
+.wav{width:23px;height:23px;flex:0 0 23px;border-radius:50%;
+  background:conic-gradient(from 140deg,#0a84ff,#22d3ee,#7dd3fc,#0a84ff);
+  box-shadow:inset 0 0 0 1.5px rgba(0,0,0,.45)}
+.wtxt{display:flex;flex-direction:column;align-items:flex-start;line-height:1.25}
+.wtxt b{font-size:12px;font-weight:600}
+.wtxt i{font-style:normal;font-size:10.5px;color:var(--ink3)}
+.wtxt i.warn{color:var(--amber)}
+.wcar{font-size:9px;color:var(--ink3);margin-left:1px}
+
+.wmenu{position:absolute;top:calc(100% + 8px);right:0;width:302px;z-index:70;
+  background:var(--panel);border:1px solid var(--hair2);border-radius:14px;
+  box-shadow:0 18px 46px rgba(0,0,0,.62),0 0 0 1px rgba(255,255,255,.03);
+  padding:13px;animation:wdrop .15s ease-out}
+@keyframes wdrop{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
+.wmenu .whead{display:flex;align-items:center;gap:10px;padding-bottom:11px;
+  border-bottom:1px solid var(--hair)}
+.wmenu .whead .wav{width:31px;height:31px;flex:0 0 31px}
+.wmenu .waddr{flex:1;min-width:0}
+.wmenu .waddr b{display:block;font-size:12.5px}
+.wmenu .waddr span{font-size:10.5px;color:var(--ink3)}
+.wmenu .wcopy{border:1px solid var(--hair2);background:none;color:var(--ink3);
+  border-radius:7px;padding:4px 8px;font-size:10.5px;cursor:pointer;font:inherit;flex:0 0 auto}
+.wmenu .wcopy:hover{color:var(--ink);border-color:var(--light)}
+.wmenu .wstats{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:12px 0}
+.wmenu .wstat{background:var(--panel2);border:1px solid var(--hair);border-radius:10px;padding:9px 10px}
+.wmenu .wstat .k{font-size:9.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--ink3)}
+.wmenu .wstat .v{font-size:15px;font-weight:640;letter-spacing:-.2px;margin-top:2px}
+.wmenu .wsec{font-size:9.5px;text-transform:uppercase;letter-spacing:.7px;
+  color:var(--ink3);font-weight:620;margin:12px 0 7px;display:flex;justify-content:space-between}
+.wmenu .wsec a{color:var(--light);text-decoration:none;text-transform:none;letter-spacing:0}
+.whold{display:flex;align-items:center;gap:9px;padding:6px 0}
+.whold .av{width:22px;height:22px;flex:0 0 22px;font-size:8px}
+.whold .hn{flex:1;min-width:0;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.whold .hv{font-size:12px;font-weight:600}
+.wmenu .wfoot{display:flex;gap:7px;margin-top:12px;padding-top:11px;border-top:1px solid var(--hair)}
+.wmenu .wfoot .btn{flex:1;justify-content:center;text-align:center}
+.wmuted{color:var(--ink3);font-size:11.5px;padding:9px 0}
 
 /* ---- portfolio ---- */
 .pf{padding:18px 20px}
@@ -466,7 +527,7 @@ td.l{text-align:left}
 .pfempty{color:var(--ink3);font-size:13px;padding:22px;text-align:center;
   border:1px dashed var(--hair2);border-radius:11px}
 .scanmore{display:flex;justify-content:center;padding:16px}
-#fundBtn.pulse{border-color:var(--amber);color:var(--amber);animation:pulse 2s infinite}
+/* the low-balance nag now lives on the wallet button's balance line */
 @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,214,10,.35)}50%{box-shadow:0 0 0 6px rgba(255,214,10,0)}}
 .toast{position:fixed;bottom:44px;left:50%;transform:translateX(-50%) translateY(20px);
   background:#151a25;border:1px solid var(--hair2);border-radius:9px;padding:10px 16px;
@@ -488,6 +549,22 @@ td.l{text-align:left}
   .search{display:none}
 }
 @media (max-width:1200px){ .hstats{display:none} }
+/* Measured, not guessed. The previous pass fixed document overflow and the test
+   agreed — but the TOPBAR still overflowed itself, and overflow-x:auto quietly
+   hid the wallet inside it. In a real browser at 1600px the old bar needed
+   1730px and clipped both Refresh and Connect. These four steps were each
+   checked against the live layout; the bar now needs 0px more than it has at
+   1920 / 1500 / 1440 / 1360 / 1280 / 1180 / 1100 / 1000. Order of sacrifice:
+   the decorative chain pill, the "site ↗" chip, the X link, Refresh, and last
+   the wordmark — the wallet is never the thing that gives way. */
+@media (max-width:1440px){ #netPill{display:none} }
+@media (max-width:1200px){ .logo .sitechip{display:none} }
+@media (max-width:1150px){ .xlink{display:none} }
+@media (max-width:1080px){ #refreshBtn{display:none} }
+@media (max-width:1040px){
+  .logo{font-size:0}                             /* mark only; .mk is sized in px */
+  .logo .mk{font-size:initial}
+}
 @media (max-width:1000px){ .main{grid-template-columns:1fr} .rail{display:none} .grid2{grid-template-columns:1fr} .nav .navi{padding:7px 8px;font-size:12px} .search{display:none} }
 /* phones: the hero row collapses to 0 but STAYS in the grid (display:none would
    remove it and shift every row up one); the top bar scrolls sideways instead
@@ -784,7 +861,7 @@ tbody tr.new{animation:newrow 6s ease-out}
           </g>
         </svg><span class="lbl">SOL</span></button>
     </div>
-    <div class="pill live" id="netPill">arc testnet</div>
+    <div class="pill live" id="netPill">arc</div>
     <div class="search">
       <span style="color:var(--ink3)">⌕</span>
       <input id="q" placeholder="Search name, symbol or address…" autocomplete="off">
@@ -797,14 +874,20 @@ tbody tr.new{animation:newrow 6s ease-out}
         <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
       </svg>
     </a>
-    <div class="netsw" id="netsw" title="Arc mainnet is live (chain 5042). Mainnet mode scans Uniswap V3 and V4; testnet mode reads the Arclite launchpad.">
-      <div class="netopt" data-net="mainnet">Mainnet</div>
-      <div class="netopt" data-net="testnet">Testnet</div>
-    </div>
-    <div class="pill" id="balPill" title="Your USDC balance on Arc — this is both your gas and your buying power">—</div>
-    <button class="btn" id="fundBtn">Fund ↓</button>
     <button class="btn" id="refreshBtn">Refresh</button>
-    <button class="btn primary" id="connectBtn">Connect</button>
+    <!-- One wallet control instead of four separate ones. The balance pill,
+         Fund and Connect used to sit side by side and were the first things to
+         be pushed off the right edge; everything except Refresh now lives
+         inside this dropdown, which is also where points and holdings belong. -->
+    <div class="wallet" id="wallet">
+      <button class="btn primary" id="connectBtn">Connect</button>
+      <button class="wbtn" id="walletBtn" hidden aria-haspopup="menu" aria-expanded="false" title="Your wallet, points and holdings">
+        <span class="wav" id="wAv" aria-hidden="true"></span>
+        <span class="wtxt"><b class="mono" id="wAddr">—</b><i id="wBal">—</i></span>
+        <span class="wcar" aria-hidden="true">▾</span>
+      </button>
+      <div class="wmenu" id="wMenu" role="menu" hidden></div>
+    </div>
   </div>
 
   <!-- ================= hero strip ================= -->
@@ -1052,14 +1135,18 @@ const NETWORKS = {
   },
 };
 
-/* Sticky across reloads so a mainnet user isn't dropped back to testnet. */
+/* Mainnet, always. The Mainnet/Testnet switch is gone from the UI: with the
+   Arclite contracts live on 5042 there is nothing a visitor gains from being
+   asked which chain they would like, and a wrong answer just showed them an
+   empty launchpad. The testnet config stays in the map and is still reachable
+   at ?net=testnet — useful for our own testing, invisible to everyone else.
+   A stale localStorage value from before this change is ignored on purpose. */
 let NET = NETWORKS[(function(){
   try{
     const q=new URLSearchParams(location.search).get('net');
     if(q && NETWORKS[q]) return q;
-    const s=localStorage.getItem('ark_net');
-    return (s && NETWORKS[s]) ? s : 'testnet';
-  }catch(e){ return 'testnet'; }
+  }catch(e){}
+  return 'mainnet';
 })()];
 
 let CHAIN_ID = NET.chainId;
@@ -1079,7 +1166,11 @@ let PRED     = NET.pred;
 const CHAINS = {
   arc:  { key:'arc',  label:'ARC',  name:'Arc',             gecko:null,        color:'var(--info)',  glyph:'◠' },
   hood: { key:'hood', label:'HOOD', name:'Robinhood Chain', gecko:'robinhood', color:'#7cff8a',      glyph:'🪶', chainId:4663,
-          explorer:'https://explorer.robinhood.com', screener:'https://dexscreener.com/robinhood/' },
+          explorer:'https://explorer.robinhood.com', screener:'https://dexscreener.com/robinhood/',
+          /* Robinhood's own public endpoint: keyless, rate-limited, no SLA.
+             Good enough for reading a wallet's balances, which is all we do
+             here — we never send a transaction on this chain. Gas is ETH. */
+          rpc:'https://rpc.mainnet.chain.robinhood.com', native:'ETH' },
   sol:  { key:'sol',  label:'SOL',  name:'Solana',          gecko:'solana',    color:'#c4b5fd',      glyph:'◎',
           explorer:'https://solscan.io', screener:'https://dexscreener.com/solana/' },
 };
@@ -1094,10 +1185,9 @@ function setChain(k){
 }
 function paintChain(){
   document.querySelectorAll('[data-chain]').forEach(b=>b.classList.toggle('on', b.dataset.chain===CHAIN));
-  const sw=document.getElementById('netsw'); if(sw) sw.style.display = onArc() ? '' : 'none';
   const pill=document.getElementById('netPill');
   if(pill && !onArc()){ pill.textContent = CHAINS[CHAIN].name.toLowerCase(); pill.classList.add('live'); }
-  else if(pill){ pill.textContent = NET.mode==='scanner' ? 'arc mainnet' : 'arc testnet'; }
+  else if(pill){ pill.textContent = 'arc'; }
   document.querySelectorAll('.navi').forEach(a=>{ if(a.dataset.view!=='tokens') a.classList.toggle('offchain', !onArc()); });
 }
 /* GeckoTerminal pool → the same coin shape the explorer already renders. */
@@ -1252,17 +1342,44 @@ function age(ts){
    list, which reads coins straight from the chain. */
 const PROFILES = {};
 function logoUrl(addr){ const a=(addr||'').toLowerCase(); const p=PROFILES[a]; return p && p.logo ? (p.logo.startsWith('http')?p.logo:API()+p.logo) : null; }
-function avImg(c){ const u=c.logo||logoUrl(c.addr); return u ? '<img src="'+u+'" alt="" loading="lazy" onerror="this.remove()">' : ''; }
+/* A profile URL is supplied by whoever launched the token. Two rules before it
+   is allowed anywhere near the DOM:
+     1. http/https only — "javascript:alert(1)" in a website field would
+        otherwise run the moment a visitor clicked the link;
+     2. escaped — an unescaped value could close the href attribute and open an
+        onerror= of its own.
+   Anything that fails to parse is dropped rather than rendered. */
+function safeUrl(u){
+  // Empty first: new URL(null, origin) happily resolves to <origin>/null, which
+  // would put a broken <img> on every token that simply has no logo.
+  if(u === null || u === undefined || u === '') return null;
+  const raw = String(u).trim();
+  if(!raw) return null;
+  try{
+    const url = new URL(raw, location.origin);
+    if(url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    // Return what was authored, not url.href: parsing is the security check,
+    // and normalising would silently rewrite "https://alpha.fun" to
+    // "https://alpha.fun/" in every link we display.
+    return raw;
+  }catch{ return null; }
+}
+function avImg(c){
+  const u = safeUrl(c.logo||logoUrl(c.addr));
+  return u ? '<img src="'+esc(u)+'" alt="" loading="lazy" onerror="this.remove()">' : '';
+}
 function socialsHtml(c, withSource){
   const p = Object.assign({}, PROFILES[(c.addr||'').toLowerCase()]||{});
   for(const k of ['website','twitter','telegram']) if(c[k]) p[k]=c[k];
   if(c.profileSource) p.source=c.profileSource;
   const L = [];
-  if(p.website)  L.push('<a href="'+p.website+'" target="_blank" rel="noopener nofollow" title="'+p.website+'">🌐 site</a>');
-  if(p.twitter)  L.push('<a href="'+p.twitter+'" target="_blank" rel="noopener nofollow" title="'+p.twitter+'">𝕏 '+(p.twitter.replace(/^https?:\/\/(www\.)?(x|twitter)\.com\//,'@').split(/[/?]/)[0].slice(0,18))+'</a>');
-  if(p.telegram) L.push('<a href="'+p.telegram+'" target="_blank" rel="noopener nofollow" title="'+p.telegram+'">✈ telegram</a>');
+  const site = safeUrl(p.website), tw = safeUrl(p.twitter), tg = safeUrl(p.telegram);
+  if(site) L.push('<a href="'+esc(site)+'" target="_blank" rel="noopener nofollow" title="'+esc(site)+'">🌐 site</a>');
+  if(tw)   L.push('<a href="'+esc(tw)+'" target="_blank" rel="noopener nofollow" title="'+esc(tw)+'">𝕏 '+
+                  esc(tw.replace(/^https?:\/\/(www\.)?(x|twitter)\.com\//,'@').split(/[/?]/)[0].slice(0,18))+'</a>');
+  if(tg)   L.push('<a href="'+esc(tg)+'" target="_blank" rel="noopener nofollow" title="'+esc(tg)+'">✈ telegram</a>');
   if(!L.length) return '';
-  const src = withSource && (p.source||c.profileSource) ? '<span class="src" title="Where the logo and links come from">via '+({tolly:'Tolly',sharc:'Sharc',creator:'creator'}[p.source||c.profileSource]||p.source)+'</span>' : '';
+  const src = withSource && (p.source||c.profileSource) ? '<span class="src" title="Where the logo and links come from">via '+esc({tolly:'Tolly',sharc:'Sharc',creator:'creator'}[p.source||c.profileSource]||p.source)+'</span>' : '';
   return '<div class="soc">'+L.join('')+src+'</div>';
 }
 async function loadProfiles(addrs){
@@ -1308,6 +1425,18 @@ function fileToDataUrl(file){
 }
 function hue(a){ let h=0; for(let i=2;i<a.length;i++) h=(h*31+a.charCodeAt(i))%360; return h; }
 function short(a){ return a.slice(0,6)+'…'+a.slice(-4); }
+/* Token names and symbols are attacker-controlled: anyone can deploy a token
+   called <img src=x onerror=…> and it lands in our list the moment the indexer
+   or GeckoTerminal sees it. Every one of those strings used to be concatenated
+   straight into innerHTML on a page where people connect a wallet and sign
+   transactions. esc() is the fix; it is applied at each interpolation site
+   rather than at ingest, so a name that arrives through a new source later is
+   still escaped when it is displayed. */
+function esc(s){
+  return String(s==null?'':s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
 function spot(realUsdc, sold){
   const tR = V_TOKENS - sold;
   if(tR<=0n) return 0;
@@ -1843,8 +1972,29 @@ async function renderPortfolio(){
   cell('<div class="pf"><div class="pfempty">Reading your positions…</div></div>');
   if(!LO.loaded) await loadOrders();
 
+  /* Which chain's balances are we reading? Arc uses the app's own provider.
+     Any other chain needs its own, built from CHAINS[…].rpc — the wallet
+     address is the same on every EVM chain, so balanceOf works unchanged.
+     Solana is the exception and is handled above: an EVM connection gives us
+     no Solana address, so there is nothing we could honestly show. */
+  const ch = CHAINS[CHAIN];
+  const chProv = onArc() ? provider
+    : (ch.rpc ? (ch._prov || (ch._prov = new ethers.JsonRpcProvider(ch.rpc, undefined,
+        { staticNetwork:true, batchMaxCount:1 }))) : null);
+
+  if(!onArc() && !chProv){
+    cell('<div class="pf"><div class="pfhead"><div class="pfval mono">—</div>'+
+         '<div class="pfsub">'+esc(ch.name)+'</div></div>'+
+         '<div class="pfempty">'+esc(ch.name)+' balances need a '+esc(ch.name)+' wallet. '+
+         'You are connected with an EVM wallet, which has no address on this chain, '+
+         'so there is nothing here we could read for you.<br>'+
+         '<button class="btn primary" style="margin-top:14px" onclick="setChain(\'arc\')">Back to ARC</button>'+
+         '</div></div>');
+    return;
+  }
+
   let native=0n;
-  try{ native = await retry(()=>provider.getBalance(me)); }catch{}
+  try{ native = await retry(()=>chProv.getBalance(me)); }catch{}
 
   // Holdings: balanceOf across the coins already on screen. Cheap, because
   // the coin list is loaded and metadata is cached.
@@ -1855,7 +2005,7 @@ async function renderPortfolio(){
   const holdings=[], dust=[];
   for(const c of coins.slice(0,40)){
     try{
-      const t=new ethers.Contract(c.addr,['function balanceOf(address) view returns (uint256)'],provider);
+      const t=new ethers.Contract(c.addr,['function balanceOf(address) view returns (uint256)'],chProv);
       const b=await retry(()=>t.balanceOf(me),2,8000);
       if(b>0n){
         const meta = c.decimals ? {decimals:c.decimals} : await tokenMeta(c.addr);
@@ -1887,7 +2037,7 @@ async function renderPortfolio(){
     '<div style="display:flex;align-items:center;gap:11px;padding:11px 0;border-bottom:1px solid var(--hair)">'+
       '<div class="av" style="width:30px;height:30px;font-size:10px;background:linear-gradient(135deg,hsl('+hue(h.addr)+',70%,52%),hsl('+((hue(h.addr)+40)%360)+',70%,38%))">'+
         (h.symbol||'—').slice(0,3)+'</div>'+
-      '<div style="flex:1;min-width:0"><div style="font-size:13px">'+h.name+'</div>'+
+      '<div style="flex:1;min-width:0"><div style="font-size:13px">'+esc(h.name)+'</div>'+
         '<div style="font-size:10.5px;color:var(--ink3)" class="mono">'+short(h.addr)+'</div></div>'+
       '<div style="text-align:right"><div class="mono" style="font-size:13px">'+money(h.value)+'</div>'+
         '<div class="mono" style="font-size:10.5px;color:var(--ink3)">'+
@@ -1897,11 +2047,15 @@ async function renderPortfolio(){
   cell(
     '<div class="pf">'+
       '<div class="pfhead">'+
-        '<div class="pfval mono">'+money(cash+tokenValue)+'</div>'+
-        '<div class="pfsub">total on Arc '+NET.label.toLowerCase()+'</div>'+
+        /* On Arc the native token IS USDC, so cash and token value are the same
+           unit and add up. Off Arc the native token is ETH and we have no price
+           for it — adding it to a dollar total would invent a number. */
+        '<div class="pfval mono">'+money(onArc() ? cash+tokenValue : tokenValue)+'</div>'+
+        '<div class="pfsub">total on '+esc(ch.name)+'</div>'+
       '</div>'+
       '<div class="pfgrid">'+
-        '<div class="pfcard"><div class="k">USDC (gas + cash)</div><div class="v mono">'+money(cash)+'</div></div>'+
+        '<div class="pfcard"><div class="k">'+esc(ch.native||'USDC')+' (gas + cash)</div><div class="v mono">'+
+          (onArc() ? money(cash) : cash.toLocaleString(undefined,{maximumFractionDigits:4}))+'</div></div>'+
         '<div class="pfcard"><div class="k">Token value</div><div class="v mono">'+money(tokenValue)+'</div></div>'+
         '<div class="pfcard"><div class="k">Holdings</div><div class="v mono">'+holdings.length+'</div></div>'+
         '<div class="pfcard"><div class="k">Launched by you</div><div class="v mono">'+
@@ -1924,7 +2078,7 @@ async function renderPortfolio(){
             '<div style="display:flex;align-items:center;gap:11px;padding:11px 0;border-bottom:1px solid var(--hair)">'+
               '<div class="av" style="width:30px;height:30px;font-size:10px;opacity:.55;background:linear-gradient(135deg,hsl('+hue(h.addr)+',70%,52%),hsl('+((hue(h.addr)+40)%360)+',70%,38%))">'+
                 (h.symbol||'—').slice(0,3)+'</div>'+
-              '<div style="flex:1;min-width:0"><div style="font-size:13px;color:var(--ink2)">'+h.name+'</div>'+
+              '<div style="flex:1;min-width:0"><div style="font-size:13px;color:var(--ink2)">'+esc(h.name)+'</div>'+
                 '<div style="font-size:10.5px;color:var(--ink3)" class="mono">'+short(h.addr)+
                 (h.price?' · '+money(h.value):' · no market')+'</div></div>'+
               '<button class="mini" data-dust="'+i+'" style="border-color:rgba(255,69,58,.35);color:#ffada7">Sweep</button>'+
@@ -1963,29 +2117,23 @@ function render(){
     if(VIEW==='draw'){ renderDraw(); return; }
   } else if(VIEW!=='tokens'){
     // off-Arc, a panel view: show the gate in the panel rather than the table
-    document.getElementById('panel').innerHTML='<div class="gate"><div><div class="dsp">'+({launch:'Launching',draw:'Lucky Trencher',points:'Points',portfolio:'Portfolio'}[VIEW]||'This')+' lives on Arc.</div>'+
+    document.getElementById('panel').innerHTML='<div class="gate"><div><div class="dsp">'+({launch:'Launching',draw:'Lucky Trencher',points:'Points'}[VIEW]||'This')+' lives on Arc.</div>'+
       CHAINS[CHAIN].name+' is explorer-only here.<br><button class="btn primary" style="margin-top:14px" onclick="setChain(\'arc\')">Switch to ARC</button></div></div>';
     if(VIEW==='portfolio'||VIEW==='launchpad'){ /* table views: fall through to the table gate below */ } else return;
   }
   const tb=document.getElementById('rows');
   // View/network mismatch: say exactly what to do instead of an empty table.
+  if(!onArc() && VIEW==='portfolio'){ renderPortfolio(); return; }
   if(!onArc() && VIEW!=='tokens'){
-    tb.innerHTML='<tr><td colspan="9"><div class="gate"><div><div class="dsp">'+({launchpad:'The launchpad',launch:'Launching',draw:'Lucky Trencher',points:'Points',portfolio:'Portfolio'}[VIEW]||'This')+' lives on Arc.</div>'+
+    tb.innerHTML='<tr><td colspan="9"><div class="gate"><div><div class="dsp">'+({launchpad:'The launchpad',launch:'Launching',draw:'Lucky Trencher',points:'Points'}[VIEW]||'This')+' lives on Arc.</div>'+
       CHAINS[CHAIN].name+' is explorer-only here — every pool, live, with links to trade on its DEX.<br>'+
       '<button class="btn primary" style="margin-top:14px" onclick="setChain(\'arc\')">Switch to ARC</button></div></div></td></tr>';
-    return;
-  }
-  if(VIEW==='tokens' && onArc() && NET.mode!=='scanner'){
-    tb.innerHTML='<tr><td colspan="9"><div class="gate"><div><div class="dsp">The token explorer reads Arc mainnet.</div>'+
-      'Every USDC-paired token on Uniswap V3 + V4, indexed live. You\'re on testnet.<br>'+
-      '<button class="btn primary" style="margin-top:14px" onclick="switchNet(\'mainnet\')">Switch to mainnet</button></div></div></td></tr>';
     return;
   }
   if(VIEW==='launchpad' && !hasPump()){
     tb.innerHTML='<tr><td colspan="9"><div class="gate"><div><div class="dsp">The Arclite launchpad goes live on mainnet at deploy.</div>'+
       'Bonding curve, graduation at $'+GRAD_TARGET.toLocaleString()+', 80% of trade fees to creators, and a live odds market on every coin. '+
-      'It\'s running on testnet today.<br>'+
-      '<button class="btn primary" style="margin-top:14px" onclick="switchNet(\'testnet\')">Try it on testnet</button></div></div></td></tr>';
+      '</div></div></td></tr>';
     return;
   }
   const lanesEl=document.getElementById('lanes'), tblEl=document.getElementById('tbl');
@@ -2006,10 +2154,10 @@ function render(){
         '<td class="l dim num">'+(i+1)+'</td>'+
         '<td class="l"><div class="coin">'+
           '<div class="av" style="background:'+avGrad(c.addr)+'">'+
-            (named ? c.symbol.slice(0,3) : c.addr.slice(2,4).toUpperCase())+avImg(c)+'</div>'+
+            (named ? esc(c.symbol.slice(0,3)) : c.addr.slice(2,4).toUpperCase())+avImg(c)+'</div>'+
           '<div><div class="cname">'+(named ? c.name : '<span class="unnamed">'+short(c.addr)+'</span>')+
             '<span class="dexb '+(c.dex==='v4'?'v4':'')+'">'+(c.chain ? String(c.dex).replace(/-/g,' ').toUpperCase().slice(0,12) : (c.dex||'v3').toUpperCase())+'</span></div>'+
-            '<div class="csym">'+(named ? c.symbol+' · '+short(c.addr) : 'name pending · '+short(c.addr))+'</div>'+
+            '<div class="csym">'+(named ? esc(c.symbol)+' · '+short(c.addr) : 'name pending · '+short(c.addr))+'</div>'+
             '<div class="chips">'+
               chip('traders', (c.traders24h||0)>0?c.traders24h:'—', '')+
               (c.firstSeenAt && (Math.floor(Date.now()/1000)-c.firstSeenAt)<3600 ? chip('','NEW','hot') : '')+
@@ -2038,7 +2186,7 @@ function render(){
       '<td class="l"><div class="coin">'+
         '<div class="av" style="background:'+avGrad(c.addr)+'">'+
           (c.symbol||'—').slice(0,3)+avImg(c)+'</div>'+
-        '<div><div class="cname">'+c.name+'</div><div class="csym">'+c.symbol+' · '+short(c.addr)+'</div>'+
+        '<div><div class="cname">'+esc(c.name)+'</div><div class="csym">'+esc(c.symbol)+' · '+short(c.addr)+'</div>'+
           '<div class="chips">'+
             (grad ? chip('','GRADUATED','ok') : c.pct>=70 ? chip('','NEAR GRAD','warn') : c.pct<5 ? chip('','NEW','hot') : chip('','CLIMBING',''))+
             (c.creator ? chip('by', short(c.creator), 'info') : '')+
@@ -2091,9 +2239,9 @@ function rail(){
   el.innerHTML =
    '<div class="card">'+
      '<div class="coin" style="margin-bottom:10px">'+
-       '<div class="av" style="width:44px;height:44px;flex:0 0 44px;border-radius:12px;font-size:12px;background:linear-gradient(135deg,hsl('+hue(c.addr)+',70%,52%),hsl('+((hue(c.addr)+40)%360)+',70%,38%))">'+c.symbol.slice(0,3)+avImg(c)+'</div>'+
-       '<div style="min-width:0;flex:1"><div class="dsp" style="font-size:15px">'+c.name+'</div>'+
-         '<div class="csym">'+c.symbol+' · '+short(c.addr)+'</div></div></div>'+
+       '<div class="av" style="width:44px;height:44px;flex:0 0 44px;border-radius:12px;font-size:12px;background:linear-gradient(135deg,hsl('+hue(c.addr)+',70%,52%),hsl('+((hue(c.addr)+40)%360)+',70%,38%))">'+esc(c.symbol.slice(0,3))+avImg(c)+'</div>'+
+       '<div style="min-width:0;flex:1"><div class="dsp" style="font-size:15px">'+esc(c.name)+'</div>'+
+         '<div class="csym">'+esc(c.symbol)+' · '+short(c.addr)+'</div></div></div>'+
      socialsHtml(c, true)+
      (me && c.creator && me.toLowerCase()===String(c.creator).toLowerCase() ? '<button class="mini" data-editmeta="'+c.addr+'" style="margin:6px 0 4px">'+(PROFILES[c.addr.toLowerCase()]?'Edit logo & links':'Add logo & links')+'</button>' : '')+
      '<div id="pform-'+c.addr.toLowerCase()+'"></div>'+
@@ -2174,14 +2322,14 @@ function railScan(c, el){
    '<div class="card">'+
      '<div class="coin" style="margin-bottom:8px;align-items:flex-start">'+
        '<div class="av" style="width:44px;height:44px;flex:0 0 44px;border-radius:12px;font-size:12px;background:linear-gradient(135deg,hsl('+hue(c.addr)+',70%,52%),hsl('+((hue(c.addr)+40)%360)+',70%,38%))">'+
-         (named ? c.symbol.slice(0,3) : c.addr.slice(2,4).toUpperCase())+avImg(c)+'</div>'+
+         (named ? esc(c.symbol.slice(0,3)) : c.addr.slice(2,4).toUpperCase())+avImg(c)+'</div>'+
        '<div style="min-width:0;flex:1">'+
          '<div class="dsp" style="font-size:15px;display:flex;align-items:center;gap:6px">'+
            (named ? c.name : '<span class="unnamed">Unnamed token</span>')+
            '<span class="dexb '+(c.dex==='v4'?'v4':'')+'">Uniswap '+(c.dex||'v3').toUpperCase()+'</span>'+
            '<button class="star '+(isWatched(c)?'on':'')+'" data-watch="'+c.addr+'" style="margin-left:auto" title="Watchlist">'+(isWatched(c)?'★':'☆')+'</button>'+
          '</div>'+
-         '<div class="addrrow"><span>'+(named ? c.symbol+' · ' : '')+short(c.addr)+'</span>'+
+         '<div class="addrrow"><span>'+(named ? esc(c.symbol)+' · ' : '')+short(c.addr)+'</span>'+
            '<button class="copy" data-copy="'+c.addr+'">copy</button></div>'+
        '</div></div>'+
      socialsHtml(c, true)+
@@ -2270,7 +2418,7 @@ async function refreshQuote(c){
 function swapCardHtml(c){
   if (!canSwap(c)) return '';
   const amounts = [5,10,25,50,100];
-  return '<div class="card" id="swapCard"><h3>Buy '+(c.symbol && c.symbol!=='—' ? c.symbol : 'this token')+'</h3>'+
+  return '<div class="card swapcard" id="swapCard"><h3>Buy '+(c.symbol && c.symbol!=='—' ? esc(c.symbol) : 'this token')+'</h3>'+
     '<div class="presets" style="gap:5px;flex-wrap:wrap;margin-bottom:8px">'+
       amounts.map(a=>'<div class="chip '+(SWAP.usd===a?'on':'')+'" data-swusd="'+a+'">$'+a+'</div>').join('')+
     '</div>'+
@@ -2456,7 +2604,7 @@ function railDefault(el){
     '<div class="card top3"><div class="hdrow"><h3>'+(isScan?'Top volume 24h':'Arclite launchpad')+'</h3>'+
       (isScan ? '<a href="#launchpad">Launchpad ›</a>' : '<a href="#launch">Launch a token ›</a>')+'</div>'+
       (top3.length ? top3.map((c,i)=>'<div class="fr" data-jump="'+c.addr+'"><span class="rk">'+(i+1)+'</span>'+
-          '<span class="sy">'+((c.symbol && c.symbol!=='—') ? '$'+c.symbol : short(c.addr))+'</span>'+
+          '<span class="sy">'+((c.symbol && c.symbol!=='—') ? '$'+esc(c.symbol) : short(c.addr))+'</span>'+
           '<span class="am">'+(isScan?fmtUsd(c.volume24h):fmtUsd(c.mcap))+'</span>'+
           (isScan
              ? (c.change24h!=null ? '<span class="tm '+(c.change24h>=0?'up':'dn')+'">'+(c.change24h>=0?'+':'')+Number(c.change24h).toFixed(1)+'%</span>'
@@ -2486,8 +2634,7 @@ async function renderLaunch(){
   if(!hasPump()){
     el.innerHTML='<div class="ph"><h1>Launch a token on <em>Arc</em></h1></div>'+
       '<div class="gate"><div><div class="dsp">Mainnet launches open the day the Arclite contracts deploy.</div>'+
-      'Same curve, same graduation, same 80% creator share you can try on testnet right now — nothing about the mechanics changes.<br>'+
-      '<button class="btn primary" style="margin-top:14px" onclick="switchNet(\'testnet\')">Launch on testnet</button></div></div>';
+      'Same curve, same graduation, same 80% creator share — nothing about the mechanics changes.</div></div>';
     return;
   }
   el.innerHTML =
@@ -2703,10 +2850,10 @@ function cardHtml(c, i, fresh){
     const chg = c.change24h;
     const ageTs = c.firstSeenAt;
     return '<div class="tcard'+sel+isNew+'" data-i="'+i+'" data-addr="'+c.addr+'">'+
-      '<div class="av" style="background:'+avGrad(c.addr)+'">'+(named?c.symbol.slice(0,3):c.addr.slice(2,4).toUpperCase())+avImg(c)+
+      '<div class="av" style="background:'+avGrad(c.addr)+'">'+(named?esc(c.symbol.slice(0,3)):c.addr.slice(2,4).toUpperCase())+avImg(c)+
         '<span class="dx '+(c.dex==='v4'?'v4':'')+'">'+(c.chain ? CHAINS[c.chain].label : (c.dex||'v3').toUpperCase())+'</span></div>'+
       '<div class="body">'+
-        '<div class="t1"><span class="nm">'+(named?c.name:'<span class="unnamed">Unnamed</span>')+'</span>'+(named?'<span class="sy">$'+c.symbol+'</span>':'')+'</div>'+
+        '<div class="t1"><span class="nm">'+(named?esc(c.name):'<span class="unnamed">Unnamed</span>')+'</span>'+(named?'<span class="sy">$'+esc(c.symbol)+'</span>':'')+'</div>'+
         '<div class="t2">'+(ageTs?'<span class="age '+ageCls(ageTs)+'">'+age(ageTs)+'</span>':'')+
           '<span class="ad" data-copy="'+c.addr+'" title="Copy address">'+short(c.addr)+'</span>'+
           (!named?'<span class="pend" style="font-size:9.5px;padding:1px 6px">name pending</span>':'')+'</div>'+
@@ -2738,7 +2885,7 @@ function cardHtml(c, i, fresh){
   return '<div class="tcard'+sel+isNew+'" data-i="'+i+'" data-addr="'+c.addr+'">'+
     '<div class="av" style="background:'+avGrad(c.addr)+'">'+(c.symbol||'—').slice(0,3)+avImg(c)+'<span class="dx arc">ARC</span></div>'+
     '<div class="body">'+
-      '<div class="t1"><span class="nm">'+c.name+'</span><span class="sy">$'+c.symbol+'</span></div>'+
+      '<div class="t1"><span class="nm">'+esc(c.name)+'</span><span class="sy">$'+esc(c.symbol)+'</span></div>'+
       '<div class="t2"><span class="ad" data-copy="'+c.addr+'" title="Copy address">'+short(c.addr)+'</span>'+
         (c.creator?'<span title="Creator">by '+short(c.creator)+'</span>':'')+'</div>'+
       '<div class="prog" style="justify-content:flex-start;margin-top:2px"><div class="bar"><i style="width:'+c.pct+'%"></i></div>'+
@@ -3106,10 +3253,10 @@ function limitFormHtml(c){
   const buy=LO.side==='buy';
   return '<div class="lim">'+
     '<div class="segs" style="margin:8px 0"><div class="seg '+(buy?'on':'')+'" data-lside="buy">Buy limit</div><div class="seg '+(!buy?'on':'')+'" data-lside="sell">Sell limit</div></div>'+
-    '<label class="fld"><span>'+(buy?'Spend (USDC)':'Sell (tokens)')+'</span><input id="limAmt" class="mono" inputmode="decimal" value="'+(buy?'10':'')+'" placeholder="'+(buy?'10':'amount of '+c.symbol)+'"></label>'+
+    '<label class="fld"><span>'+(buy?'Spend (USDC)':'Sell (tokens)')+'</span><input id="limAmt" class="mono" inputmode="decimal" value="'+(buy?'10':'')+'" placeholder="'+(buy?'10':'amount of '+esc(c.symbol))+'"></label>'+
     '<div class="fld"><span>Limit price · spot '+fmtPrice(spot)+'</span>'+
       '<div class="presets" style="gap:4px;flex-wrap:wrap">'+[-20,-10,-5,-2,2,5,10,20].map(p=>'<div class="chip '+(LO.pct===p?'on':'')+'" data-lpct="'+p+'">'+(p>0?'+':'')+p+'%</div>').join('')+'</div>'+
-      '<div class="ro mono" style="margin-top:6px" id="limPx">'+fmtPrice(target)+' <span class="dim">USDC / '+c.symbol+'</span></div></div>'+
+      '<div class="ro mono" style="margin-top:6px" id="limPx">'+fmtPrice(target)+' <span class="dim">USDC / '+esc(c.symbol)+'</span></div></div>'+
     '<div class="fld"><span>Expires</span><div class="presets" style="gap:4px">'+TTL.map(([s,l])=>'<div class="chip '+(LO.ttl===s?'on':'')+'" data-lttl="'+s+'">'+l+'</div>').join('')+'</div></div>'+
     '<button class="btn primary" style="width:100%;margin-top:6px" data-lplace="'+c.addr+'">'+(me?(buy?'Place buy limit':'Approve + place sell limit'):'Connect to place')+'</button>'+
     '<div class="hint">Fills only at this average price or better — the curve\'s own slippage check enforces it. 0.3% goes to whoever executes. Cancel any time; expired orders refund automatically.</div>'+
@@ -3177,9 +3324,13 @@ async function cancelLimit(id){
 /* ==================================================================
    VIEW ROUTING
 ================================================================== */
+/* Dev escape hatch only — nothing in the UI calls this since the Mainnet/
+   Testnet switch was removed. Kept so we can still reach the testnet build
+   from the console or a ?net=testnet link. It no longer writes localStorage:
+   the boot code deliberately ignores a remembered network, so persisting one
+   would only be a lie about what happens on the next reload. */
 function switchNet(key){
   if(!NETWORKS[key] || NETWORKS[key].chainId===NET.chainId) return;
-  try{ localStorage.setItem('ark_net', key); }catch{}
   location.href = location.pathname+'?net='+key+location.hash;
 }
 function setView(v){
@@ -3366,7 +3517,7 @@ async function connect(){
     // Launchpad contracts only exist on testnet; guard like the read-only pair.
     pumpW = PUMP ? new ethers.Contract(PUMP, PUMP_ABI, signer) : null;
     predW = PRED ? new ethers.Contract(PRED, PRED_ABI, signer) : null;
-    document.getElementById('connectBtn').textContent = short(me);
+    /* refreshBalance() swaps Connect for the wallet button and fills it in. */
     toast('Connected '+short(me));
     refreshBalance();
     if(VIEW==='launch'||VIEW==='points'){ MYPTS=null; render(); if(VIEW==='points') loadPoints(true); }
@@ -3476,19 +3627,129 @@ async function adapter(){
   return await mkAdapter({provider: inj});
 }
 
+/* ==================================================================
+   WALLET CONTROL
+   One button in the topbar; everything else about the wallet lives in
+   its dropdown. WBAL is cached so opening the menu is instant and does
+   not fire a fresh RPC round-trip on a proxy we know can refuse.
+================================================================== */
+let WBAL = null;          // native USDC, as a Number
+let WHOLD = null;         // [{symbol,name,addr,value,amt}] or null = not read yet
+
 /** Arc USDC balance drives the nag state. */
 async function refreshBalance(){
-  const pill=document.getElementById('balPill'), fb=document.getElementById('fundBtn');
-  if(!me){ pill.textContent='not connected'; pill.className='pill'; fb.classList.remove('pulse'); return; }
+  const btn=document.getElementById('walletBtn'), cb=document.getElementById('connectBtn');
+  const addrEl=document.getElementById('wAddr'), balEl=document.getElementById('wBal');
+  if(!me){
+    btn.hidden = true; cb.hidden = false; WBAL = null; WHOLD = null;
+    if(!document.getElementById('wMenu').hidden) closeWallet();
+    return;
+  }
+  cb.hidden = true; btn.hidden = false;
+  addrEl.textContent = short(me);
   try{
     const b = await retry(()=>provider.getBalance(me));
-    const v = Number(E(b));
-    pill.textContent = v.toFixed(v<1?4:2)+' USDC';
-    const empty = v < 0.05;                    // can't even cover gas
-    pill.className = 'pill'+(empty?' warn':'');
-    fb.classList.toggle('pulse', empty);
-    if(empty) pill.title='Too low to trade — Arc charges gas in USDC. Use Fund to bridge some in.';
-  }catch(e){ pill.textContent='—'; }
+    WBAL = Number(E(b));
+    const empty = WBAL < 0.05;                   // can't even cover gas
+    balEl.textContent = WBAL.toFixed(WBAL<1?4:2)+' USDC';
+    balEl.className = empty ? 'warn' : '';
+    btn.title = empty
+      ? 'Too low to trade — Arc charges gas in USDC. Open this menu and use Fund.'
+      : 'Your wallet, points and holdings';
+  }catch(e){ balEl.textContent='—'; balEl.className=''; }
+  if(!document.getElementById('wMenu').hidden) paintWalletMenu();
+}
+
+function toggleWallet(){
+  const m=document.getElementById('wMenu');
+  if(m.hidden) openWallet(); else closeWallet();
+}
+function openWallet(){
+  const m=document.getElementById('wMenu');
+  m.hidden = false;
+  document.getElementById('walletBtn').setAttribute('aria-expanded','true');
+  paintWalletMenu();
+  // Holdings are read lazily: the menu paints immediately from what we already
+  // know, then fills in once the balanceOf calls come back.
+  if(WHOLD === null) readHoldings().then(paintWalletMenu);
+  if(MYPTS === null && me) loadPoints().then(paintWalletMenu).catch(()=>{});
+}
+function closeWallet(){
+  document.getElementById('wMenu').hidden = true;
+  document.getElementById('walletBtn').setAttribute('aria-expanded','false');
+}
+
+/** balanceOf across the coins we already have on screen. Same approach the
+ *  Portfolio view uses; kept to the top 24 so the menu is quick. */
+async function readHoldings(){
+  if(!me){ WHOLD=[]; return WHOLD; }
+  const out=[];
+  for(const c of coins.slice(0,24)){
+    if(!c.addr) continue;
+    try{
+      const t=new ethers.Contract(c.addr,['function balanceOf(address) view returns (uint256)'],provider);
+      const b=await retry(()=>t.balanceOf(me),1,6000);
+      if(b>0n){
+        const dec = c.decimals || 18;
+        const amt = Number(ethers.formatUnits(b, dec));
+        out.push({symbol:c.symbol,name:c.name,addr:c.addr,amt,value:amt*(c.price||0)});
+      }
+    }catch{}
+  }
+  out.sort((a,b)=>b.value-a.value);
+  WHOLD = out;
+  return WHOLD;
+}
+
+function paintWalletMenu(){
+  const m=document.getElementById('wMenu');
+  if(!m || m.hidden || !me) return;
+  const money = n => '$'+Number(n||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+  const pts = MYPTS ? Number(MYPTS.points).toLocaleString() : '—';
+
+  let holdHtml;
+  if(WHOLD === null) holdHtml = '<div class="wmuted">Reading your holdings…</div>';
+  else if(!WHOLD.length) holdHtml = '<div class="wmuted">No token balances on '+CHAINS[CHAIN].name+' yet.</div>';
+  else holdHtml = WHOLD.slice(0,5).map(h=>
+      '<div class="whold">'+
+        '<div class="av" style="background:linear-gradient(135deg,hsl('+hue(h.addr)+',70%,52%),hsl('+((hue(h.addr)+40)%360)+',70%,38%))">'+
+          (h.symbol||'—').slice(0,3)+'</div>'+
+        '<div class="hn">'+esc(h.name||h.symbol||'—')+'</div>'+
+        '<div class="hv">'+(h.value>0?money(h.value):'—')+'</div>'+
+      '</div>').join('');
+
+  m.innerHTML =
+    '<div class="whead"><span class="wav"></span>'+
+      '<div class="waddr"><b class="mono">'+short(me)+'</b><span>'+CHAINS[CHAIN].name+'</span></div>'+
+      '<button class="wcopy" id="wCopy">Copy</button></div>'+
+    '<div class="wstats">'+
+      '<div class="wstat"><div class="k">USDC</div><div class="v'+(WBAL!==null&&WBAL<0.05?' warn':'')+'">'+
+        (WBAL===null?'—':WBAL.toFixed(WBAL<1?4:2))+'</div></div>'+
+      '<div class="wstat"><div class="k">Arclite points</div><div class="v" style="color:var(--light)">'+pts+'</div></div>'+
+    '</div>'+
+    '<div class="wsec"><span>Holdings</span><a href="#portfolio" id="wAll">See all →</a></div>'+
+    holdHtml+
+    '<div class="wfoot">'+
+      '<button class="btn" id="wFund">Fund ↓</button>'+
+      '<button class="btn" id="wDisc">Disconnect</button>'+
+    '</div>';
+
+  m.querySelector('#wCopy').onclick = () => {
+    try{ navigator.clipboard.writeText(me); toast('Address copied'); }catch{ toast('Could not copy',1); }
+  };
+  m.querySelector('#wFund').onclick = () => { closeWallet(); openFund(); };
+  m.querySelector('#wAll').onclick  = () => { closeWallet(); setView('portfolio'); };
+  m.querySelector('#wDisc').onclick = () => { disconnectWallet(); };
+}
+
+/** Forget the session locally. No wallet exposes a real "disconnect", so this
+ *  clears our own state and leaves the wallet's own permission alone. */
+function disconnectWallet(){
+  closeWallet();
+  me=null; signer=null; pumpW=null; predW=null; MYPTS=null; WBAL=null; WHOLD=null;
+  refreshBalance();
+  toast('Disconnected from this site');
+  if(VIEW==='portfolio'||VIEW==='points') render();
 }
 
 function openFund(mode){
@@ -3563,7 +3824,6 @@ async function doSpend(){
   const opts=SRC_CHAINS.map(([v,l])=>'<option value="'+v+'">'+l+'</option>').join('');
   document.getElementById('srcChain').innerHTML=opts;
   document.getElementById('ubChain').innerHTML=opts;
-  document.getElementById('fundBtn').addEventListener('click',()=>openFund());
   document.getElementById('fundClose').addEventListener('click',closeFund);
   document.getElementById('fundModal').addEventListener('click',e=>{
     if(e.target.id==='fundModal') closeFund();
@@ -3638,14 +3898,11 @@ document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
    place is exactly the sort of half-swapped state that shows mainnet
    prices against testnet balances. */
 function paintNet(){
-  document.querySelectorAll('.netopt').forEach(o=>
-    o.classList.toggle('on', NETWORKS[o.dataset.net] && NETWORKS[o.dataset.net].chainId===NET.chainId));
   const pill=document.getElementById('netPill');
-  if(pill){ pill.textContent = NET.mode==='scanner' ? 'arc mainnet' : 'arc testnet'; pill.classList.add('live'); }
+  if(pill){ pill.textContent = onArc() ? 'arc' : CHAINS[CHAIN].name.toLowerCase(); pill.classList.add('live'); }
   // Fund modal copy: testnet bridges to Arc_Testnet, mainnet to Arc.
   const ro=document.querySelector('#pane-bridge .ro'); if(ro) ro.textContent='Arc '+NET.label+' · your same address';
 }
-document.querySelectorAll('.netopt').forEach(o=>o.addEventListener('click',()=>switchNet(o.dataset.net)));
 paintNet();
 paintChain();
 paintView();
@@ -3673,6 +3930,17 @@ document.addEventListener('input', e=>{
 });
 document.getElementById('connectBtn').addEventListener('click',connect);
 document.getElementById('refreshBtn').addEventListener('click',()=>{load();tape();loadStats();feed();if(VIEW==='points')loadPoints(true);});
+
+/* wallet dropdown: toggle, click-away, Escape */
+document.getElementById('walletBtn').addEventListener('click',e=>{ e.stopPropagation(); toggleWallet(); });
+document.addEventListener('click',e=>{
+  const m=document.getElementById('wMenu');
+  if(!m || m.hidden) return;
+  if(!e.target.closest('#wallet')) closeWallet();
+});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){ const m=document.getElementById('wMenu'); if(m && !m.hidden) closeWallet(); }
+});
 
 document.body.addEventListener('click',e=>{
   const b=e.target.closest('[data-act]');
@@ -3818,6 +4086,7 @@ window.__term = { get VIEW(){ return VIEW; }, get coins(){ return coins; }, get 
   get LO(){ return LO; }, setLimit(addr, r, w){ NET.limit=addr; limitR=r; limitW=w; LO.loaded=false; },
   get CHAIN(){ return CHAIN; }, setChain, geckoCoin,
   loadProfiles, logoUrl, publishLaunchMeta, get PROFILES(){ return PROFILES; },
+  esc, safeUrl, avImg, refreshBalance,
   drawClock, tickDraw,
   /* Tests need both paths: a network with our contracts deployed, and one
      without (the gate copy). Overrides the live addresses in place. */

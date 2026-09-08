@@ -39,7 +39,8 @@ const posted = [], profileCalls = [], metaPosts = [];
 const LT = '0x00000000000000000000000000000000000abc01';
 let metaReply = () => ({ ok: true, status: 200, json: async () => ({ ok: true, logo: '/api/v1/img/'+LT.toLowerCase() }) });
 
-function boot(url) {
+function boot(url, boptions) {
+  const BOPT = boptions || {};
   const dom = new JSDOM(html, { url, runScripts: 'outside-only', pretendToBeVisual: true });
   const w = dom.window;
   w.ethers = ethers;
@@ -56,7 +57,7 @@ function boot(url) {
       if (s.includes('trending_pools')) return json({ included: [ { id: net+'_'+(net==='solana' ? 'So1anaMint1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' : '0x'+'1'.repeat(40)), type: 'token', attributes: { image_url: 'https://coin-images.coingecko.com/robin.png' } } ], data: [ pool(1, 'ROBIN / USDG', 2178736, -38.6, 302392, new Date(Date.now()-86400e3*2).toISOString(), 'pons-v2-dex'), pool(2, 'HOOD / USDC', 500000, 12.1, 90000, new Date(Date.now()-3600e3*5).toISOString(), 'uniswap-v3') ] });
       if (s.includes('new_pools')) return json({ data: [ pool(3, 'FRESH / USDG', 1200, 4.2, 5000, new Date(Date.now()-600e3).toISOString(), 'pons-v2-dex'), pool(1, 'ROBIN / USDG', 2178736, -38.6, 302392, new Date(Date.now()-86400e3*2).toISOString(), 'pons-v2-dex') ] });
     }
-    if (s.includes('/api/v1/tokens')) return json(fakeTokens);
+    if (s.includes('/api/v1/tokens')) return json(BOPT.tokens ? { tokens: BOPT.tokens } : fakeTokens);
     if (s.includes('/api/v1/stats')) return json(fakeStats);
     if (s.includes('/api/v1/swaps/recent')) return json(fakeFeed);
     if (s.includes('/api/v1/points/leaderboard')) return json(fakeBoard);
@@ -190,7 +191,7 @@ function boot(url) {
   ltxt = d.getElementById('panel').textContent;
   ok(ltxt.includes('goes live') || ltxt.includes('open the day the Arclite contracts deploy'), 'without a pump: honest gate, no form');
   ok(!d.getElementById('lpName'), 'no form fields when there is no pump on this network');
-  ok(!!d.querySelector('#panel button.primary') && /testnet/i.test(d.querySelector('#panel button.primary').textContent), 'gate offers the testnet switch');
+  ok(!/testnet/i.test(d.getElementById('panel').textContent), 'gate no longer points at a testnet that users cannot reach');
   ok(d.getElementById('hs1k').textContent === 'Launched' && d.getElementById('hs4k').textContent === 'Grad target', 'hero stats relabel for the launchpad');
 
   w.location.hash = '#launchpad';
@@ -265,7 +266,7 @@ function boot(url) {
   ok(td.getElementById('rail').textContent.includes('Graduation market') && td.getElementById('rail').textContent.includes('Buy $1'), 'rail opens with market + Buy');
   t.w.location.hash = '#tokens';
   await sleep(250);
-  ok(td.getElementById('rows').textContent.includes('reads Arc mainnet'), 'Tokens view on testnet: gate to mainnet');
+  ok(!td.getElementById('rows').textContent.includes('You\'re on testnet'), 'Tokens view never tells the user they are on testnet');
 
   console.log('\n=== Lucky Trencher: #draw view ===');
   const dm = boot('https://arclite.fun/app/terminal.html?net=mainnet#draw');
@@ -389,11 +390,13 @@ function boot(url) {
   await sleep(400);
   const cd = cm.d, cw = cm.w;
   ok([...cd.querySelectorAll('#chsw [data-chain]')].map(b=>b.dataset.chain).join(',') === 'arc,hood,sol' && cd.querySelector('#chsw .on').dataset.chain === 'arc', 'chain switcher: ARC · HOOD · SOL, ARC active by default');
-  ok(cd.getElementById('netsw').style.display !== 'none', 'mainnet/testnet toggle visible on Arc');
+  ok(!cd.getElementById('netsw') && !/Testnet|Mainnet/.test(cd.querySelector('.topbar').textContent),
+     'no Mainnet/Testnet switch anywhere in the topbar');
+  ok(cd.getElementById('netPill').textContent === 'arc', 'pill says "arc", not "arc mainnet"');
   cd.querySelector('[data-chain="hood"]').dispatchEvent(new cw.MouseEvent('click', { bubbles: true }));
   await sleep(400);
   ok(cw.__term.CHAIN === 'hood' && cw.localStorage.getItem('ark_chain') === 'hood', 'HOOD selected + remembered');
-  ok(cd.getElementById('netsw').style.display === 'none' && cd.getElementById('netPill').textContent === 'robinhood chain', 'net toggle hidden off-Arc; pill says robinhood chain');
+  ok(cd.getElementById('netPill').textContent === 'robinhood chain', 'pill follows the chain off-Arc');
   ok(cw.__term.coins.length === 3, 'GeckoTerminal trending + new merged and de-duplicated (3 unique pools)');
   const lanesH = [...cd.querySelectorAll('#lanes .lane')];
   ok(lanesH.map(l=>l.querySelector('.laneh b').textContent).join('|') === 'New pairs|Trending|Top liquidity', 'off-Arc lanes: New pairs · Trending · Top liquidity');
@@ -422,7 +425,7 @@ function boot(url) {
   ok(cd.querySelector('#rail a.btn.primary').getAttribute('href').startsWith('https://jup.ag/swap/USDC-'), 'SOL rail: Open pool → Jupiter swap');
   cd.querySelector('[data-chain="arc"]').dispatchEvent(new cw.MouseEvent('click', { bubbles: true }));
   await sleep(400);
-  ok(cw.__term.CHAIN === 'arc' && cd.getElementById('netsw').style.display !== 'none' && cw.__term.coins.length === 3, 'back to ARC: indexer data + net toggle return');
+  ok(cw.__term.CHAIN === 'arc' && cd.getElementById('netPill').textContent === 'arc' && cw.__term.coins.length === 3, 'back to ARC: indexer data returns, pill says arc');
 
   console.log('\n=== logos + names: launchpad-sourced profiles, no RPC ===');
   {
@@ -610,6 +613,137 @@ function boot(url) {
   // display safety: an unverified token prints no token amount
   const fmtSrc = html.slice(html.indexOf('function fmtTokenOut'), html.indexOf('async function refreshQuote'));
   ok(/if \(!c\.metaOk \|\| c\.decimals == null\) return null/.test(fmtSrc), 'no token amount is printed until decimals are verified');
+  }
+
+  // ---- wallet control: one topbar button, everything else in its menu -----
+  console.log('\n=== wallet control + dropdown ===');
+  {
+  const wm = boot('https://arclite.fun/app/terminal.html?net=mainnet');
+  await sleep(400);
+  const wd = wm.d, ww = wm.w;
+  ok(!wd.getElementById('balPill') && !wd.getElementById('fundBtn'),
+     'the loose balance pill and Fund button are gone from the topbar');
+  ok(wd.getElementById('walletBtn').hidden && !wd.getElementById('connectBtn').hidden,
+     'disconnected: Connect shown, wallet button hidden');
+
+  ww.__term.setWallet({}, '0x' + 'a'.repeat(40));
+  await ww.__term.refreshBalance();
+  await sleep(150);
+  ok(!wd.getElementById('walletBtn').hidden && wd.getElementById('connectBtn').hidden,
+     'connected: Connect is replaced by the wallet button, not shown alongside it');
+  ok(wd.getElementById('wAddr').textContent === '0xaaaa…aaaa', 'wallet button shows the short address');
+
+  ok(wd.getElementById('wMenu').hidden, 'menu starts closed');
+  wd.getElementById('walletBtn').dispatchEvent(new ww.MouseEvent('click', { bubbles: true }));
+  await sleep(250);
+  const menu = wd.getElementById('wMenu');
+  ok(!menu.hidden && wd.getElementById('walletBtn').getAttribute('aria-expanded') === 'true',
+     'clicking opens the menu and marks the button expanded');
+  ok(/Arclite points/i.test(menu.textContent), 'menu shows Arclite points');
+  ok(/Holdings/i.test(menu.textContent), 'menu shows holdings');
+  ok(!!menu.querySelector('#wFund') && !!menu.querySelector('#wDisc') && !!menu.querySelector('#wCopy'),
+     'menu carries Fund, Disconnect and Copy');
+
+  // click-away closes it
+  wd.body.dispatchEvent(new ww.MouseEvent('click', { bubbles: true }));
+  await sleep(80);
+  ok(menu.hidden, 'clicking outside closes the menu');
+
+  // disconnect clears our own state
+  wd.getElementById('walletBtn').dispatchEvent(new ww.MouseEvent('click', { bubbles: true }));
+  await sleep(200);
+  wd.getElementById('wDisc').dispatchEvent(new ww.MouseEvent('click', { bubbles: true }));
+  await sleep(150);
+  ok(wd.getElementById('walletBtn').hidden && !wd.getElementById('connectBtn').hidden,
+     'Disconnect returns the topbar to the Connect state');
+  }
+
+  // ---- topbar width budget ----------------------------------------------
+  // jsdom has no layout engine, so this cannot measure pixels. It guards the
+  // rules that a real-browser measurement showed were required. The previous
+  // version of this suite asserted document.scrollWidth === innerWidth, which
+  // PASSED while the wallet was visibly clipped: the topbar has
+  // overflow-x:auto, so its own overflow never reaches the document. Measured
+  // in Chrome at 1600px: old bar wanted 1730px and clipped Refresh + Connect;
+  // new bar wants 0px more than it has at 1920/1500/1440/1360/1280/1180/1100/1000.
+  console.log('\n=== topbar width budget ===');
+  ok(/\.wallet\{[^}]*flex:0 0 auto/.test(html),
+     'the wallet control cannot shrink, so it is never the thing that gets cut');
+  ok(/@media \(max-width:1440px\)\{ #netPill\{display:none\} \}/.test(html) &&
+     /@media \(max-width:1150px\)\{ \.xlink\{display:none\} \}/.test(html) &&
+     /@media \(max-width:1080px\)\{ #refreshBtn\{display:none\} \}/.test(html),
+     'the measured fold order is present: chain pill, X link, then Refresh');
+  ok(/\.topbar\{[\s\S]{0,160}overflow-x:auto/.test(html),
+     'topbar still scrolls on phones rather than widening the page');
+
+  // ---- the buy card should read as raised, not as another flat panel ------
+  console.log('\n=== buy card popout ===');
+  ok(/\.swapcard\{[^}]*box-shadow/.test(html) && /\.swapcard::after\{[^}]*radial-gradient/.test(html),
+     'buy card has its own shadow and a vignette layer');
+  ok(/swapCardHtml[\s\S]{0,400}class="card swapcard"/.test(html),
+     'the buy card actually carries the .swapcard class');
+
+  // ---- portfolio follows the chain you are on ----------------------------
+  console.log('\n=== portfolio per chain ===');
+  ok(/if\(!onArc\(\) && VIEW==='portfolio'\)\{ renderPortfolio\(\); return; \}/.test(html),
+     'Portfolio is no longer gated behind "lives on Arc"');
+  ok(/rpc:'https:\/\/rpc\.mainnet\.chain\.robinhood\.com'/.test(html),
+     'Robinhood Chain has an RPC so balances are readable there');
+  ok(/const chProv = onArc\(\) \? provider/.test(html) && /balanceOf\(address\) view returns \(uint256\)'\],chProv\)/.test(html),
+     'balanceOf runs against the current chain, not always Arc');
+  ok(/money\(onArc\(\) \? cash\+tokenValue : tokenValue\)/.test(html),
+     'off Arc the ETH balance is not added into a dollar total');
+
+  // ---- XSS: token names and profile URLs are attacker-controlled ----------
+  // Anyone can deploy a token and choose its name, and anyone can submit a
+  // profile for one. Both used to reach innerHTML raw, on a page where people
+  // connect a wallet and sign transactions.
+  console.log('\n=== hostile token metadata ===');
+  {
+  const XSS = '0x' + 'c'.repeat(40);
+  const xm = boot('https://arclite.fun/app/terminal.html?net=mainnet', {
+    tokens: [{
+      address: XSS,
+      name: '<img src=x onerror="window.__pwned=1">',
+      symbol: '<svg onload="window.__pwned=1">',
+      decimals: 18, dex: 'v3', pool_ref: '0x' + '9'.repeat(40),
+      first_seen_block: 1, first_seen_at: new Date().toISOString(),
+      meta_ok: true, price: '1', volume_24h: '10', txns_24h: '1',
+      traders_24h: '1', holders: '1', change_24h: '0',
+      logo_url: 'javascript:window.__pwned=1',
+      website: 'javascript:window.__pwned=1',
+      twitter: 'https://x.com/ok', telegram: null, profile_source: 'tolly',
+    }],
+  });
+  await sleep(450);
+  const xd = xm.d, xw = xm.w;
+  // NB: jsdom runs with runScripts:'outside-only', so an injected inline
+  // handler would not fire here even if the injection succeeded. Asserting on
+  // window.__pwned would therefore pass whether or not the bug exists. The
+  // real assertion is structural: did attacker markup become DOM nodes?
+  const xcard = [...xd.querySelectorAll('#lanes .tcard')].find(x => x.dataset.addr === XSS);
+  ok(!!xcard, 'the hostile token still renders (escaped, not dropped)');
+  ok(xcard && !xcard.querySelector('img[src="x"]') && !xcard.querySelector('svg[onload]'),
+     'its markup is inert: no injected <img src=x> or <svg onload> node exists');
+  ok(xcard && xcard.querySelector('.nm').textContent.includes('<img'),
+     'the name is shown as literal text, so the scam is visible rather than hidden');
+  const xsoc = xcard && xcard.querySelector('.soc');
+  ok(!xsoc || ![...xsoc.querySelectorAll('a')].some(a => /^javascript:/i.test(a.getAttribute('href') || '')),
+     'a javascript: website URL is dropped, never rendered as a link');
+  // The indexer rewrites logo_url to its own /api/v1/img/ path, so a hostile
+  // logo never reaches src by that route. safeUrl is the guard for the paths
+  // that are NOT rewritten — creator submissions and GeckoTerminal image_url.
+  ok(xw.__term.avImg({ addr: XSS, logo: 'javascript:alert(1)' }) === '',
+     'avImg drops a javascript: logo instead of emitting an <img src>');
+  ok(/^<img src="https:\/\/ok\.test\/l\.png"/.test(xw.__term.avImg({ addr: XSS, logo: 'https://ok.test/l.png' })),
+     'avImg still renders a legitimate https logo');
+  // and the helper itself
+  ok(xw.__term.safeUrl('javascript:alert(1)') === null &&
+     xw.__term.safeUrl('data:text/html,<script>') === null &&
+     xw.__term.safeUrl('https://alpha.fun') === 'https://alpha.fun' &&
+     xw.__term.safeUrl(null) === null && xw.__term.safeUrl('') === null,
+     'safeUrl: http/https pass through byte-identical, everything else is null');
+  ok(xw.__term.esc('<b>&"') === '&lt;b&gt;&amp;&quot;', 'esc escapes <, >, & and quotes');
   }
 
   console.log('\n=== no leftovers ===');
