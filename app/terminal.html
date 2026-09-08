@@ -258,7 +258,19 @@ td.l{text-align:left}
 
 .coin{display:flex;align-items:center;gap:9px}
 .av{width:28px;height:28px;border-radius:8px;flex:0 0 28px;display:grid;place-items:center;
-  font:700 10px var(--fd);color:#fff;letter-spacing:-.02em}
+  font:700 10px var(--fd);color:#fff;letter-spacing:-.02em;position:relative}
+/* Logo sits over the letter tile; if the image 404s it removes itself and the
+   letters show. Badges (.dx) stay above the image. */
+.av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit;background:#0a0d13}
+.av .dx{z-index:2}
+.soc{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+.soc a{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:6px;border:1px solid var(--hair2);
+  background:rgba(255,255,255,.03);color:var(--ink2);text-decoration:none;font:600 10px var(--fs);letter-spacing:.02em}
+.soc a:hover{border-color:var(--info);color:var(--ink)}
+.soc .src{font:500 9.5px var(--fm);color:var(--ink3);margin-left:auto}
+.pform .prev{width:64px;height:64px;border-radius:14px;object-fit:cover;background:#0a0d13;border:1px solid var(--hair2)}
+.pform .drop{display:flex;align-items:center;gap:12px;padding:10px;border:1px dashed var(--hair2);border-radius:10px;cursor:pointer}
+.pform .drop:hover{border-color:var(--info)}
 .cname{font-weight:600;font-size:12.5px;line-height:1.25}
 .csym{font-family:var(--fm);font-size:10.5px;color:var(--ink3)}
 
@@ -978,10 +990,11 @@ function geckoCoin(p, chainKey){
 }
 async function loadFromGecko(){
   const g=CHAINS[CHAIN].gecko; if(!g) return null;
-  const get = async path => { const r=await deadline(fetch('https://api.geckoterminal.com/api/v2'+path,{headers:{accept:'application/json'},cache:'no-store'}), 8000, 'gecko'); if(!r.ok) throw new Error('gecko '+r.status); return (await r.json()).data||[]; };
-  const [trending, fresh] = await Promise.all([get('/networks/'+g+'/trending_pools?page=1'), get('/networks/'+g+'/new_pools?page=1')]);
+  const imgs = {};
+  const get = async path => { const r=await deadline(fetch('https://api.geckoterminal.com/api/v2'+path,{headers:{accept:'application/json'},cache:'no-store'}), 8000, 'gecko'); if(!r.ok) throw new Error('gecko '+r.status); const j=await r.json(); (j.included||[]).forEach(t=>{ if(t.type==='token' && t.attributes && t.attributes.image_url && t.attributes.image_url!=='missing.png') imgs[t.id]=t.attributes.image_url; }); return j.data||[]; };
+  const [trending, fresh] = await Promise.all([get('/networks/'+g+'/trending_pools?page=1&include=base_token'), get('/networks/'+g+'/new_pools?page=1&include=base_token')]);
   const seen=new Map();
-  for(const p of [...trending, ...fresh]){ const c=geckoCoin(p, CHAIN); if(!c.addr) continue; if(!seen.has(c.addr)){ c.trending = trending.includes(p); seen.set(c.addr,c); } }
+  for(const p of [...trending, ...fresh]){ const c=geckoCoin(p, CHAIN); if(!c.addr) continue; if(!seen.has(c.addr)){ c.trending = trending.includes(p); const bid=p.relationships&&p.relationships.base_token&&p.relationships.base_token.data.id; if(bid && imgs[bid]) c.logo=imgs[bid]; seen.set(c.addr,c); } }
   return [...seen.values()];
 }
 function chainStats(){
@@ -1098,6 +1111,66 @@ function age(ts){
   if(s<3600) return Math.floor(s/60)+'m';
   if(s<86400) return Math.floor(s/3600)+'h';
   return Math.floor(s/86400)+'d';
+}
+/* ---- token profiles (logo + socials). Not on-chain: the indexer aggregates
+   them from the launchpads' public APIs and from creator submissions
+   (POST /api/v1/token-meta). PROFILES caches by address for the launchpad
+   list, which reads coins straight from the chain. */
+const PROFILES = {};
+function logoUrl(addr){ const a=(addr||'').toLowerCase(); const p=PROFILES[a]; return p && p.logo ? (p.logo.startsWith('http')?p.logo:API()+p.logo) : null; }
+function avImg(c){ const u=c.logo||logoUrl(c.addr); return u ? '<img src="'+u+'" alt="" loading="lazy" onerror="this.remove()">' : ''; }
+function socialsHtml(c, withSource){
+  const p = Object.assign({}, PROFILES[(c.addr||'').toLowerCase()]||{});
+  for(const k of ['website','twitter','telegram']) if(c[k]) p[k]=c[k];
+  if(c.profileSource) p.source=c.profileSource;
+  const L = [];
+  if(p.website)  L.push('<a href="'+p.website+'" target="_blank" rel="noopener nofollow" title="'+p.website+'">🌐 site</a>');
+  if(p.twitter)  L.push('<a href="'+p.twitter+'" target="_blank" rel="noopener nofollow" title="'+p.twitter+'">𝕏 '+(p.twitter.replace(/^https?:\/\/(www\.)?(x|twitter)\.com\//,'@').split(/[/?]/)[0].slice(0,18))+'</a>');
+  if(p.telegram) L.push('<a href="'+p.telegram+'" target="_blank" rel="noopener nofollow" title="'+p.telegram+'">✈ telegram</a>');
+  if(!L.length) return '';
+  const src = withSource && (p.source||c.profileSource) ? '<span class="src" title="Where the logo and links come from">via '+({tolly:'Tolly',sharc:'Sharc',creator:'creator'}[p.source||c.profileSource]||p.source)+'</span>' : '';
+  return '<div class="soc">'+L.join('')+src+'</div>';
+}
+async function loadProfiles(addrs){
+  if(!API() || !addrs.length) return 0;
+  const need = addrs.map(a=>a.toLowerCase()).filter(a=>!(a in PROFILES));
+  let got=0;
+  for(let i=0;i<need.length;i+=100){
+    const chunk=need.slice(i,i+100);
+    try{
+      const r = await deadline(fetch(API()+'/api/v1/profiles?addrs='+chunk.join(',')), 8000, 'profiles');
+      const j = await r.json();
+      chunk.forEach(a=>{ PROFILES[a]=null; });                 // remember the miss too
+      (j.profiles||[]).forEach(p=>{ PROFILES[p.address.toLowerCase()]=p; got++; });
+    }catch(e){ break; }
+  }
+  return got;
+}
+function metaMessage(wallet, token, day){ return 'Arclite token profile\nwallet: '+wallet.toLowerCase()+'\ntoken: '+token.toLowerCase()+'\nday: '+day; }
+/** Creator publishes logo + links for a token they launched on Arclite. */
+async function submitTokenMeta(token, m){
+  if(!signer) return connect();
+  if(!API()) return toast('Points API not configured',1);
+  const day=utcDay();
+  const signature = await signer.signMessage(metaMessage(me, token, day));
+  const r = await deadline(fetch(API()+'/api/v1/token-meta',{method:'POST',headers:{'content-type':'application/json'},
+    body:JSON.stringify({wallet:me, token, day, signature, image:m.image||undefined, website:m.website||undefined, twitter:m.twitter||undefined, telegram:m.telegram||undefined})}), 15000, 'token-meta');
+  const j = await r.json().catch(()=>({}));
+  if(r.ok){ delete PROFILES[token.toLowerCase()]; await loadProfiles([token]); return {ok:true, ...j}; }
+  return {ok:false, status:r.status, error:j.error||('HTTP '+r.status)};
+}
+/* Image → ≤256px PNG data URL (keeps uploads small and square). */
+function fileToDataUrl(file){
+  return new Promise((res, rej)=>{
+    if(!/^image\/(png|jpeg|gif|webp)$/.test(file.type)) return rej(new Error('PNG, JPG, GIF or WebP only'));
+    const img=new Image(); const u=URL.createObjectURL(file);
+    img.onload=()=>{ try{
+      const S=256, cv=document.createElement('canvas'); cv.width=S; cv.height=S; const ctx=cv.getContext('2d');
+      const side=Math.min(img.width,img.height); ctx.drawImage(img,(img.width-side)/2,(img.height-side)/2,side,side,0,0,S,S);
+      URL.revokeObjectURL(u); res(cv.toDataURL('image/png'));
+    }catch(e){ rej(e); } };
+    img.onerror=()=>rej(new Error('Could not read image')); img.src=u;
+  });
 }
 function hue(a){ let h=0; for(let i=2;i<a.length;i++) h=(h*31+a.charCodeAt(i))%360; return h; }
 function short(a){ return a.slice(0,6)+'…'+a.slice(-4); }
@@ -1367,6 +1440,8 @@ async function loadFromIndexer(){
       pool:t.pool_ref, fee:null, block:t.first_seen_block,
       firstSeenAt: t.first_seen_at ? Math.floor(new Date(t.first_seen_at).getTime()/1000) : null,
       metaOk: t.meta_ok === true,
+      logo: t.logo_url ? NET.indexerApi.replace(/\/$/,'')+'/api/v1/img/'+t.address : null,
+      website:t.website||null, twitter:t.twitter||null, telegram:t.telegram||null, profileSource:t.profile_source||null,
       raised:0, sold:0, pct:0, market:null, scanner:true, dex:t.dex,
       // carried through for a future trending/volume-column UI pass — not
       // rendered yet, but no reason to make the API round-trip twice later.
@@ -1497,6 +1572,8 @@ async function load(){
     }).reverse(); // newest first
 
     render(); ticker(); paintHero(); if(selected<0) rail();
+    // logos + socials for launchpad coins arrive from the API a beat later
+    loadProfiles(coins.map(c=>c.addr)).then(n=>{ if(n && VIEW==='launchpad'){ render(); rail(); } });
     document.getElementById('lastSync').textContent =
       'synced '+new Date().toLocaleTimeString()+' · '+coins.length+' coins · 2 rpc calls';
   }catch(e){
@@ -1771,7 +1848,7 @@ function render(){
         '<td class="l dim num">'+(i+1)+'</td>'+
         '<td class="l"><div class="coin">'+
           '<div class="av" style="background:'+avGrad(c.addr)+'">'+
-            (named ? c.symbol.slice(0,3) : c.addr.slice(2,4).toUpperCase())+'</div>'+
+            (named ? c.symbol.slice(0,3) : c.addr.slice(2,4).toUpperCase())+avImg(c)+'</div>'+
           '<div><div class="cname">'+(named ? c.name : '<span class="unnamed">'+short(c.addr)+'</span>')+
             '<span class="dexb '+(c.dex==='v4'?'v4':'')+'">'+(c.chain ? String(c.dex).replace(/-/g,' ').toUpperCase().slice(0,12) : (c.dex||'v3').toUpperCase())+'</span></div>'+
             '<div class="csym">'+(named ? c.symbol+' · '+short(c.addr) : 'name pending · '+short(c.addr))+'</div>'+
@@ -1802,7 +1879,7 @@ function render(){
       '<td class="l dim num">'+(i+1)+'</td>'+
       '<td class="l"><div class="coin">'+
         '<div class="av" style="background:'+avGrad(c.addr)+'">'+
-          (c.symbol||'—').slice(0,3)+'</div>'+
+          (c.symbol||'—').slice(0,3)+avImg(c)+'</div>'+
         '<div><div class="cname">'+c.name+'</div><div class="csym">'+c.symbol+' · '+short(c.addr)+'</div>'+
           '<div class="chips">'+
             (grad ? chip('','GRADUATED','ok') : c.pct>=70 ? chip('','NEAR GRAD','warn') : c.pct<5 ? chip('','NEW','hot') : chip('','CLIMBING',''))+
@@ -1849,9 +1926,12 @@ function rail(){
   el.innerHTML =
    '<div class="card">'+
      '<div class="coin" style="margin-bottom:10px">'+
-       '<div class="av" style="width:36px;height:36px;flex:0 0 36px;border-radius:10px;font-size:12px;background:linear-gradient(135deg,hsl('+hue(c.addr)+',70%,52%),hsl('+((hue(c.addr)+40)%360)+',70%,38%))">'+c.symbol.slice(0,3)+'</div>'+
-       '<div><div class="dsp" style="font-size:15px">'+c.name+'</div>'+
-         '<div class="csym">'+c.symbol+'</div></div></div>'+
+       '<div class="av" style="width:44px;height:44px;flex:0 0 44px;border-radius:12px;font-size:12px;background:linear-gradient(135deg,hsl('+hue(c.addr)+',70%,52%),hsl('+((hue(c.addr)+40)%360)+',70%,38%))">'+c.symbol.slice(0,3)+avImg(c)+'</div>'+
+       '<div style="min-width:0;flex:1"><div class="dsp" style="font-size:15px">'+c.name+'</div>'+
+         '<div class="csym">'+c.symbol+' · '+short(c.addr)+'</div></div></div>'+
+     socialsHtml(c, true)+
+     (me && c.creator && me.toLowerCase()===String(c.creator).toLowerCase() ? '<button class="mini" data-editmeta="'+c.addr+'" style="margin:6px 0 4px">'+(PROFILES[c.addr.toLowerCase()]?'Edit logo & links':'Add logo & links')+'</button>' : '')+
+     '<div id="pform-'+c.addr.toLowerCase()+'"></div>'+
      '<div class="big">'+(c.priceStale?'<span class="dim" style="font-size:14px">pending — no swap seen yet</span>':fmtPrice(c.price))+'</div>'+
      '<div class="kv"><span>Market cap</span><b>'+fmtUsd(c.mcap)+'</b></div>'+
      '<div class="kv"><span>Raised</span><b>'+fmtUsd(c.raised,2)+'</b></div>'+
@@ -1891,6 +1971,34 @@ function rail(){
   if(!c.scanner && c.creator) setTimeout(()=>fillCreatorCard(c),0);
 }
 
+/* Creator-only: edit logo + links from the coin's rail card. Pre-fills from the
+   published profile or from a launch-time submission that's still pending. */
+function openProfileForm(token){
+  const host=document.getElementById('pform-'+token.toLowerCase()); if(!host) return;
+  if(host.innerHTML){ host.innerHTML=''; return; }
+  const p = PROFILES[token.toLowerCase()] || pendingMeta()[token.toLowerCase()] || {};
+  const cur = logoUrl(token) || p.image || 'data:image/gif;base64,R0lGODlhAQABAAAAACw=';
+  host.innerHTML = '<div class="pform" style="margin:4px 0 8px">'+
+    '<label class="drop" for="pfImg"><img class="prev" id="pfPrev" alt="" src="'+cur+'"><span style="font-size:12px;color:var(--ink2)">Change logo<br><span class="dim" style="font-size:10.5px">square · resized to 256px</span></span></label>'+
+    '<input id="pfImg" type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden>'+
+    '<label class="fld" style="margin-top:8px"><span>Website</span><input id="pfWeb" value="'+(p.website||'')+'" placeholder="https://"></label>'+
+    '<label class="fld"><span>X</span><input id="pfX" value="'+(p.twitter||'')+'" placeholder="https://x.com/…"></label>'+
+    '<label class="fld"><span>Telegram</span><input id="pfTg" value="'+(p.telegram||'')+'" placeholder="https://t.me/…"></label>'+
+    '<button class="btn primary" id="pfSave" style="width:100%">Sign & publish</button>'+
+    '<div class="hint">Signed by your wallet — only the creator can set this. Nothing goes on-chain; no gas.</div></div>';
+  let img = p.image || null;
+  host.querySelector('#pfImg').addEventListener('change', async e=>{ const f=e.target.files&&e.target.files[0]; if(!f) return; try{ img=await fileToDataUrl(f); host.querySelector('#pfPrev').src=img; }catch(err){ toast(String(err.message||err),1); } });
+  host.querySelector('#pfSave').addEventListener('click', async ()=>{
+    const g=id=>(host.querySelector('#'+id).value||'').trim();
+    const btn=host.querySelector('#pfSave'); btn.disabled=true; btn.textContent='Signing…';
+    try{
+      const r = await submitTokenMeta(token, {image:img, website:g('pfWeb'), twitter:g('pfX'), telegram:g('pfTg')});
+      if(r.ok){ const pend=pendingMeta(); delete pend[token.toLowerCase()]; savePendingMeta(pend); toast('Published ✓'); host.innerHTML=''; render(); rail(); }
+      else { toast(r.error,1); btn.disabled=false; btn.textContent='Sign & publish'; }
+    }catch(e){ toast('Failed: '+String(e.shortMessage||e.message||e).slice(0,80),1); btn.disabled=false; btn.textContent='Sign & publish'; }
+  });
+}
+
 function railScan(c, el){
   const named = c.symbol && c.symbol!=='—';
   const verified = c.metaOk && !c.priceStale;
@@ -1900,8 +2008,8 @@ function railScan(c, el){
   el.innerHTML =
    '<div class="card">'+
      '<div class="coin" style="margin-bottom:8px;align-items:flex-start">'+
-       '<div class="av" style="width:40px;height:40px;flex:0 0 40px;border-radius:11px;font-size:12px;background:linear-gradient(135deg,hsl('+hue(c.addr)+',70%,52%),hsl('+((hue(c.addr)+40)%360)+',70%,38%))">'+
-         (named ? c.symbol.slice(0,3) : c.addr.slice(2,4).toUpperCase())+'</div>'+
+       '<div class="av" style="width:44px;height:44px;flex:0 0 44px;border-radius:12px;font-size:12px;background:linear-gradient(135deg,hsl('+hue(c.addr)+',70%,52%),hsl('+((hue(c.addr)+40)%360)+',70%,38%))">'+
+         (named ? c.symbol.slice(0,3) : c.addr.slice(2,4).toUpperCase())+avImg(c)+'</div>'+
        '<div style="min-width:0;flex:1">'+
          '<div class="dsp" style="font-size:15px;display:flex;align-items:center;gap:6px">'+
            (named ? c.name : '<span class="unnamed">Unnamed token</span>')+
@@ -1911,6 +2019,7 @@ function railScan(c, el){
          '<div class="addrrow"><span>'+(named ? c.symbol+' · ' : '')+short(c.addr)+'</span>'+
            '<button class="copy" data-copy="'+c.addr+'">copy</button></div>'+
        '</div></div>'+
+     socialsHtml(c, true)+
      '<div class="big">'+(verified ? fmtPrice(c.price) : '<span class="pend" style="font-size:12px">price pending</span>')+
        (verified && chg!=null && c.txns24h>0 ? ' <span class="chg '+(chg>=0?'up':'dn')+'" style="font-size:14px">'+(chg>=0?'+':'')+Number(chg).toFixed(1)+'%</span>' : '')+'</div>'+
      (!verified ? '<div class="hint">Shown once the token\'s decimals are read on-chain. A price on guessed decimals can be wrong by 10<sup>12</sup>, so we don\'t show one.</div>' : '')+
@@ -2030,7 +2139,7 @@ async function feed(){
 function feedRows(){
   if(!FEED.length) return '<div class="empty" style="padding:16px 4px">Waiting for swaps…</div>';
   return '<div class="feed">'+FEED.slice(0,18).map(sw=>{
-    const named = sw.meta_ok && sw.symbol;
+    const named = !!sw.symbol;   // name may come from a launchpad API before decimals are verified
     return '<div class="fr" data-jump="'+sw.token_address+'"><span class="sd '+(sw.side==='buy'?'up':'dn')+'">'+(sw.side==='buy'?'BUY':'SELL')+'</span>'+
       '<span class="sy">'+(named?sw.symbol:short(sw.token_address))+'</span>'+
       '<span class="am">'+fmtUsd(sw.usdc_amount)+'</span>'+
@@ -2096,6 +2205,15 @@ async function renderLaunch(){
           '<label class="fld"><span>Ticker</span><input id="lpSym" class="mono" maxlength="10" placeholder="TICKER" autocomplete="off" style="text-transform:uppercase"></label>'+
         '</div>'+
         '<div class="hint" id="lpHint">Name and ticker are written on-chain and cannot be changed. Everything else about the token is the contract\'s, not yours.</div>'+
+        '<div class="pform" style="margin-top:12px"><h3 style="font-size:11px;margin:0 0 6px">Logo & links <span class="dim" style="font-weight:400">· optional, editable later by you</span></h3>'+
+          '<label class="drop" for="lpImg"><img class="prev" id="lpPrev" alt="" src="data:image/gif;base64,R0lGODlhAQABAAAAACw="><span style="font-size:12px;color:var(--ink2)">Drop or pick a logo<br><span class="dim" style="font-size:10.5px">square, PNG/JPG/GIF/WebP — resized to 256px</span></span></label>'+
+          '<input id="lpImg" type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden>'+
+          '<div class="row2" style="margin-top:8px">'+
+            '<label class="fld"><span>Website</span><input id="lpWeb" placeholder="https://" autocomplete="off"></label>'+
+            '<label class="fld"><span>X</span><input id="lpX" placeholder="https://x.com/…" autocomplete="off"></label>'+
+          '</div>'+
+          '<label class="fld"><span>Telegram</span><input id="lpTg" placeholder="https://t.me/…" autocomplete="off"></label>'+
+        '</div>'+
         '<button class="btn primary" id="lpGo" style="width:100%;margin-top:14px;padding:11px">'+(me?'Launch token':'Connect wallet to launch')+'</button>'+
         '<div class="log" id="lpLog" hidden></div>'+
       '</div>'+
@@ -2106,9 +2224,31 @@ async function renderLaunch(){
       '</div>'+
     '</div>';
   document.getElementById('lpGo').addEventListener('click', doLaunch);
+  LAUNCH_IMG = null;
+  document.getElementById('lpImg').addEventListener('change', async e=>{
+    const f=e.target.files && e.target.files[0]; if(!f) return;
+    try{ LAUNCH_IMG = await fileToDataUrl(f); document.getElementById('lpPrev').src = LAUNCH_IMG; }
+    catch(err){ toast(String(err.message||err),1); }
+  });
   if(launchFee==null && pumpR){
     try{ launchFee = await retry(()=>pumpR.deploymentFee(),2,8000); if(VIEW==='launch') renderLaunch(); }catch(e){ launchFee=0n; }
   }
+}
+let LAUNCH_IMG = null;
+const PENDING_META_KEY='ark_pending_meta';
+function pendingMeta(){ try{ return JSON.parse(localStorage.getItem(PENDING_META_KEY)||'{}'); }catch(e){ return {}; } }
+function savePendingMeta(o){ try{ localStorage.setItem(PENDING_META_KEY, JSON.stringify(o)); }catch(e){} }
+/** Publish the profile entered at launch. The API only accepts it once the
+ *  indexer has seen TokenCreated, which can lag a launch by a minute — so a
+ *  refusal is parked locally and retried from the coin's page. */
+async function publishLaunchMeta(token, m){
+  if(!(m.image||m.website||m.twitter||m.telegram)) return;
+  try{
+    const r = await submitTokenMeta(token, m);
+    if(r.ok){ toast('Logo & links published ✓'); return; }
+    const pend=pendingMeta(); pend[token.toLowerCase()]=m; savePendingMeta(pend);
+    toast(r.status===404 ? 'Logo saved — publishes once the indexer sees your token (retry from the coin page)' : 'Profile not published: '+r.error, 1);
+  }catch(e){ const pend=pendingMeta(); pend[token.toLowerCase()]=m; savePendingMeta(pend); toast('Logo saved locally — retry from the coin page',1); }
 }
 async function doLaunch(){
   if(!signer) return connect();
@@ -2127,6 +2267,7 @@ async function doLaunch(){
     try{ const iface=new ethers.Interface(PUMP_ABI); for(const lg of rc.logs){ try{ const p=iface.parseLog(lg); if(p&&p.name==='TokenCreated'){ tokenAddr=p.args.token; break; } }catch{} } }catch{}
     logTo('lpLog','<span class="ok">live</span> '+(tokenAddr?'token '+short(tokenAddr):'')+' — first buy is yours to make','ok');
     toast('$'+sym+' is live on the curve ✓');
+    if(tokenAddr){ const g=id=>((document.getElementById(id)||{}).value||'').trim(); publishLaunchMeta(tokenAddr, {image:LAUNCH_IMG, website:g('lpWeb'), twitter:g('lpX'), telegram:g('lpTg')}); }
     await load();
     setView('launchpad');
     if(tokenAddr){ const i=view().findIndex(c=>c.addr.toLowerCase()===tokenAddr.toLowerCase()); if(i>=0){ selected=i; render(); rail(); } }
@@ -2265,13 +2406,13 @@ function cardHtml(c, i, fresh){
     const chg = c.change24h;
     const ageTs = c.firstSeenAt;
     return '<div class="tcard'+sel+isNew+'" data-i="'+i+'" data-addr="'+c.addr+'">'+
-      '<div class="av" style="background:'+avGrad(c.addr)+'">'+(named?c.symbol.slice(0,3):c.addr.slice(2,4).toUpperCase())+
+      '<div class="av" style="background:'+avGrad(c.addr)+'">'+(named?c.symbol.slice(0,3):c.addr.slice(2,4).toUpperCase())+avImg(c)+
         '<span class="dx '+(c.dex==='v4'?'v4':'')+'">'+(c.chain ? CHAINS[c.chain].label : (c.dex||'v3').toUpperCase())+'</span></div>'+
       '<div class="body">'+
         '<div class="t1"><span class="nm">'+(named?c.name:'<span class="unnamed">Unnamed</span>')+'</span>'+(named?'<span class="sy">$'+c.symbol+'</span>':'')+'</div>'+
         '<div class="t2">'+(ageTs?'<span class="age '+ageCls(ageTs)+'">'+age(ageTs)+'</span>':'')+
           '<span class="ad" data-copy="'+c.addr+'" title="Copy address">'+short(c.addr)+'</span>'+
-          (!c.metaOk?'<span class="pend" style="font-size:9.5px;padding:1px 6px">name pending</span>':'')+'</div>'+
+          (!named?'<span class="pend" style="font-size:9.5px;padding:1px 6px">name pending</span>':'')+'</div>'+
       '</div>'+
       '<div class="side">'+
         '<span><span class="k">V</span><span class="vol">'+((c.volume24h||0)>0?fmtUsd(c.volume24h):'—')+'</span></span>'+
@@ -2284,6 +2425,7 @@ function cardHtml(c, i, fresh){
         chip('traders', (c.traders24h||0)>0?c.traders24h:'—', '')+
         (c.chain && (c.liq||0)>0 ? chip('liq', fmtUsd(c.liq), 'vio') : '')+
         (ageTs && (Math.floor(Date.now()/1000)-ageTs)<3600 ? chip('', 'NEW', 'hot') : '')+
+        socialsHtml(c)+
         '<span class="spacer"></span>'+
         '<a class="mini" style="text-decoration:none" target="_blank" rel="noopener" href="'+(c.poolUrl || (c.dex==='v4' ? EXPLORER+'/address/'+NET.v4PoolManager : EXPLORER+'/address/'+c.pool))+'" title="Open the pool">'+(c.chain?'TRADE ↗':'POOL ↗')+'</a>'+
         share+star+
@@ -2297,7 +2439,7 @@ function cardHtml(c, i, fresh){
     ? chip('settled', m.outcome?'YES':'NO', m.outcome?'ok':'bad')
     : '<div class="odds"><span class="oddsv up">'+(c.yesBps/100).toFixed(0)+'</span><div class="tug"><div class="y" style="width:'+(c.yesBps/100)+'%"></div><div class="n" style="width:'+(100-c.yesBps/100)+'%"></div></div><span class="oddsv dn">'+(100-c.yesBps/100).toFixed(0)+'</span></div>';
   return '<div class="tcard'+sel+isNew+'" data-i="'+i+'" data-addr="'+c.addr+'">'+
-    '<div class="av" style="background:'+avGrad(c.addr)+'">'+(c.symbol||'—').slice(0,3)+'<span class="dx arc">ARC</span></div>'+
+    '<div class="av" style="background:'+avGrad(c.addr)+'">'+(c.symbol||'—').slice(0,3)+avImg(c)+'<span class="dx arc">ARC</span></div>'+
     '<div class="body">'+
       '<div class="t1"><span class="nm">'+c.name+'</span><span class="sy">$'+c.symbol+'</span></div>'+
       '<div class="t2"><span class="ad" data-copy="'+c.addr+'" title="Copy address">'+short(c.addr)+'</span>'+
@@ -2312,6 +2454,7 @@ function cardHtml(c, i, fresh){
     '</div>'+
     '<div class="foot">'+oddsHtml+
       (grad ? chip('','GRADUATED','ok') : (c.pct>=70 ? chip('','NEAR GRAD','warn') : ''))+
+      socialsHtml(c)+
       '<span class="spacer"></span>'+
       (grad ? '' : '<button class="qb" data-act="buy" data-i="'+i+'">Buy $'+buyAmt+'</button>')+
       (m && !m.resolved ? '<button class="mini y" data-act="yes" data-i="'+i+'">Y</button><button class="mini n" data-act="no" data-i="'+i+'">N</button>' : '')+
@@ -3132,7 +3275,7 @@ async function tape(){
   if(!onArc()){ el.innerHTML='<span class="ev">'+CHAINS[CHAIN].name+' · explorer via GeckoTerminal · trading opens on the pool\'s DEX</span>'; return; }
   if(!PUMP){
     el.innerHTML = FEED.length
-      ? FEED.slice(0,12).map(sw=>'<span class="ev"><span class="'+(sw.side==='buy'?'up':'dn')+'">'+(sw.side==='buy'?'BUY':'SELL')+'</span> '+((sw.meta_ok&&sw.symbol)?sw.symbol:short(sw.token_address))+' '+fmtUsd(sw.usdc_amount)+'</span>').join('')
+      ? FEED.slice(0,12).map(sw=>'<span class="ev"><span class="'+(sw.side==='buy'?'up':'dn')+'">'+(sw.side==='buy'?'BUY':'SELL')+'</span> '+(sw.symbol?sw.symbol:short(sw.token_address))+' '+fmtUsd(sw.usdc_amount)+'</span>').join('')
       : '<span class="ev">waiting for mainnet swaps…</span>';
     return;
   }
@@ -3209,6 +3352,8 @@ document.body.addEventListener('click',e=>{
   if(w){ e.stopPropagation(); toggleWatch(w.dataset.watch); return; }
   const sh=e.target.closest('[data-share]');
   if(sh){ e.stopPropagation(); sharePoint(sh.dataset.share, sh.dataset.sym||''); return; }
+  const em=e.target.closest('[data-editmeta]');
+  if(em){ e.stopPropagation(); openProfileForm(em.dataset.editmeta); return; }
   const jp=e.target.closest('[data-jump]');
   if(jp){
     e.stopPropagation();
@@ -3329,6 +3474,7 @@ window.__term = { get VIEW(){ return VIEW; }, get coins(){ return coins; }, get 
   setDrawContracts(r, w){ drawR=r; drawW=w; },
   get LO(){ return LO; }, setLimit(addr, r, w){ NET.limit=addr; limitR=r; limitW=w; LO.loaded=false; },
   get CHAIN(){ return CHAIN; }, setChain, geckoCoin,
+  loadProfiles, logoUrl, publishLaunchMeta, get PROFILES(){ return PROFILES; },
   setView, render, rail, sharePoint, loadPoints };
 
 /* ==================================================================

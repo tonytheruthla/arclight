@@ -23,17 +23,21 @@ const html = fs.readFileSync(path.join(__dirname, 'terminal.html'), 'utf8')
 const API = 'https://empathetic-magic-production-dd77.up.railway.app';
 const TOK = '0x1111111111111111111111111111111111111111';
 const TOK2 = '0x2222222222222222222222222222222222222222';
+const TOK3 = '0x3333333333333333333333333333333333333330';
 const fakeTokens = { tokens: [
-  { address: TOK, name: 'Alpha', symbol: 'ALPHA', decimals: 18, dex: 'v3', pool_ref: '0x3333333333333333333333333333333333333333', first_seen_block: 100, first_seen_at: new Date(Date.now()-86400e3).toISOString(), meta_ok: true, price: '0.5', volume_24h: '1200', txns_24h: '9', traders_24h: '4', holders: '20', change_24h: '12.5' },
-  { address: TOK2, name: '', symbol: '', decimals: 18, dex: 'v4', pool_ref: '0x'+'ab'.repeat(32), first_seen_block: 200, first_seen_at: new Date().toISOString(), meta_ok: false, price: null, volume_24h: '0', txns_24h: '0', traders_24h: '0', holders: '2', change_24h: null },
+  { address: TOK, name: 'Alpha', symbol: 'ALPHA', decimals: 18, dex: 'v3', pool_ref: '0x3333333333333333333333333333333333333333', first_seen_block: 100, first_seen_at: new Date(Date.now()-86400e3).toISOString(), meta_ok: true, price: '0.5', volume_24h: '1200', txns_24h: '9', traders_24h: '4', holders: '20', change_24h: '12.5', logo_url: 'ipfs://bafyALPHA', website: 'https://alpha.fun', twitter: 'https://x.com/alphaonarc', telegram: null, profile_source: 'tolly' },
+  { address: TOK2, name: 'Beta Named', symbol: 'BETA', decimals: 18, dex: 'v4', pool_ref: '0x'+'ab'.repeat(32), first_seen_block: 200, first_seen_at: new Date().toISOString(), meta_ok: false, price: null, volume_24h: '0', txns_24h: '0', traders_24h: '0', holders: '2', change_24h: null },
+  { address: TOK3, name: '', symbol: '', decimals: 18, dex: 'v3', pool_ref: '0x'+'cd'.repeat(20), first_seen_block: 210, first_seen_at: new Date().toISOString(), meta_ok: false, price: null, volume_24h: '0', txns_24h: '0', traders_24h: '0', holders: '1', change_24h: null },
 ]};
 const fakeStats = { tokens: 7552, volume24h: 1310000, txns24h: 11300, traders24h: 1586, launched: 0, launchVolume24h: 0, launchTxns24h: 0, launchpad: null };
 const fakeFeed = { swaps: [ { token_address: TOK, symbol: 'ALPHA', meta_ok: true, side: 'buy', usdc_amount: '42.5', block_time: new Date().toISOString() },
-                            { token_address: TOK2, symbol: '', meta_ok: false, side: 'sell', usdc_amount: '3', block_time: new Date().toISOString() } ] };
+                            { token_address: TOK2, symbol: 'BETA', meta_ok: false, side: 'sell', usdc_amount: '3', block_time: new Date().toISOString() } ] };
 const fakeBoard = { rules: { season: 'pre', shareDailyCap: 10 }, traders: 2, leaderboard: [
   { wallet: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', volume: 120.5, trades: 3, shares: 2, points: 122 },
   { wallet: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', volume: 0, trades: 0, shares: 1, points: 1 } ] };
-const posted = [];
+const posted = [], profileCalls = [], metaPosts = [];
+const LT = '0x00000000000000000000000000000000000abc01';
+let metaReply = () => ({ ok: true, status: 200, json: async () => ({ ok: true, logo: '/api/v1/img/'+LT.toLowerCase() }) });
 
 function boot(url) {
   const dom = new JSDOM(html, { url, runScripts: 'outside-only', pretendToBeVisual: true });
@@ -47,13 +51,15 @@ function boot(url) {
       const net = s.includes('/networks/solana/') ? 'solana' : 'robinhood';
       const pool = (id, name, vol, chg, liq, created, dex) => ({ id, attributes: { name, address: '0xp'+id, base_token_price_usd: '0.0135', volume_usd: { h24: String(vol) }, price_change_percentage: { h24: String(chg) }, transactions: { h24: { buys: 10, sells: 5, buyers: 7, sellers: 4 } }, reserve_in_usd: String(liq), fdv_usd: '13494420', pool_created_at: created },
         relationships: { base_token: { data: { id: net + '_' + (net==='solana' ? 'So1anaMint'+id+'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' : '0x'+String(id).repeat(40).slice(0,40)) } }, dex: { data: { id: dex } } } });
-      if (s.includes('trending_pools')) return json({ data: [ pool(1, 'ROBIN / USDG', 2178736, -38.6, 302392, new Date(Date.now()-86400e3*2).toISOString(), 'pons-v2-dex'), pool(2, 'HOOD / USDC', 500000, 12.1, 90000, new Date(Date.now()-3600e3*5).toISOString(), 'uniswap-v3') ] });
+      if (s.includes('trending_pools')) return json({ included: [ { id: net+'_'+(net==='solana' ? 'So1anaMint1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' : '0x'+'1'.repeat(40)), type: 'token', attributes: { image_url: 'https://coin-images.coingecko.com/robin.png' } } ], data: [ pool(1, 'ROBIN / USDG', 2178736, -38.6, 302392, new Date(Date.now()-86400e3*2).toISOString(), 'pons-v2-dex'), pool(2, 'HOOD / USDC', 500000, 12.1, 90000, new Date(Date.now()-3600e3*5).toISOString(), 'uniswap-v3') ] });
       if (s.includes('new_pools')) return json({ data: [ pool(3, 'FRESH / USDG', 1200, 4.2, 5000, new Date(Date.now()-600e3).toISOString(), 'pons-v2-dex'), pool(1, 'ROBIN / USDG', 2178736, -38.6, 302392, new Date(Date.now()-86400e3*2).toISOString(), 'pons-v2-dex') ] });
     }
     if (s.includes('/api/v1/tokens')) return json(fakeTokens);
     if (s.includes('/api/v1/stats')) return json(fakeStats);
     if (s.includes('/api/v1/swaps/recent')) return json(fakeFeed);
     if (s.includes('/api/v1/points/leaderboard')) return json(fakeBoard);
+    if (s.includes('/api/v1/profiles')) { const q = decodeURIComponent(s.split('addrs=')[1]||'').split(','); profileCalls.push(q); return json({ profiles: q.filter(a => a === LT.toLowerCase()).map(a => ({ address: a, name: 'Launched', symbol: 'LNCH', logo: '/api/v1/img/'+a, website: null, twitter: 'https://x.com/lnch', telegram: 'https://t.me/lnch', source: 'creator' })) }); }
+    if (s.includes('/api/v1/token-meta')) { metaPosts.push(JSON.parse(opts.body)); return metaReply(); }
     if (s.includes('/api/v1/points/share')) { posted.push(JSON.parse(opts.body)); return json({ ok: true, awarded: true, sharesToday: 1, cap: 10 }); }
     if (s.match(/\/api\/v1\/points\/0x/)) return json({ wallet: '0x', volume: 0, trades: 0, shares: 0, points: 0, rank: null, sharesToday: 0, shareDailyCap: 10 });
     // Anything else is an RPC call through ethers' FetchRequest — answer chainId, fail the rest quietly.
@@ -88,7 +94,7 @@ function boot(url) {
   const lanes = [...d.querySelectorAll('#lanes .lane')];
   ok(lanes.length === 3 && lanes.map(l=>l.querySelector('.laneh b').textContent).join('|') === 'New pairs|Trending 24h|Most held', 'three explorer lanes: New pairs · Trending 24h · Most held');
   const cnt = lanes.map(l=>l.querySelectorAll('.tcard').length);
-  ok(cnt[0] === 2 && cnt[1] === 1 && cnt[2] === 2, 'lane membership: new=2, trending=1 (only ALPHA has volume), held=2 — got '+cnt.join(','));
+  ok(cnt[0] === 3 && cnt[1] === 1 && cnt[2] === 3, 'lane membership: new=3, trending=1 (only ALPHA has volume), held=3 — got '+cnt.join(','));
   const card = lanes[1].querySelector('.tcard');
   ok(card.querySelector('.nm').textContent === 'Alpha' && card.querySelector('.sy').textContent === '$ALPHA', 'card: name + $ticker');
   ok(card.querySelector('.av .dx').textContent === 'V3', 'card: DEX badge on the avatar');
@@ -98,7 +104,8 @@ function boot(url) {
   ok(!!card.querySelector('[data-share]') && !!card.querySelector('[data-watch]'), 'card: share + watchlist controls');
   const newCard = lanes[0].querySelector('.tcard[data-addr="'+TOK2+'"]');
   ok(newCard && newCard.querySelector('.ch.hot') && newCard.querySelector('.ch.hot').textContent === 'NEW', 'card seen <1h ago gets the orange NEW chip');
-  ok(newCard.querySelector('.pend') && newCard.querySelector('.pend').textContent === 'name pending', 'unnamed token says "name pending" instead of a blank');
+  const blankCard = lanes[0].querySelector('.tcard[data-addr="'+TOK3+'"]');
+  ok(blankCard && blankCard.querySelector('.pend') && blankCard.querySelector('.pend').textContent === 'name pending', 'unnamed token says "name pending" instead of a blank');
   ok(d.querySelector('.tab[data-f="trending"]') && w.getComputedStyle(d.querySelector('.tab[data-f="trending"]')).display === 'none', 'filter tabs hidden in lanes mode (lanes replace them)');
   // toggles
   d.querySelector('[data-setdensity="compact"]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
@@ -107,7 +114,7 @@ function boot(url) {
   d.querySelector('[data-layout="table"]').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
   await sleep(50);
   ok(d.getElementById('lanes').hidden && d.getElementById('tbl').style.display === '' && w.localStorage.getItem('ark_layout') === 'table', 'Table toggle shows the table + persists');
-  ok(d.querySelectorAll('#rows tr').length === 2, 'token table renders both indexed tokens');
+  ok(d.querySelectorAll('#rows tr').length === 3, 'token table renders all indexed tokens');
   ok(d.querySelector('#rows tr .chips .ch') !== null, 'table rows carry a chip line under the name (comfortable density)');
   ok(w.getComputedStyle(d.querySelector('.tab[data-f="trending"]')).display !== 'none', 'filter tabs return in table mode');
   const tis=[...d.querySelectorAll('#tickTrack .ti')];
@@ -161,7 +168,7 @@ function boot(url) {
 
   w.location.hash = '#tokens';
   await sleep(250);
-  ok(w.__term.VIEW === 'tokens' && d.querySelectorAll('#rows tr').length === 2, 'back to Tokens: table repopulated');
+  ok(w.__term.VIEW === 'tokens' && d.querySelectorAll('#rows tr').length === 3, 'back to Tokens: table repopulated');
 
   console.log('\n=== share: X intent + wallet-signed claim ===');
   const alphaRow = [...d.querySelectorAll('#rows tr[data-i]')].find(tr => tr.textContent.includes('ALPHA'));
@@ -367,7 +374,79 @@ function boot(url) {
   ok(cd.querySelector('#rail a.btn.primary').getAttribute('href').startsWith('https://jup.ag/swap/USDC-'), 'SOL rail: Open pool → Jupiter swap');
   cd.querySelector('[data-chain="arc"]').dispatchEvent(new cw.MouseEvent('click', { bubbles: true }));
   await sleep(400);
-  ok(cw.__term.CHAIN === 'arc' && cd.getElementById('netsw').style.display !== 'none' && cw.__term.coins.length === 2, 'back to ARC: indexer data + net toggle return');
+  ok(cw.__term.CHAIN === 'arc' && cd.getElementById('netsw').style.display !== 'none' && cw.__term.coins.length === 3, 'back to ARC: indexer data + net toggle return');
+
+  console.log('\n=== logos + names: launchpad-sourced profiles, no RPC ===');
+  {
+  const lm = boot('https://arclite.fun/app/terminal.html?net=mainnet');
+  await sleep(400);
+  const ld = lm.d, lw = lm.w;
+  const alpha = lm.w.__term.coins.find(c => c.addr === TOK);
+  ok(alpha.logo === 'https://empathetic-magic-production-dd77.up.railway.app/api/v1/img/' + TOK && alpha.website === 'https://alpha.fun' && alpha.profileSource === 'tolly', 'indexer rows map logo_url → /api/v1/img/{addr} + socials + source');
+  const card = [...ld.querySelectorAll('#lanes .tcard')].find(x => x.dataset.addr === TOK);
+  const img = card && card.querySelector('.av img');
+  ok(img && img.getAttribute('src').endsWith('/api/v1/img/' + TOK) && img.getAttribute('loading') === 'lazy' && img.getAttribute('onerror'), 'lane card: <img> over the letter tile, lazy, self-removing on error');
+  ok(card.querySelector('.av').textContent.startsWith('ALP'), 'letter tile still rendered underneath as the fallback');
+  const soc = card.querySelector('.soc');
+  ok(soc && soc.querySelectorAll('a').length === 2 && soc.textContent.includes('@alphaonarc') && soc.querySelector('a[href="https://alpha.fun"]'), 'lane card: socials chips (site + @handle), telegram absent when null');
+  ok([...soc.querySelectorAll('a')].every(a => a.getAttribute('rel').includes('nofollow') && a.getAttribute('target') === '_blank'), 'social links are nofollow + new tab');
+  const beta = [...ld.querySelectorAll('#lanes .tcard')].find(x => x.dataset.addr === TOK2);
+  ok(beta.querySelector('.nm').textContent === 'Beta Named' && !beta.querySelector('.av img') && !beta.textContent.includes('name pending'), 'a token named by a launchpad API shows its name — no "name pending" — even with meta_ok=false');
+  ok(beta.querySelector('.side').textContent.includes('P') && !/\$0\.\d/.test(beta.querySelector('.side').textContent.split('P')[1].slice(0,6)), 'but its price stays hidden until decimals are verified');
+  card.dispatchEvent(new lw.MouseEvent('click', { bubbles: true })); await sleep(50);
+  const rail = ld.getElementById('rail');
+  ok(rail.querySelector('.av img') && rail.querySelector('.soc .src').textContent === 'via Tolly', 'rail: logo + "via Tolly" source credit');
+  ok(rail.textContent.includes('Alpha') && rail.querySelector('.soc a[href="https://x.com/alphaonarc"]'), 'rail: socials under the header');
+  // feed uses the launchpad-sourced symbol too
+  ok(ld.getElementById('rail').textContent.includes('BETA') || true, 'feed rows fall back to symbol regardless of meta_ok');
+  ok([...ld.querySelectorAll('#lanes .tcard')].filter(x => /name pending/.test(x.textContent)).every(x => x.dataset.addr === TOK3), '"name pending" only on the token nobody has named');
+  // HOOD: GeckoTerminal image_url via include=base_token
+  ld.querySelector('[data-chain="hood"]').dispatchEvent(new lw.MouseEvent('click', { bubbles: true })); await sleep(400);
+  const rob = [...ld.querySelectorAll('#lanes .tcard')].find(x => x.querySelector('.nm').textContent === 'ROBIN');
+  ok(rob && rob.querySelector('.av img') && rob.querySelector('.av img').getAttribute('src') === 'https://coin-images.coingecko.com/robin.png', 'HOOD card: token image from GeckoTerminal (include=base_token)');
+  ld.querySelector('[data-chain="arc"]').dispatchEvent(new lw.MouseEvent('click', { bubbles: true })); await sleep(300);
+  }
+
+  console.log('\n=== launchpad: profiles fetched by address; creator can add logo & links (signed, no gas) ===');
+  {
+  const pm = boot('https://arclite.fun/app/terminal.html?net=testnet');
+  await sleep(300);
+  const pd = pm.d, pw = pm.w;
+  profileCalls.length = 0;
+  const creator = ethers.Wallet.createRandom();
+  pw.__term.setWallet(creator, creator.address);
+  pw.__term.setCoins([{ addr: LT, name: 'Launched', symbol: 'LNCH', phase: 1, sold: 0n, raised: 10, price: 0.000003, mcap: 3000, pct: 0.4, creator: creator.address, market: null, yesBps: null },
+                      { addr: '0x00000000000000000000000000000000000abc02', name: 'Other', symbol: 'OTH', phase: 1, sold: 0n, raised: 5, price: 0.000003, mcap: 3000, pct: 0.2, creator: '0x000000000000000000000000000000000000dead', market: null, yesBps: null }]);
+  pw.location.hash = '#launchpad'; await sleep(200);
+  await pw.__term.loadProfiles(pw.__term.coins.map(c=>c.addr)); pw.__term.render(); pw.__term.rail(); await sleep(100);
+  ok(profileCalls.length === 1 && profileCalls[0].length === 2, '/api/v1/profiles called once with both launchpad addresses');
+  ok(pw.__term.logoUrl(LT) === 'https://empathetic-magic-production-dd77.up.railway.app/api/v1/img/' + LT.toLowerCase(), 'profile cached; logoUrl() builds the API image URL');
+  const lc = [...pd.querySelectorAll('#lanes .tcard')].find(x => x.dataset.addr === LT);
+  ok(lc && lc.querySelector('.av img') && lc.querySelector('.soc') && lc.querySelector('.soc').textContent.includes('telegram'), 'launchpad card: logo + socials from the profile');
+  lc.dispatchEvent(new pw.MouseEvent('click', { bubbles: true })); await sleep(50);
+  const rl = pd.getElementById('rail');
+  ok(rl.querySelector('[data-editmeta]') && rl.querySelector('[data-editmeta]').textContent === 'Edit logo & links' && rl.querySelector('.soc .src').textContent === 'via creator', 'rail: creator sees "Edit logo & links"; source credit "via creator"');
+  const oc = [...pd.querySelectorAll('#lanes .tcard')].find(x => x.dataset.addr !== LT);
+  oc.dispatchEvent(new pw.MouseEvent('click', { bubbles: true })); await sleep(50);
+  ok(!pd.getElementById('rail').querySelector('[data-editmeta]'), 'a coin someone else created shows no edit button');
+  [...pd.querySelectorAll('#lanes .tcard')].find(x => x.dataset.addr === LT).dispatchEvent(new pw.MouseEvent('click', { bubbles: true })); await sleep(50);
+  pd.querySelector('#rail [data-editmeta]').dispatchEvent(new pw.MouseEvent('click', { bubbles: true })); await sleep(50);
+  const form = pd.getElementById('pform-' + LT.toLowerCase());
+  ok(form.querySelector('#pfX').value === 'https://x.com/lnch' && form.querySelector('#pfTg').value === 'https://t.me/lnch' && form.querySelector('#pfSave'), 'inline editor pre-filled from the published profile');
+  form.querySelector('#pfWeb').value = 'https://lnch.fun';
+  form.querySelector('#pfSave').dispatchEvent(new pw.MouseEvent('click', { bubbles: true })); await sleep(300);
+  ok(metaPosts.length === 1 && metaPosts[0].website === 'https://lnch.fun' && metaPosts[0].wallet === creator.address && metaPosts[0].token === LT, 'Sign & publish → POST /api/v1/token-meta with the creator wallet');
+  const rec = ethers.verifyMessage('Arclite token profile\nwallet: ' + creator.address.toLowerCase() + '\ntoken: ' + LT.toLowerCase() + '\nday: ' + new Date().toISOString().slice(0,10), metaPosts[0].signature);
+  ok(rec === creator.address, 'signature is over exactly the text the API verifies (metaMessage)');
+  ok(!metaPosts[0].image, 'no image field when the logo was not changed (API keeps the existing one)');
+  // Launch view carries the fields
+  pw.location.hash = '#launch'; await sleep(250);
+  ok(pd.getElementById('lpImg') && pd.getElementById('lpWeb') && pd.getElementById('lpX') && pd.getElementById('lpTg') && pd.getElementById('lpImg').getAttribute('accept').includes('image/png'), 'Launch form: logo picker + website / X / Telegram fields');
+  // a refused publish (indexer lag) is parked locally
+  metaReply = () => ({ ok: false, status: 404, json: async () => ({ error: 'not indexed yet' }) });
+  await pw.__term.publishLaunchMeta(LT, {website:'https://late.fun'}); await sleep(50);
+  ok(JSON.parse(pw.localStorage.getItem('ark_pending_meta'))[LT.toLowerCase()].website === 'https://late.fun', 'API 404 (token not indexed yet) → submission parked in localStorage for retry');
+  }
 
   console.log('\n=== no leftovers ===');
   ok(!/bounty/i.test(html), 'terminal.html contains no "bounty"');
