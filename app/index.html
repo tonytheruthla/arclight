@@ -42,7 +42,7 @@
     font-feature-settings: "cv11","ss01"; -webkit-font-smoothing: antialiased;
   }
   /* display type — geometric grotesk */
-  h1, h2, .panel-title, .big-num, .stat b, .hud-item b, #goTitle, #tierFlash, .intro-word {
+  h1, h2, .panel-title, .big-num, .stat b, .intro-word {
     font-family: 'Space Grotesk', 'Inter', sans-serif; }
   /* elegant italic-serif accent for key words */
   .accent-serif { font-family: 'Instrument Serif', Georgia, serif; font-style: italic; font-weight: 400;
@@ -143,10 +143,6 @@
   .shimmer { background-size: 220% auto; animation: sweep 6s ease-in-out infinite; }
   @keyframes sweep { 0%,100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
   /* tier-up flash badge */
-  #tierFlash { position: absolute; top: 46%; left: 50%; transform: translate(-50%,-50%) scale(.7);
-    font-size: 30px; font-weight: 800; letter-spacing: -.02em; color: #7dd3fc; opacity: 0; pointer-events: none;
-    text-shadow: 0 0 24px rgba(34,211,238,.8); }
-  #tierFlash.pop { animation: tierpop 1s var(--spring) forwards; }
   @keyframes tierpop { 0% { opacity:0; transform: translate(-50%,-50%) scale(.6);} 30%{opacity:1; transform:translate(-50%,-50%) scale(1.1);} 100%{opacity:0; transform:translate(-50%,-58%) scale(1);} }
   .orb-1 { width: 560px; height: 560px; background: #0a84ff; top: -180px; right: -120px; }
   .orb-2 { width: 480px; height: 480px; background: #22d3ee; bottom: -220px; left: -160px; opacity: .1; }
@@ -332,21 +328,6 @@
     background: linear-gradient(90deg, var(--accent), var(--accent-2));
     box-shadow: 0 0 10px rgba(34,211,238,.7); transition: width .1s linear; }
 
-  /* ---- game ---- */
-  .game-wrap { position: relative; width: min(720px, 94vw); margin: 40px auto 0; }
-  #gameCanvas { width: 100%; height: auto; display: block; border-radius: 18px;
-    border: 1px solid var(--hairline); background: radial-gradient(120% 100% at 50% 0%, #0c1830, #060608 70%);
-    cursor: pointer; touch-action: manipulation; box-shadow: 0 24px 60px rgba(0,0,0,.55); }
-  .game-hud { display: flex; gap: 12px; justify-content: center; margin-bottom: 14px; }
-  .hud-item { background: var(--surface); border: 1px solid var(--hairline); border-radius: 12px;
-    padding: 8px 18px; min-width: 88px; text-align: center; }
-  .hud-item span { display: block; font-size: 10px; letter-spacing: .14em; color: var(--ink-3); }
-  .hud-item b { font-size: 20px; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
-  .game-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-    background: rgba(3,4,8,.62); backdrop-filter: blur(6px); border-radius: 18px;
-    transition: opacity .4s var(--ease); text-align: center; }
-  .game-overlay.hidden { opacity: 0; pointer-events: none; }
-  .go-inner { padding: 24px; }
 
   /* ---- wallet picker modal ---- */
   #walletModal { position: fixed; inset: 0; z-index: 300; display: none; align-items: center; justify-content: center;
@@ -394,13 +375,56 @@
   .pp-net { font-size: 11.5px; color: var(--green); display:flex; align-items:center; gap:5px; }
   .pp-net::before { content:''; width:6px; height:6px; border-radius:50%; background: var(--green);
     box-shadow:0 0 8px var(--green); }
-  .pp-light { background: linear-gradient(135deg, rgba(10,132,255,.16), rgba(34,211,238,.10));
-    border: 1px solid rgba(34,211,238,.22); border-radius: 15px; padding: 15px; margin-bottom: 12px; }
-  .pp-light-top { display:flex; align-items:baseline; justify-content:space-between; }
-  .pp-light b { font-family:'Space Grotesk',sans-serif; font-size: 30px; letter-spacing:-.02em;
-    background: linear-gradient(120deg,#fff,#7dd3fc,#22d3ee); -webkit-background-clip:text;
-    background-clip:text; -webkit-text-fill-color:transparent; }
-  .pp-light span { font-size: 11px; letter-spacing:.14em; color: var(--ink-3); }
+  /* ---- Lucky Trencher: the gold scene + its countdown popup ---- */
+  .lt-wrap { width: min(760px, 94vw); margin: 44px auto 0; padding: 28px;
+    background: linear-gradient(165deg, rgba(36,26,8,.9), rgba(20,16,20,.75) 60%, rgba(12,13,18,.7));
+    border: 1px solid rgba(255,196,88,.34); border-radius: 22px; position: relative; overflow: hidden;
+    box-shadow: 0 30px 80px rgba(0,0,0,.5), 0 0 60px rgba(255,180,60,.13); }
+  .lt-wrap::after { content:''; position:absolute; inset:-40% -10% auto auto; width:340px; height:340px;
+    background: radial-gradient(circle, rgba(255,196,88,.20), transparent 66%); pointer-events:none; }
+  .lt-kick { font-size: 10px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: #ffd479; }
+  .lt-cd { display:flex; align-items:baseline; gap:14px; margin: 18px 0 4px; flex-wrap: wrap; }
+  .lt-cd b { font-family:'Space Grotesk',sans-serif; font-size: 62px; line-height:1; letter-spacing:-.03em; color:#ffd479;
+    font-variant-numeric: tabular-nums; text-shadow: 0 0 40px rgba(255,180,60,.45); }
+  .lt-cd span { font-size: 11px; font-weight:600; letter-spacing:.16em; text-transform:uppercase; color: var(--ink-3); }
+  .lt-tiers { display:flex; gap:10px; margin: 22px 0 20px; flex-wrap: wrap; }
+  .lt-tier { flex:1; min-width:120px; text-align:center; padding: 14px 0; border-radius: 13px;
+    border:1px solid rgba(255,255,255,.09); background: rgba(255,255,255,.04);
+    font-family:'Space Grotesk',sans-serif; font-size: 21px; font-weight:700; color: var(--ink); }
+  .lt-tier em { display:block; font-style:normal; font-size:9.5px; font-weight:600; letter-spacing:.14em;
+    color: var(--ink-3); margin-top: 4px; }
+  .lt-go { display:inline-block; text-decoration:none; padding: 13px 26px; border-radius: 13px;
+    font-weight: 700; font-size: 15px; color:#241701; background: linear-gradient(180deg,#ffd479,#f5a623);
+    box-shadow: 0 8px 26px rgba(245,166,35,.34); transition: .18s var(--ease); }
+  .lt-go:hover { transform: translateY(-2px); filter: brightness(1.06); }
+  .lt-fine { font-size: 12px; color: var(--ink-3); margin-top: 14px; line-height:1.55; }
+
+  #ltPop { position: fixed; right: 20px; bottom: 20px; width: 306px; z-index: 250;
+    background: linear-gradient(165deg,#241a08,#141014 60%,#0c0d12);
+    border: 1px solid rgba(255,196,88,.42); border-radius: 16px; padding: 16px 16px 14px;
+    box-shadow: 0 24px 60px rgba(0,0,0,.6), 0 0 40px rgba(255,180,60,.16);
+    transform: translateY(18px) scale(.97); opacity: 0; pointer-events: none;
+    transition: .45s var(--ease); }
+  #ltPop.show { transform:none; opacity:1; pointer-events:auto; }
+  #ltPop .x { position:absolute; top:9px; right:11px; border:0; background:none; color:var(--ink-3);
+    font-size:17px; line-height:1; cursor:pointer; padding:3px 6px; border-radius:6px; }
+  #ltPop .x:hover { color:var(--ink); background:rgba(255,255,255,.08); }
+  #ltPop .k { font-size:9.5px; font-weight:700; letter-spacing:.18em; text-transform:uppercase; color:#ffd479; }
+  #ltPop h4 { margin:6px 0 0; font-family:'Space Grotesk',sans-serif; font-size:21px; letter-spacing:-.01em;
+    background:linear-gradient(95deg,#fff,#ffd479 70%); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  #ltPop .lab { font-size:10px; font-weight:600; letter-spacing:.15em; text-transform:uppercase; color:var(--ink-3); margin-top:13px; }
+  #ltPop .big { font-family:'Space Grotesk',sans-serif; font-size:36px; line-height:1.05; color:#ffd479;
+    font-variant-numeric:tabular-nums; text-shadow:0 0 22px rgba(255,180,60,.45); }
+  #ltPop .row { display:flex; gap:6px; margin:13px 0; }
+  #ltPop .row div { flex:1; text-align:center; padding:7px 0; border-radius:9px; border:1px solid rgba(255,255,255,.09);
+    background:rgba(255,255,255,.04); font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:13px; color:var(--ink-2); }
+  #ltPop .row div em { display:block; font-style:normal; font-size:8.5px; letter-spacing:.1em; color:var(--ink-3); margin-top:2px; }
+  #ltPop .go { display:block; text-align:center; text-decoration:none; padding:11px; border-radius:11px;
+    font-weight:700; font-size:13.5px; color:#241701; background:linear-gradient(180deg,#ffd479,#f5a623);
+    box-shadow:0 6px 20px rgba(245,166,35,.32); }
+  #ltPop .fine { margin-top:9px; font-size:10px; color:var(--ink-3); text-align:center; line-height:1.45; }
+  @media (max-width:560px){ #ltPop{ right:10px; left:10px; width:auto; bottom:10px } .lt-cd b{ font-size:46px } }
+
   .pp-stats { display:flex; gap:8px; margin-bottom: 14px; }
   .pp-stat { flex:1; background: rgba(255,255,255,.045); border:1px solid var(--hairline);
     border-radius: 12px; padding: 10px; text-align:center; }
@@ -413,8 +437,38 @@
   .pp-btn:hover { background: rgba(255,255,255,.1); }
   .pp-btn.danger { color: var(--red); border-color: rgba(255,69,58,.3); background: rgba(255,69,58,.08); }
   .pp-btn.danger:hover { background: rgba(255,69,58,.16); }
-  .pp-note { font-size: 11px; color: var(--ink-3); margin-top: 12px; text-align:center; line-height:1.5; }
   @media (max-width: 520px){ #profilePanel { right: 10px; left: 10px; width: auto; } }
+
+  /* ---- Lucky Trencher countdown popup ---- */
+  #drawPop { position: fixed; right: 24px; bottom: 24px; width: 320px; z-index: 250;
+    background: linear-gradient(165deg,#241a08,#141014 60%,#0b0c10);
+    border: 1px solid rgba(255,196,88,.42); border-radius: 18px; padding: 18px 18px 16px;
+    box-shadow: 0 26px 64px rgba(0,0,0,.62), 0 0 44px rgba(255,180,60,.16);
+    transform: translateY(20px) scale(.97); opacity: 0; pointer-events: none;
+    transition: .45s var(--ease); }
+  #drawPop.show { transform: none; opacity: 1; pointer-events: auto; }
+  #drawPop .dp-glow { position:absolute; inset:-1px; border-radius:18px; pointer-events:none;
+    background: radial-gradient(130px 64px at 82% 0%, rgba(255,196,88,.22), transparent 70%); }
+  #drawPop .dp-x { position:absolute; top:10px; right:12px; border:0; background:none; color:var(--ink-3);
+    font-size:17px; line-height:1; cursor:pointer; padding:3px 6px; border-radius:7px; }
+  #drawPop .dp-x:hover { color: var(--ink); background: rgba(255,255,255,.08); }
+  #drawPop .dp-kick { font: 700 9.5px 'Inter',sans-serif; letter-spacing:.18em; text-transform:uppercase; color:#ffd479; }
+  #drawPop h4 { margin: 7px 0 0; font: 700 23px/1.05 'Space Grotesk',sans-serif; letter-spacing:-.01em;
+    background: linear-gradient(95deg,#fff,#ffd479 70%); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  #drawPop .dp-cd { display:flex; align-items:baseline; gap:10px; margin: 14px 0 4px; }
+  #drawPop .dp-big { font: 700 36px/1 'Space Grotesk',sans-serif; letter-spacing:-.02em; color:#ffd479;
+    font-variant-numeric: tabular-nums; text-shadow: 0 0 24px rgba(255,180,60,.45); }
+  #drawPop .dp-lab { font: 600 10px 'Inter',sans-serif; letter-spacing:.14em; text-transform:uppercase; color: var(--ink-3); }
+  #drawPop .dp-tiers { display:flex; gap:6px; margin: 13px 0 14px; }
+  #drawPop .dp-tier { flex:1; text-align:center; padding:8px 0; border-radius:10px; border:1px solid var(--hairline);
+    background: rgba(255,255,255,.04); font: 700 13px 'Space Grotesk',sans-serif; color: var(--ink-2); }
+  #drawPop .dp-tier span { display:block; font: 600 8.5px 'Inter',sans-serif; letter-spacing:.1em; color: var(--ink-3); margin-top:3px; }
+  #drawPop .dp-go { display:block; text-align:center; text-decoration:none; padding:12px; border-radius:12px;
+    font: 700 14px 'Inter',sans-serif; color:#241701; background: linear-gradient(180deg,#ffd479,#f5a623);
+    box-shadow: 0 6px 22px rgba(245,166,35,.32); transition: .16s; }
+  #drawPop .dp-go:hover { filter: brightness(1.07); transform: translateY(-1px); }
+  #drawPop .dp-fine { margin-top:10px; font: 500 10px 'Inter',sans-serif; color: var(--ink-3); text-align:center; line-height:1.45; }
+  @media (max-width: 560px){ #drawPop { right:10px; left:10px; width:auto; bottom:10px; } }
 
   /* feature cards scene */
   .feat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; width: min(940px, 94vw); margin-top: 52px; }
@@ -604,7 +658,6 @@
                      background:rgba(48,209,88,.16);color:#30d158">NEW</span>
       </a>
       <a class="nav-link" href="/app/rpc.html" style="text-decoration:none">RPC</a>
-      <button class="nav-link" onclick="goLanding(); setTimeout(()=>document.getElementById('sceneGame').scrollIntoView({behavior:'smooth'}),40)">Play</button>
     </div>
     <button id="soundToggle" class="sound-btn" onclick="toggleSound()" title="Toggle sound" aria-label="Toggle sound">♪</button>
     <button class="btn btn-primary" id="connectBtn" onclick="connect()">Connect</button>
@@ -692,34 +745,27 @@
     </div>
   </div>
 
-  <!-- scene 4.5: PLAY -->
-  <div class="scene" id="sceneGame">
-    <div class="ghost-num">04</div>
-    <div class="rv"><div class="kicker">04 · Play</div></div>
-    <h2 class="grad-green rv rv2">Ride the curve.<br>Bank <span class="accent-serif">the light.</span></h2>
-    <p class="big rv rv3">Tap to boost the comet up the bonding curve. Grab light orbs, dodge the rug candles, graduate for a bonus. Beat your high score — then flex it.</p>
 
-    <div class="game-wrap rv rv4">
-      <div class="game-hud">
-        <div class="hud-item"><span>LIGHT</span><b id="gScore">0</b></div>
-        <div class="hud-item"><span>TIER</span><b id="gTier">1</b></div>
-        <div class="hud-item"><span>BEST</span><b id="gBest">0</b></div>
-        <div class="hud-item"><span>BANKED</span><b id="gBank">0</b></div>
+  <!-- scene 4.5: LUCKY TRENCHER -->
+  <div class="scene" id="sceneDraw">
+    <div class="ghost-num">04</div>
+    <div class="rv"><div class="kicker" style="color:#ffd479;border-color:rgba(255,196,88,.3)">04 · Lucky Trencher</div></div>
+    <h2 class="rv rv2" style="background:linear-gradient(95deg,#fff,#ffd479 65%);-webkit-background-clip:text;background-clip:text;color:transparent">
+      Every hour,<br>someone <span class="accent-serif">takes the pot.</span></h2>
+    <p class="big rv rv3">A draw on the hour, every hour, settled by the chain. Buy a ticket in USDC, sales close two minutes before, one winner per tier takes the whole pot minus 2.5%.</p>
+
+    <div class="lt-wrap rv rv4">
+      <div class="lt-kick">🎟 Hourly draw · live on Arc mainnet</div>
+      <div class="lt-cd"><b id="ltCd">--:--</b><span id="ltLab">Draw starts in</span></div>
+      <div class="lt-tiers">
+        <div class="lt-tier">$1<em>DEGEN</em></div>
+        <div class="lt-tier">$5<em>TRENCHER</em></div>
+        <div class="lt-tier">$50<em>WHALE</em></div>
       </div>
-      <canvas id="gameCanvas" width="720" height="420"></canvas>
-      <div id="tierFlash"></div>
-      <div class="game-overlay" id="gameOverlay">
-        <div class="go-inner">
-          <div id="goTitle" style="font-size:26px;font-weight:700;letter-spacing:-.02em;">Ascent</div>
-          <div id="goSub" style="color:var(--ink-2);font-size:14px;margin:8px 0 20px;">Tap, click, or press Space to fly. Grab light, dodge rugs.</div>
-          <button class="btn btn-glow btn-lg" id="goBtn" onclick="startGame(event)">Play</button>
-          <div id="goShare" style="display:none;margin-top:16px;">
-            <button class="btn btn-ghost" onclick="shareScore()">Share score on X ↗</button>
-          </div>
-        </div>
-      </div>
+      <a class="lt-go" href="/app/terminal.html#draw">Enter the draw →</a>
+      <div class="lt-fine">Provably fair: we commit to a secret before the round, anyone seals the public blockhash at close, then we reveal.
+        Nobody — including us — can steer the outcome. Max 10 tickets per wallet per tier; a tier with fewer than two wallets refunds everyone.</div>
     </div>
-    <p class="rv rv4" style="font-size:12.5px;color:var(--ink-3);margin-top:16px;">Light points are just for fun. Real points come from trading and sharing — see <a href="/app/terminal.html#points" style="color:var(--accent-2)">Points</a>. 🔆</p>
   </div>
 
   <!-- scene 5: closer -->
@@ -852,22 +898,39 @@
       <div class="pp-net" id="ppNet">Arc Testnet</div>
     </div>
   </div>
-  <div class="pp-light">
-    <div class="pp-light-top">
-      <b id="ppLight">0</b>
-      <span>LIGHT ✦</span>
-    </div>
-    <div style="font-size:11.5px;color:var(--ink-2);margin-top:4px;">earned playing ASCENT · tied to this wallet</div>
-  </div>
   <div class="pp-stats">
-    <div class="pp-stat"><b id="ppBest">0</b><span>BEST</span></div>
     <div class="pp-stat"><b id="ppBal">$0</b><span>USDC</span></div>
   </div>
   <div class="pp-row">
     <button class="pp-btn" onclick="copyAddr()">Copy address</button>
     <button class="pp-btn danger" onclick="disconnectWallet()">Disconnect</button>
   </div>
-  <div class="pp-note">Light points are a game score, nothing more.<br>Trading &amp; sharing earn the real ones → Points tab. 🔆</div>
+</div>
+
+<div id="drawPop" hidden>
+  <div class="dp-glow"></div>
+  <button class="dp-x" id="drawPopX" aria-label="Dismiss">×</button>
+  <div class="dp-kick">🎟 Hourly draw · live on Arc</div>
+  <h4>Lucky Trencher</h4>
+  <div class="dp-cd"><span class="dp-big" id="popCd">--:--</span><span class="dp-lab" id="popLab">until the draw</span></div>
+  <div class="dp-tiers">
+    <div class="dp-tier">$1<span>DEGEN</span></div>
+    <div class="dp-tier">$5<span>TRENCHER</span></div>
+    <div class="dp-tier">$50<span>WHALE</span></div>
+  </div>
+  <a class="dp-go" href="/app/terminal.html#draw">Enter the draw →</a>
+  <div class="dp-fine">Winner takes the pot. Provably fair: commit → public blockhash → reveal.</div>
+</div>
+
+<div id="ltPop">
+  <button class="x" onclick="dismissLtPop()" aria-label="Dismiss">×</button>
+  <div class="k">🎟 Hourly draw · live on Arc</div>
+  <h4>Lucky Trencher</h4>
+  <div class="lab" id="ltPopLab">Draw starts in</div>
+  <div class="big" id="ltPopCd">--:--</div>
+  <div class="row"><div>$1<em>DEGEN</em></div><div>$5<em>TRENCHER</em></div><div>$50<em>WHALE</em></div></div>
+  <a class="go" href="/app/terminal.html#draw">Enter the draw →</a>
+  <div class="fine">Winner takes the pot. Commit → public blockhash → reveal.</div>
 </div>
 
 <div id="walletModal" onclick="if(event.target===this) closeWalletModal()">
@@ -1141,8 +1204,8 @@ updateBeam();
 
 /* ---- side level-select dot rail + scene color theming ---- */
 let sceneEls = [], dotEls = [], ghostNums = [];
-// per-scene ambient hue: Home, Launch, Trade, Predict, Play, Enter
-const scenePalette = [[10,132,255],[10,132,255],[48,209,88],[255,90,86],[34,211,238],[10,132,255]];
+// per-scene ambient hue: Home, Launch, Trade, Predict, Lucky Trencher, Enter
+const scenePalette = [[10,132,255],[10,132,255],[48,209,88],[255,90,86],[255,196,88],[10,132,255]];
 let scR=10, scG=132, scB=255, tgR=10, tgG=132, tgB=255;
 (function buildDots(){
   const rail = document.getElementById('sceneDots');
@@ -1150,7 +1213,7 @@ let scR=10, scG=132, scB=255, tgR=10, tgG=132, tgB=255;
   if (!rail || !landing) return;
   sceneEls = [...landing.querySelectorAll('.scene')];
   ghostNums = [...landing.querySelectorAll('.ghost-num')];
-  const labels = ['Home','Launch','Trade','Predict','Play','Enter'];
+  const labels = ['Home','Launch','Trade','Predict','Lucky Trencher','Enter'];
   sceneEls.forEach((s,i)=>{
     const b = document.createElement('button');
     b.title = labels[i] || ('0'+i);
@@ -1271,193 +1334,89 @@ document.addEventListener('pointermove', e=>{
 }, {passive:true});
 document.addEventListener('pointerleave', ()=>document.querySelectorAll('.btn-lg').forEach(x=>x.style.transform=''), true);
 
-/* ==================================================================
-   LIGHT POINTS — per-wallet ledger (guest balance merges on connect)
-================================================================== */
-const GUEST_BANK = 'ark_light_bank';
-function bankKeyFor(addr){ return addr ? 'ark_light_' + addr.toLowerCase() : GUEST_BANK; }
-window.arkBankKey = () => bankKeyFor(window.me);
-window.arkGetBank = () => +(localStorage.getItem(window.arkBankKey()) || 0);
-window.arkSetBank = v => localStorage.setItem(window.arkBankKey(), v);
-window.arkGetBest = () => +(localStorage.getItem('ark_light_best') || 0);
-// when a wallet connects, move any light earned as a guest onto that wallet
-function mergeGuestLight(addr){
-  const guest = +(localStorage.getItem(GUEST_BANK) || 0);
-  if (!guest || !addr) return 0;
-  const k = bankKeyFor(addr);
-  localStorage.setItem(k, (+(localStorage.getItem(k) || 0)) + guest);
-  localStorage.removeItem(GUEST_BANK);
-  return guest;
-}
+
 
 /* ==================================================================
-   ASCENT — one-tap arcade game: ride the curve, bank the light
+   LUCKY TRENCHER — hourly draw countdown.
+   Rounds run every UTC hour; sales close 2 minutes before the top of the
+   hour. Both are contract constants, so this is arithmetic — no RPC, no
+   polling, and it stays correct if the chain is unreachable.
 ================================================================== */
-(function(){
-  const cv = document.getElementById('gameCanvas');
-  if (!cv) return;
-  const ctx = cv.getContext('2d');
-  const W = cv.width, H = cv.height;
-  const bestKey = 'ark_light_best';
-  let best = +(localStorage.getItem(bestKey) || 0);
-  const $ = id => document.getElementById(id);
-  // light balance always reflects the *currently connected wallet* (or guest)
-  window.arkRefreshHUD = function(){
-    $('gBank').textContent = window.arkGetBank().toLocaleString();
-    $('gBest').textContent = (+(localStorage.getItem(bestKey)||0)).toLocaleString();
+(function drawCountdown(){
+  const pop = document.getElementById('drawPop'); if (!pop) return;
+  const KEY = 'ark_drawpop_dismissed';
+  const clock = () => {
+    const t = Math.floor(Date.now()/1000);
+    const round = Math.floor(t/3600), endAt = (round+1)*3600, closeAt = endAt - 120;
+    const left = t >= closeAt ? Math.max(0, endAt - t) : closeAt - t;
+    return { round, closed: t >= closeAt, secs: closeAt - t,
+             label: String(Math.floor(left/60)).padStart(2,'0')+':'+String(left%60).padStart(2,'0') };
   };
-  window.arkRefreshHUD();
-
-  let comet, obstacles, orbs, particles, score, speed, spawnT, orbT, running=false, over=false, raf=0, raised=0, flashT=0, tier=1;
-
-  function reset(){
-    comet = { x: W*0.26, y: H*0.5, vy: 0, r: 12 };
-    obstacles = []; orbs = []; particles = [];
-    score = 0; speed = 3.4; spawnT = 0; orbT = 30; raised = 0; flashT = 0; over = false; tier = 1;
-    $('gScore').textContent = '0'; $('gTier').textContent = '1';
-  }
-  function checkTier(){
-    const nt = Math.floor(score/100) + 1;
-    if (nt > tier){
-      tier = nt;
-      speed += 0.7;                                  // step-change difficulty each 100
-      $('gTier').textContent = tier;
-      sfx('tier');
-      const tf = $('tierFlash'); tf.textContent = 'TIER ' + tier + ' ⚡';
-      tf.classList.remove('pop'); void tf.offsetWidth; tf.classList.add('pop');
-    }
-  }
-  function flap(){
-    if (!running) return;
-    comet.vy = -5.6; sfx('flap');
-    for (let i=0;i<5;i++) particles.push({x:comet.x-6,y:comet.y,vx:-1-Math.random()*2,vy:(Math.random()-.5)*2,life:1,c:'#22d3ee'});
-  }
-  function spawnObstacle(){
-    // gap tightens with score AND with each tier; faster candles per tier
-    const gap = Math.max(92, 150 - Math.min(48, score*0.22) - (tier-1)*7);
-    const gy = 70 + Math.random()*(H-140-gap);
-    obstacles.push({ x: W+30, gy, gap, w: 26, passed:false });
-  }
-  function spawnOrb(){
-    orbs.push({ x: W+20, y: 60+Math.random()*(H-120), r: 9, taken:false, ph: Math.random()*6 });
-  }
-  function hit(){
-    over = true; running = false; sfx('over');
-    window.arkSetBank(window.arkGetBank() + score);          // credit the connected wallet
-    if (score > best){ best = score; localStorage.setItem(bestKey, best); }
-    const bank = window.arkGetBank();
-    window.arkRefreshHUD();
-    if (typeof renderProfile === 'function') renderProfile();
-    window._lastScore = score;
-    const ov = $('gameOverlay');
-    $('goTitle').textContent = score>0 ? '+' + score + ' light ✦' : 'Rugged.';
-    $('goSub').innerHTML = (score > best ? 'New high score! 🔆 · ' : 'Best ' + best + ' · ') + 'reached tier ' + tier + ' · ' + bank.toLocaleString() + ' banked';
-    $('goBtn').textContent = 'Play again';
-    $('goShare').style.display = score>0 ? 'block' : 'none';
-    ov.classList.remove('hidden');
-  }
-  function step(){
-    ctx.clearRect(0,0,W,H);
-    // baseline
-    ctx.strokeStyle='rgba(255,255,255,.08)'; ctx.lineWidth=1;
-    ctx.beginPath(); ctx.moveTo(0,H-24); ctx.lineTo(W,H-24); ctx.stroke();
-    // graduation flash
-    if (flashT>0){ ctx.fillStyle=`rgba(48,209,88,${flashT*0.25})`; ctx.fillRect(0,0,W,H); flashT-=0.03; }
-
-    // physics
-    comet.vy += 0.32; comet.y += comet.vy;
-    if (comet.y > H-30){ comet.y=H-30; hit(); }
-    if (comet.y < 12){ comet.y=12; comet.vy=0; }
-
-    // spawn
-    if (--spawnT<=0){ spawnObstacle(); spawnT = Math.max(52, 120 - score*0.4 - (tier-1)*6); }
-    if (--orbT<=0){ spawnOrb(); orbT = 55 + Math.random()*40; }
-    speed += 0.0009;
-
-    // obstacles (rug candles)
-    for (const o of obstacles){
-      o.x -= speed;
-      const grad = ctx.createLinearGradient(0,0,0,H);
-      grad.addColorStop(0,'#ff574c'); grad.addColorStop(1,'#e53a30');
-      ctx.fillStyle = grad;
-      roundRect(o.x, 0, o.w, o.gy, 6); ctx.fill();
-      roundRect(o.x, o.gy+o.gap, o.w, H-o.gy-o.gap-24, 6); ctx.fill();
-      // wick
-      ctx.strokeStyle='rgba(255,120,110,.5)'; ctx.lineWidth=2;
-      ctx.beginPath(); ctx.moveTo(o.x+o.w/2,o.gy-8); ctx.lineTo(o.x+o.w/2,o.gy-24); ctx.stroke();
-      // collision
-      if (comet.x+comet.r>o.x && comet.x-comet.r<o.x+o.w && (comet.y-comet.r<o.gy || comet.y+comet.r>o.gy+o.gap)) hit();
-      if (!o.passed && o.x+o.w<comet.x){ o.passed=true; raised += 800;
-        if (raised % 8000 < 800){ flashT=1; score+=15; $('gScore').textContent=score; sfx('graduate'); burstAt(comet.x,comet.y,'#30d158'); checkTier(); } }
-    }
-    obstacles = obstacles.filter(o=>o.x>-40);
-
-    // orbs (light)
-    for (const g of orbs){
-      g.x -= speed; g.ph += 0.15;
-      if (!g.taken){
-        const pulse = 1 + Math.sin(g.ph)*0.12;
-        ctx.shadowColor='#30d158'; ctx.shadowBlur=16;
-        ctx.fillStyle='#30d158'; ctx.beginPath(); ctx.arc(g.x,g.y,g.r*pulse,0,7); ctx.fill();
-        ctx.shadowBlur=0;
-        const dx=comet.x-g.x, dy=comet.y-g.y;
-        if (dx*dx+dy*dy < (comet.r+g.r+2)**2){ g.taken=true; score+=1; $('gScore').textContent=score; sfx('orb'); burstAt(g.x,g.y,'#30d158'); checkTier(); }
-      }
-    }
-    orbs = orbs.filter(g=>g.x>-20 && !g.taken);
-
-    // particles
-    for (const p of particles){ p.x+=p.vx; p.y+=p.vy; p.life-=0.04;
-      ctx.globalAlpha=Math.max(0,p.life); ctx.fillStyle=p.c;
-      ctx.beginPath(); ctx.arc(p.x,p.y,2.4,0,7); ctx.fill(); ctx.globalAlpha=1; }
-    particles = particles.filter(p=>p.life>0);
-
-    // comet
-    ctx.save(); ctx.translate(comet.x,comet.y);
-    const ang=Math.max(-.5,Math.min(.9,comet.vy*0.06)); ctx.rotate(ang);
-    ctx.strokeStyle='rgba(34,211,238,.55)'; ctx.lineWidth=3; ctx.lineCap='round';
-    ctx.beginPath(); ctx.moveTo(-22,6); ctx.quadraticCurveTo(-8,2,-2,-2); ctx.stroke();
-    ctx.shadowColor='#7dd3fc'; ctx.shadowBlur=18;
-    ctx.fillStyle='#7dd3fc'; ctx.beginPath(); ctx.arc(0,0,comet.r,0,7); ctx.fill();
-    ctx.shadowBlur=0; ctx.restore();
-
-    // score
-    ctx.fillStyle='rgba(255,255,255,.9)'; ctx.font='700 26px -apple-system,sans-serif';
-    ctx.textAlign='center'; ctx.fillText(score, W/2, 46);
-
-    if (running) raf = requestAnimationFrame(step);
-  }
-  function roundRect(x,y,w,h,r){ if(h<=0)return; ctx.beginPath();
-    ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
-    ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
-  function burstAt(x,y,c){ for(let i=0;i<10;i++){const a=Math.PI*2*i/10;
-    particles.push({x,y,vx:Math.cos(a)*2,vy:Math.sin(a)*2,life:1,c});} }
-
-  window.startGame = function(e){ if(e) e.stopPropagation();
-    initAudio(); if(AC && AC.state==='suspended') AC.resume(); sfx('enter');
-    $('gameOverlay').classList.add('hidden'); reset(); running=true; cancelAnimationFrame(raf); raf=requestAnimationFrame(step); };
-
-  // input
-  cv.addEventListener('mousedown', e=>{ e.preventDefault(); flap(); });
-  cv.addEventListener('touchstart', e=>{ e.preventDefault(); flap(); }, {passive:false});
-  window.addEventListener('keydown', e=>{
-    if (e.code==='Space'){
-      const sc = document.getElementById('sceneGame');
-      const r = sc.getBoundingClientRect();
-      if (r.top < window.innerHeight*0.6 && r.bottom > window.innerHeight*0.3){
-        e.preventDefault(); if(running) flap(); else if(!over || $('gameOverlay').classList.contains('hidden')===false) startGame();
-      }
-    }
+  const dismissed = r => { try { return Number(localStorage.getItem(KEY)||-1) === r; } catch(e){ return false; } };
+  const hide = () => { pop.classList.remove('show'); setTimeout(()=>{ pop.hidden = true; }, 470); };
+  document.getElementById('drawPopX').addEventListener('click', () => {
+    try { localStorage.setItem(KEY, String(clock().round)); } catch(e){}
+    hide();
   });
-  // idle preview frame so canvas isn't blank
-  ctx.fillStyle='rgba(125,211,252,.9)'; ctx.beginPath(); ctx.arc(W*0.26,H*0.5,12,0,7); ctx.fill();
+  function tick(){
+    const c = clock();
+    // Last 20 minutes only, once per round — enticing, not nagging.
+    const show = !c.closed && c.secs <= 1200 && !dismissed(c.round);
+    if (show){
+      if (pop.hidden){ pop.hidden = false; requestAnimationFrame(()=>pop.classList.add('show')); }
+      document.getElementById('popCd').textContent = c.label;
+      document.getElementById('popLab').textContent = c.secs <= 120 ? 'until sales close' : 'until the draw';
+    } else if (!pop.hidden) hide();
+  }
+  tick(); setInterval(tick, 1000);
 })();
 
-window.shareScore = function(){
-  const s = window._lastScore || 0;
-  const t = encodeURIComponent(`I banked ${s} light points riding the bonding curve on Arclite ⚡🔆\n\nThink you can graduate a coin? Play ASCENT:`);
-  window.open(`https://twitter.com/intent/tweet?text=${t}&url=${encodeURIComponent('https://arclite.fun')}`, '_blank');
+/* ==================================================================
+   LUCKY TRENCHER — the hourly clock, shared by the scene and the popup.
+   Rounds are UTC hours: sales close at :58, the draw is on the hour. The
+   contract defines it this way, so the page can compute it from the clock
+   alone without an RPC call.
+================================================================== */
+const LT_POP_KEY = 'ark_lt_pop';
+function ltClock(){
+  const now = Math.floor(Date.now()/1000);
+  const round = Math.floor(now/3600);
+  const close = (round+1)*3600 - 120;          // :58 — sales stop
+  const end   = (round+1)*3600;                // the draw itself
+  const closed = now >= close;
+  const secs = Math.max(0, (closed ? end : close) - now);
+  const mm = String(Math.floor(secs/60)).padStart(2,'0');
+  const ss = String(secs%60).padStart(2,'0');
+  return { round, closed, secs, label: mm+':'+ss };
+}
+function ltDismissed(round){ try { return localStorage.getItem(LT_POP_KEY) === String(round); } catch(e){ return false; } }
+window.dismissLtPop = function(){
+  const c = ltClock();
+  try { localStorage.setItem(LT_POP_KEY, String(c.round)); } catch(e){}
+  const p = document.getElementById('ltPop'); if (p) p.classList.remove('show');
 };
+(function ltTick(){
+  const tick = () => {
+    const c = ltClock();
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    set('ltCd', c.label);
+    set('ltLab', c.closed ? 'Until the draw' : 'Draw starts in');
+    set('ltPopCd', c.label);
+    set('ltPopLab', c.closed ? 'Sales close · drawing in' : 'Draw starts in');
+    // Show the popup only in the last 20 minutes, once per round, and never
+    // while the visitor is already reading the Lucky Trencher scene.
+    const pop = document.getElementById('ltPop');
+    if (pop) {
+      const scene = document.getElementById('sceneDraw');
+      const onScreen = scene && (() => { const r = scene.getBoundingClientRect();
+        return r.top < innerHeight*0.75 && r.bottom > innerHeight*0.25; })();
+      const should = c.secs <= 1200 && !ltDismissed(c.round) && !onScreen;
+      pop.classList.toggle('show', !!should);
+    }
+  };
+  tick(); setInterval(tick, 1000);
+})();
+
 window.shareSite = function(){
   const t = encodeURIComponent('Arclite — the memecoin launchpad + prediction market on Arc. Coins priced in real dollars, rug-proof by design, and you can bet on every launch ⚡');
   window.open(`https://twitter.com/intent/tweet?text=${t}&url=${encodeURIComponent('https://arclite.fun')}`, '_blank');
@@ -1685,11 +1644,8 @@ window.connectWith = async function(key) {
     btn.textContent = short(me) + ' · $' + fmt(E(bal), 2);
     localStorage.setItem('ark_wallet', entry.key);
     window.me = me; window.arkBal = fmt(E(bal), 2); window.arkWalletName = entry.name;
-    const moved = mergeGuestLight(me);                 // guest light -> this wallet
-    window.arkRefreshHUD && window.arkRefreshHUD();
     renderProfile();
-    toast('Connected with ' + entry.name + ' — $' + fmt(E(bal), 2) + ' testnet USDC'
-          + (moved ? ' · +' + moved + ' light ✦ added to your wallet' : ''));
+    toast('Connected with ' + entry.name + ' — $' + fmt(E(bal), 2) + ' testnet USDC');
 
     // react to the user changing account / network in the wallet
     if (injected.on && !injected._arkBound) {
@@ -1706,7 +1662,7 @@ window.connectWith = async function(key) {
     connecting = false;
   }
 }
-/* ---------- profile panel: identity + light points + disconnect ---------- */
+/* ---------- profile panel: identity + balance + disconnect ---------- */
 function blockie(canvas, addr){
   if (!canvas || !addr) return;
   const ctx = canvas.getContext('2d'); const S = canvas.width; const cells = 7; const c = S/cells;
@@ -1726,8 +1682,6 @@ function renderProfile(){
   if (!window.me) return;
   document.getElementById('ppAddr').textContent = short(window.me);
   document.getElementById('ppNet').textContent = 'Arc Testnet · ' + (window.arkWalletName || 'connected');
-  document.getElementById('ppLight').textContent = window.arkGetBank().toLocaleString();
-  document.getElementById('ppBest').textContent = window.arkGetBest().toLocaleString();
   document.getElementById('ppBal').textContent = '$' + (window.arkBal || '0');
   blockie(document.getElementById('ppAv'), window.me);
 }
@@ -1747,8 +1701,7 @@ window.disconnectWallet = function(){
   document.getElementById('profilePanel').classList.remove('open');
   const b = document.getElementById('connectBtn');
   b.textContent = 'Connect'; b.disabled = false;
-  window.arkRefreshHUD && window.arkRefreshHUD();     // HUD falls back to guest balance
-  toast('Wallet disconnected. Your light points stay saved to that wallet.');
+  toast('Wallet disconnected.');
 };
 // close the profile when clicking outside it
 document.addEventListener('click', e=>{

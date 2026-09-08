@@ -525,6 +525,47 @@ function boot(url) {
      'back to Tokens: the explorer list returns');
   }
 
+  console.log('\n=== header breathing room, chain marks, Lucky Trencher glow + popup ===');
+  {
+  const hm = boot('https://arclite.fun/app/terminal.html?net=mainnet');
+  await sleep(700);
+  const hd = hm.d, hw = hm.w;
+
+  // --- chain switcher: real marks, not emoji, and lit when selected
+  const chBtns = [...hd.querySelectorAll('#chsw button')];
+  ok(chBtns.length === 3 && chBtns.every(b => b.querySelector('svg.ci')), 'each chain button carries an inline SVG mark (no emoji, no external image)');
+  ok(!/🪶|◎/.test(hd.getElementById('chsw').textContent), 'the feather and ◎ emoji are gone');
+  ok(chBtns.map(b => b.textContent.trim()).join('|') === 'ARC|HOOD|SOL', 'labels still read ARC | HOOD | SOL');
+  ok(hd.querySelector('#chsw button[data-chain="sol"] linearGradient'), 'Solana mark uses its own green→purple gradient');
+  ok(hd.querySelector('#chsw button.on').dataset.chain === 'arc', 'the active chain is the one flagged .on (CSS lights it)');
+
+  // --- Lucky Trencher nav
+  const nav = hd.getElementById('naviDraw');
+  ok(nav && nav.classList.contains('draw') && /Lucky Trencher/.test(nav.textContent), 'nav entry is named Lucky Trencher and carries the .draw class');
+  ok(/^\d\d:\d\d$/.test(hd.getElementById('naviCd').textContent), 'nav shows a live mm:ss countdown: ' + hd.getElementById('naviCd').textContent);
+
+  // --- the clock is arithmetic: hourly rounds, sales close 2 min before
+  const clk = hw.__term.drawClock(Math.floor(Date.UTC(2026,8,8,14,37,0)/1000));
+  ok(clk.closeAt % 3600 === 3480 && clk.endAt % 3600 === 0, 'round ends on the hour, sales close at :58');
+  ok(clk.label === '21:00' && clk.closed === false, 'at 14:37 the label reads 21:00 — 14:37 to the :58 close');
+  const late = hw.__term.drawClock(Math.floor(Date.UTC(2026,8,8,14,59,10)/1000));
+  ok(late.closed === true && late.label === '00:50', 'inside the close window it counts down to the draw itself');
+
+  // --- popup: appears in the last 20 minutes, not before
+  const pop = hd.getElementById('drawPop');
+  ok(!!pop && !!hd.getElementById('popCd') && hd.querySelectorAll('#drawPop .ptier').length === 3, 'popup exists with the three tiers');
+  ok(hd.querySelectorAll('.tier').length !== 3 || !hd.querySelector('#drawPop .tier'), 'popup tiers do NOT reuse the draw view\'s .tier class');
+  ok(/Winner takes the pot/.test(pop.textContent) && /commit/.test(pop.textContent), 'popup states the payout and the fairness mechanism');
+  const goHref = hd.getElementById('drawPopGo').getAttribute('href');
+  ok(goHref === '#draw', 'popup CTA routes to the draw view');
+
+  // dismissal is remembered for that round only
+  hw.localStorage.removeItem('ark_drawpop_dismissed');
+  hd.getElementById('drawPopX').dispatchEvent(new hw.MouseEvent('click', { bubbles: true }));
+  const round = hw.__term.drawClock().round;
+  ok(hw.localStorage.getItem('ark_drawpop_dismissed') === String(round), 'dismissing remembers the current round (' + round + '), so it returns next hour');
+  }
+
   console.log('\n=== no leftovers ===');
   ok(!/bounty/i.test(html), 'terminal.html contains no "bounty"');
   ok(!/REFERRALS\s*=|bindReferrer|copyRefLink/.test(html), 'terminal.html contains no referral code');

@@ -77,14 +77,14 @@ body{
 .dsp{font-family:var(--fd);font-weight:700}
 
 /* ---------- shell ---------- */
-.app{display:grid;grid-template-rows:52px auto 28px 42px 1fr 26px;height:100vh}
+.app{display:grid;grid-template-rows:52px auto 46px 42px 1fr 26px;height:100vh}
 .topbar{
-  display:flex;align-items:center;gap:14px;padding:0 14px;
+  display:flex;align-items:center;gap:18px;padding:0 22px;
   border-bottom:1px solid var(--hair);background:linear-gradient(180deg,#0d1017,#0a0c11);
 }
-.logo{display:flex;align-items:center;gap:9px;font-weight:700;letter-spacing:.02em;font-size:14px;
-  color:var(--ink);text-decoration:none;flex:0 0 auto}
-.logo .mk{width:22px;height:22px;flex:0 0 22px;filter:drop-shadow(0 0 6px rgba(34,211,238,.45))}
+.logo{display:flex;align-items:center;gap:11px;font-weight:700;letter-spacing:.02em;font-size:14px;
+  color:var(--ink);text-decoration:none;flex:0 0 auto;padding-right:6px}
+.logo .mk{width:27px;height:27px;flex:0 0 27px;filter:drop-shadow(0 0 6px rgba(34,211,238,.45))}
 .logo:hover .mk{filter:drop-shadow(0 0 10px rgba(34,211,238,.8))}
 .sitechip{font:600 9.5px var(--fs);letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);
   border:1px solid var(--hair);border-radius:5px;padding:2px 6px;margin-left:2px;transition:.14s}
@@ -100,33 +100,77 @@ body{
 .navi .badge{font:600 9px var(--fm);color:var(--cyan);border:1px solid rgba(34,211,238,.35);
   border-radius:4px;padding:1px 4px;margin-left:5px;vertical-align:1px}
 
+/* ---- Lucky Trencher: the one nav item that glows ---- */
+.navi.draw{color:#ffd479;border-color:rgba(255,196,88,.30);background:rgba(255,196,88,.07)}
+.navi.draw:hover{color:#ffe0a3;background:rgba(255,196,88,.13);border-color:rgba(255,196,88,.5)}
+.navi.draw.on{color:#0d0a04;background:linear-gradient(180deg,#ffd479,#f5a623);border-color:#ffd479;
+  box-shadow:0 0 18px rgba(255,180,60,.5)}
+.navi.draw .cd{font:600 10px var(--fm);margin-left:6px;padding:1px 5px;border-radius:4px;
+  background:rgba(255,196,88,.16);color:#ffd479;vertical-align:1px;font-variant-numeric:tabular-nums}
+.navi.draw.on .cd{background:rgba(0,0,0,.22);color:#2a1c02}
+.navi.draw.soon{animation:drawpulse 1.6s ease-in-out infinite}
+@keyframes drawpulse{0%,100%{box-shadow:0 0 0 rgba(255,180,60,0)}50%{box-shadow:0 0 20px rgba(255,180,60,.55)}}
+
+/* ---- the countdown popup ---- */
+#drawPop{position:fixed;right:22px;bottom:22px;width:310px;z-index:120;
+  background:linear-gradient(165deg,#241a08,#141014 60%,#0c0d12);
+  border:1px solid rgba(255,196,88,.42);border-radius:16px;padding:16px 16px 14px;
+  box-shadow:0 24px 60px rgba(0,0,0,.6),0 0 40px rgba(255,180,60,.16);
+  transform:translateY(18px) scale(.97);opacity:0;pointer-events:none;transition:.42s var(--ease,cubic-bezier(.22,1,.36,1))}
+#drawPop.show{transform:none;opacity:1;pointer-events:auto}
+#drawPop .glow{position:absolute;inset:-1px;border-radius:16px;pointer-events:none;
+  background:radial-gradient(120px 60px at 82% 0%,rgba(255,196,88,.22),transparent 70%)}
+#drawPop .x{position:absolute;top:9px;right:11px;border:0;background:none;color:var(--ink3);
+  font-size:16px;line-height:1;cursor:pointer;padding:3px 5px;border-radius:6px}
+#drawPop .x:hover{color:var(--ink);background:rgba(255,255,255,.08)}
+#drawPop .kick{font:700 9.5px var(--fs);letter-spacing:.18em;text-transform:uppercase;color:#ffd479}
+#drawPop h4{margin:6px 0 0;font:800 21px/1.05 var(--fd);letter-spacing:-.01em;
+  background:linear-gradient(95deg,#fff,#ffd479 70%);-webkit-background-clip:text;background-clip:text;color:transparent}
+#drawPop .cdwrap{display:flex;flex-direction:column;gap:3px;margin:13px 0 4px}
+#drawPop .cdbig{font:700 34px/1 var(--fm);letter-spacing:-.02em;color:#ffd479;font-variant-numeric:tabular-nums;
+  text-shadow:0 0 22px rgba(255,180,60,.45)}
+#drawPop .cdlab{font:600 10px var(--fs);letter-spacing:.14em;text-transform:uppercase;color:var(--ink3)}
+#drawPop .tiers{display:flex;gap:6px;margin:12px 0 13px}
+/* .ptier, not .tier — the draw view already owns .tier and a shared name makes
+   every querySelectorAll('.tier') pick up the popup too. */
+#drawPop .ptier{flex:1;text-align:center;padding:7px 0;border-radius:9px;border:1px solid var(--hair2);
+  background:rgba(255,255,255,.04);font:700 13px var(--fm);color:var(--ink2)}
+#drawPop .ptier span{display:block;font:600 8.5px var(--fs);letter-spacing:.1em;color:var(--ink3);margin-top:2px}
+#drawPop .go{display:block;width:100%;text-align:center;text-decoration:none;padding:11px;border-radius:11px;
+  font:700 13.5px var(--fs);color:#241701;background:linear-gradient(180deg,#ffd479,#f5a623);
+  box-shadow:0 6px 20px rgba(245,166,35,.32);transition:.16s}
+#drawPop .go:hover{filter:brightness(1.07);transform:translateY(-1px)}
+#drawPop .fine{margin-top:9px;font:500 10px var(--fs);color:var(--ink3);text-align:center;line-height:1.45}
+@media (max-width:560px){ #drawPop{right:10px;left:10px;width:auto;bottom:10px} }
+
 /* ---- hero strip ---- */
-.hero{display:flex;align-items:center;gap:22px;padding:10px 18px;border-bottom:1px solid var(--hair);
+.hero{display:flex;align-items:center;gap:28px;padding:26px 34px;border-bottom:1px solid var(--hair);
   background:radial-gradient(900px 120px at 12% 0%,rgba(10,132,255,.14),transparent 60%),
              radial-gradient(700px 120px at 88% 100%,rgba(34,211,238,.09),transparent 60%),var(--bg2)}
-.hero .ttl{display:flex;flex-direction:column;gap:3px;min-width:0}
-.hero .ttl b{font:700 24px/1 var(--fd);letter-spacing:-.02em;
+.hero .ttl{display:flex;flex-direction:column;gap:10px;min-width:0}
+.hero .ttl b{font:700 30px/1 var(--fd);letter-spacing:-.02em;
   background:linear-gradient(90deg,#fff,#9fd0ff);-webkit-background-clip:text;background-clip:text;color:transparent}
-.hero .ttl span{font:500 10.5px var(--fm);letter-spacing:.14em;color:var(--light);text-transform:uppercase}
-.hstats{display:flex;gap:8px;margin-left:auto}
-.hstat{min-width:118px;background:rgba(14,17,24,.85);border:1px solid var(--hair2);border-radius:10px;padding:7px 12px}
-.hstat span{display:block;font:600 9.5px var(--fs);letter-spacing:.12em;text-transform:uppercase;color:var(--ink3)}
-.hstat b{display:block;font:700 17px var(--fd);letter-spacing:-.01em;margin-top:2px;font-variant-numeric:tabular-nums}
+.hero .ttl span{font:500 11px var(--fm);letter-spacing:.2em;color:var(--light);text-transform:uppercase}
+.hstats{display:flex;gap:12px;margin-left:auto}
+.hstat{min-width:138px;background:rgba(14,17,24,.85);border:1px solid var(--hair2);border-radius:12px;padding:14px 18px}
+.hstat span{display:block;font:600 9.5px var(--fs);letter-spacing:.14em;text-transform:uppercase;color:var(--ink3)}
+.hstat b{display:block;font:700 19px var(--fd);letter-spacing:-.01em;margin-top:7px;font-variant-numeric:tabular-nums}
 .hstat b.dim{font-size:13px;font-weight:500}
 
 /* ---- trending ticker ---- */
 .ticker{display:flex;align-items:center;overflow:hidden;border-bottom:1px solid var(--hair);background:#090b10;
-  font-family:var(--fm);font-size:10.5px}
-.ticker .lbl{flex:0 0 auto;padding:0 12px;color:var(--cyan);letter-spacing:.12em;font-weight:600;
+  font-family:var(--fm);font-size:12.5px;min-height:46px}
+.ticker .lbl{flex:0 0 auto;padding:0 26px;color:var(--cyan);letter-spacing:.12em;font-weight:600;
   border-right:1px solid var(--hair);height:100%;display:flex;align-items:center;gap:6px;
   position:relative;z-index:2;background:#090b10;white-space:nowrap}   /* sits above the sliding track */
 .ticker .trackwrap{flex:1;overflow:hidden;height:100%;display:flex;align-items:center}
-.ticker .track{display:flex;gap:26px;white-space:nowrap;padding-left:14px;animation:tick 48s linear infinite;will-change:transform}
+.ticker .track{display:flex;gap:82px;white-space:nowrap;padding-left:34px;animation:tick 60s linear infinite;will-change:transform}
 .ticker:hover .track{animation-play-state:paused}
 .ticker .ti{color:var(--ink2);cursor:pointer}
 .ticker .ti:hover{color:var(--ink)}
-.ticker .ti .rk{color:var(--ink3);margin-right:5px}
-.ticker .ti b{color:var(--ink);font-weight:600;margin-right:6px}
+.ticker .ti .rk{color:var(--ink3);margin-right:10px}
+.ticker .ti b{color:var(--ink);font-weight:600;margin-right:11px}
+.ticker .ti .tlogo{width:17px;height:17px;border-radius:50%;object-fit:cover;vertical-align:-3px;margin-right:7px;background:#11151c}
 @keyframes tick{from{transform:translateX(0)}to{transform:translateX(-50%)}}
 
 /* ---- full-width panel views (Launch / Points) ---- */
@@ -366,8 +410,22 @@ td.l{text-align:left}
 .xlink:hover{color:var(--ink);border-color:var(--hair2);background:var(--panel)}
 
 /* ---- chain switcher (dexscreener/gmgn style) ---- */
-.chsw{display:flex;gap:2px;padding:2px;background:var(--panel2);border:1px solid var(--hair);border-radius:9px;margin-left:6px}
-.chsw button{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border:0;border-radius:7px;background:none;color:var(--ink3);
+/* ---- chain switcher: lit, with each chain's own mark ---- */
+.chsw{display:flex;gap:3px;padding:3px;background:var(--panel2);border:1px solid var(--hair);border-radius:11px;margin-left:6px;
+  position:relative}
+.chsw .ci{width:15px;height:15px;flex:0 0 15px;display:block}
+.chsw button .ci{opacity:.5;transition:opacity .18s,filter .18s}
+.chsw button:hover .ci{opacity:.85}
+.chsw button.on .ci{opacity:1}
+/* the selected chain glows in its own colour — the switcher reads as a live
+   state, not a dropdown you forgot you set */
+.chsw button.on[data-chain="arc"]{box-shadow:0 0 0 1px rgba(10,132,255,.45),0 0 16px rgba(10,132,255,.30)}
+.chsw button.on[data-chain="arc"] .ci{filter:drop-shadow(0 0 5px rgba(10,132,255,.9))}
+.chsw button.on[data-chain="hood"]{box-shadow:0 0 0 1px rgba(124,255,138,.45),0 0 16px rgba(124,255,138,.28)}
+.chsw button.on[data-chain="hood"] .ci{filter:drop-shadow(0 0 5px rgba(124,255,138,.9))}
+.chsw button.on[data-chain="sol"]{box-shadow:0 0 0 1px rgba(153,69,255,.5),0 0 16px rgba(153,69,255,.30)}
+.chsw button.on[data-chain="sol"] .ci{filter:drop-shadow(0 0 6px rgba(20,241,149,.9))}
+.chsw button{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border:0;border-radius:8px;background:none;color:var(--ink3);
   font:700 11px var(--fs);letter-spacing:.06em;cursor:pointer;transition:.12s}
 .chsw button:hover{color:var(--ink2)}
 .chsw button.on{background:var(--panel);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.4)}
@@ -413,7 +471,10 @@ td.l{text-align:left}
    of forcing the page wider than the screen. */
 @media (max-width:760px){
   .hero{padding:0;border:0;overflow:hidden;min-height:0}
-  .app{grid-template-rows:52px 0 28px 42px 1fr 26px;width:100vw}
+  .app{grid-template-rows:52px 0 34px 42px 1fr 26px;width:100vw}
+  .ticker{min-height:34px;font-size:11.5px}
+  .ticker .lbl{padding:0 14px}
+  .ticker .track{gap:48px;padding-left:20px}
   .app>*{min-width:0}
   .topbar{overflow-x:auto;scrollbar-width:none;gap:8px;padding:0 10px}
   .topbar::-webkit-scrollbar{display:none}
@@ -438,8 +499,8 @@ body{font:400 13px/1.45 var(--fs);letter-spacing:.005em}
 .dsp{font-family:var(--fd);font-weight:700;letter-spacing:-.01em}
 /* Unbounded is wide — sizes step down vs. the old face so nothing wraps */
 .logo{font-family:var(--fd);font-weight:800;font-size:12.5px;letter-spacing:.06em}
-.hero .ttl b{font:800 19px/1 var(--fd);letter-spacing:.02em}
-.hero .ttl span{font-family:var(--fm);font-size:10px}
+.hero .ttl b{font:800 27px/1 var(--fd);letter-spacing:.03em}
+.hero .ttl span{font-family:var(--fm);font-size:10.5px;letter-spacing:.2em}
 .hstat b{font:700 16px var(--fm);letter-spacing:-.01em}
 .hstat span{font-family:var(--fs)}
 .ph h1{font:700 21px/1.15 var(--fd);letter-spacing:.005em}
@@ -671,11 +732,35 @@ tbody tr.new{animation:newrow 6s ease-out}
       <a class="navi" data-view="tokens" href="#tokens">Tokens</a>
       <a class="navi" data-view="launchpad" href="#launchpad">Launchpad<span class="fire">🔥</span></a>
       <a class="navi" data-view="launch" href="#launch">Launch</a>
-      <a class="navi" data-view="draw" href="#draw"><span class="livedot"></span>Draw</a>
+      <a class="navi draw" data-view="draw" href="#draw" id="naviDraw"><span class="livedot"></span>Lucky Trencher<span class="cd" id="naviCd">--:--</span></a>
       <a class="navi" data-view="points" href="#points">Points<span class="badge">PTS</span></a>
       <a class="navi" data-view="portfolio" href="#portfolio">Portfolio</a>
     </nav>
-    <div class="chsw" id="chsw" title="Chain"><button data-chain="arc">◠ ARC</button><button data-chain="hood">🪶 HOOD</button><button data-chain="sol">◎ SOL</button></div>
+    <div class="chsw" id="chsw" title="Chain">
+      <button data-chain="arc" title="Arc — Circle's L1, gas paid in USDC">
+        <svg class="ci" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="12" cy="12" r="9.25" stroke="#0a84ff" stroke-width="1.9"/>
+          <path d="M12 2.75a9.25 9.25 0 0 1 9.25 9.25" stroke="#22d3ee" stroke-width="2.6" stroke-linecap="round"/>
+        </svg>ARC</button>
+      <button data-chain="hood" title="Robinhood Chain">
+        <!-- Robinhood's mark is a feather; drawn as a path so no external asset is fetched -->
+        <svg class="ci" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M6 20.5c0-7 3.2-13.2 11.4-17-1 5.2-2.1 8.6-4 11.2-1.9 2.6-4.3 4.1-7.4 5.8Z" fill="#7cff8a"/>
+          <path d="M6 20.5c2.4-4.6 5.6-8.2 9.7-11.3" stroke="#0b1f10" stroke-width="1.15" stroke-linecap="round"/>
+          <path d="M4.2 21.6c1.2-1.1 2.4-1.9 3.6-2.4" stroke="#7cff8a" stroke-width="1.7" stroke-linecap="round"/>
+        </svg>HOOD</button>
+      <button data-chain="sol" title="Solana">
+        <!-- Solana's three slanted bars, in its own green-to-purple gradient -->
+        <svg class="ci" viewBox="0 0 24 24" aria-hidden="true">
+          <defs><linearGradient id="solg" x1="2" y1="20" x2="22" y2="4" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#14f195"/><stop offset="1" stop-color="#9945ff"/></linearGradient></defs>
+          <g fill="url(#solg)">
+            <path d="M5.4 16.9a.8.8 0 0 1 .57-.24h14.2c.36 0 .54.43.29.68l-2.86 2.87a.8.8 0 0 1-.57.24H2.83a.4.4 0 0 1-.29-.68Z"/>
+            <path d="M5.4 3.55a.82.82 0 0 1 .57-.24h14.2c.36 0 .54.43.29.68l-2.86 2.87a.8.8 0 0 1-.57.24H2.83a.4.4 0 0 1-.29-.68Z"/>
+            <path d="M18.6 10.19a.8.8 0 0 0-.57-.24H3.83a.4.4 0 0 0-.29.68l2.86 2.87a.8.8 0 0 0 .57.24h14.2a.4.4 0 0 0 .29-.68Z"/>
+          </g>
+        </svg>SOL</button>
+    </div>
     <div class="pill live" id="netPill">arc testnet</div>
     <div class="search">
       <span style="color:var(--ink3)">⌕</span>
@@ -708,6 +793,22 @@ tbody tr.new{animation:newrow 6s ease-out}
       <div class="hstat"><span id="hs3k">24h txns</span><b id="hs3" class="dim">—</b></div>
       <div class="hstat"><span id="hs4k">24h traders</span><b id="hs4" class="dim">—</b></div>
     </div>
+  </div>
+
+  <!-- ================= Lucky Trencher countdown popup ================= -->
+  <div id="drawPop" hidden>
+    <div class="glow"></div>
+    <button class="x" id="drawPopX" aria-label="Dismiss">×</button>
+    <div class="kick">🎟 Hourly draw · live on Arc</div>
+    <h4>Lucky Trencher</h4>
+    <div class="cdwrap"><span class="cdlab" id="popLab">Draw starts in</span><span class="cdbig" id="popCd">--:--</span></div>
+    <div class="tiers">
+      <div class="ptier">$1<span>DEGEN</span></div>
+      <div class="ptier">$5<span>TRENCHER</span></div>
+      <div class="ptier">$50<span>WHALE</span></div>
+    </div>
+    <a class="go" href="#draw" id="drawPopGo">Enter the draw →</a>
+    <div class="fine">Winner takes the pot. Provably fair: commit → public blockhash → reveal.</div>
   </div>
 
   <!-- ================= trending ticker ================= -->
@@ -2150,7 +2251,11 @@ function ticker(){
       : byChange
         ? '<span class="'+(c.change24h>=0?'up':'dn')+'">'+(c.change24h>=0?'+':'')+Number(c.change24h).toFixed(2)+'%</span>'
         : '<span class="dim">'+fmtUsd(c.volume24h)+'</span>';
-    return '<span class="ti" data-jump="'+c.addr+'"><span class="rk">#'+(i+1)+'</span><b>'+(named?c.symbol:short(c.addr))+'</b>'+tail+'</span>';
+    // A logo in the ticker is what makes RadarDEX's read as a market and ours
+    // as a list of strings. Same self-removing fallback as the cards.
+    const lg = c.logo || logoUrl(c.addr);
+    const img = lg ? '<img class="tlogo" src="'+lg+'" alt="" loading="lazy" onerror="this.remove()">' : '';
+    return '<span class="ti" data-jump="'+c.addr+'"><span class="rk">#'+(i+1)+'</span>'+img+'<b>'+(named?c.symbol:short(c.addr))+'</b>'+tail+'</span>';
   }).join('');
   el.style.animation='';
   // The marquee translates by exactly -50%, so the track must be two identical
@@ -3523,6 +3628,7 @@ window.__term = { get VIEW(){ return VIEW; }, get coins(){ return coins; }, get 
   get LO(){ return LO; }, setLimit(addr, r, w){ NET.limit=addr; limitR=r; limitW=w; LO.loaded=false; },
   get CHAIN(){ return CHAIN; }, setChain, geckoCoin,
   loadProfiles, logoUrl, publishLaunchMeta, get PROFILES(){ return PROFILES; },
+  drawClock, tickDraw,
   /* Tests need both paths: a network with our contracts deployed, and one
      without (the gate copy). Overrides the live addresses in place. */
   setContracts(o){
@@ -3548,6 +3654,62 @@ async function readCurveParams(){
     if(g>0 && g!==GRAD_TARGET){ GRAD_TARGET=g; if(VIEW==='launch') renderLaunch(); paintHero(); }
   }catch(e){}
 }
+
+/* ==================================================================
+   LUCKY TRENCHER — countdown in the nav + the popup.
+   Rounds are every UTC hour and sales close 2 minutes before the top of the
+   hour; both facts are constants in the contract, so the clock is arithmetic
+   and keeps ticking even when the RPC is refusing. No reads, no polling.
+================================================================== */
+const DRAW_ROUND = 3600, DRAW_CLOSE = 120;
+function drawClock(now){
+  const t = now || Math.floor(Date.now()/1000);
+  const round = Math.floor(t / DRAW_ROUND);
+  const endAt = (round + 1) * DRAW_ROUND;          // the draw itself
+  const closeAt = endAt - DRAW_CLOSE;              // sales stop here
+  const secs = Math.max(0, closeAt - t);
+  const mmss = m => String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
+  return { round, endAt, closeAt, secs, closed: t >= closeAt,
+           label: mmss(t >= closeAt ? Math.max(0, endAt - t) : secs) };
+}
+const DRAW_POP_KEY = 'ark_drawpop_dismissed';
+function drawPopDismissed(round){
+  try { return Number(localStorage.getItem(DRAW_POP_KEY) || -1) === round; } catch(e){ return false; }
+}
+function tickDraw(){
+  const c = drawClock();
+  const hasDraw = !!NET.draw && onArc();
+  // ---- nav entry
+  const navi = document.getElementById('naviDraw'), cd = document.getElementById('naviCd');
+  if(navi){
+    navi.classList.toggle('soon', hasDraw && !c.closed && c.secs <= 300);   // last 5 min: pulse
+    if(cd) cd.textContent = hasDraw ? (c.closed ? 'DRAW' : c.label) : '—';
+  }
+  // ---- popup: only where the contract actually exists, once per round,
+  //      and only in the last 20 minutes when there's a reason to hurry.
+  const pop = document.getElementById('drawPop');
+  if(!pop) return;
+  const should = hasDraw && !c.closed && c.secs <= 1200 && !drawPopDismissed(c.round) && VIEW !== 'draw';
+  if(should){
+    if(pop.hidden){ pop.hidden = false; requestAnimationFrame(()=>pop.classList.add('show')); }
+    const big = document.getElementById('popCd'), lab = document.getElementById('popLab');
+    if(big) big.textContent = c.label;
+    if(lab) lab.textContent = c.secs <= 120 ? 'Sales close in' : 'Draw starts in';
+  } else if(!pop.hidden){
+    pop.classList.remove('show');
+    setTimeout(()=>{ if(!pop.classList.contains('show')) pop.hidden = true; }, 460);
+  }
+}
+(function initDrawPop(){
+  const pop = document.getElementById('drawPop'); if(!pop) return;
+  const x = document.getElementById('drawPopX');
+  const dismiss = () => { try{ localStorage.setItem(DRAW_POP_KEY, String(drawClock().round)); }catch(e){}
+    pop.classList.remove('show'); setTimeout(()=>{ pop.hidden = true; }, 460); };
+  if(x) x.addEventListener('click', dismiss);
+  const go = document.getElementById('drawPopGo');
+  if(go) go.addEventListener('click', ()=>{ dismiss(); setView('draw'); });
+  tickDraw(); setInterval(tickDraw, 1000);
+})();
 
 load().then(tape);
 loadStats(); feed(); readCurveParams();
