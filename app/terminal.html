@@ -396,7 +396,20 @@ td.l{text-align:left}
 .toast.err{border-color:rgba(255,69,58,.5)}
 @media (max-width:1100px){ .hstats{display:none} }
 @media (max-width:1000px){ .main{grid-template-columns:1fr} .rail{display:none} .grid2{grid-template-columns:1fr} .nav .navi{padding:7px 8px;font-size:12px} .search{display:none} }
-@media (max-width:760px){ .hero{display:none} .app{grid-template-rows:52px 0 28px 42px 1fr 26px} .sitechip{display:none} }
+/* phones: the hero row collapses to 0 but STAYS in the grid (display:none would
+   remove it and shift every row up one); the top bar scrolls sideways instead
+   of forcing the page wider than the screen. */
+@media (max-width:760px){
+  .hero{padding:0;border:0;overflow:hidden;min-height:0}
+  .app{grid-template-rows:52px 0 28px 42px 1fr 26px;width:100vw}
+  .app>*{min-width:0}
+  .topbar{overflow-x:auto;scrollbar-width:none;gap:8px;padding:0 10px}
+  .topbar::-webkit-scrollbar{display:none}
+  .toolbar{overflow-x:auto;scrollbar-width:none}
+  .sitechip{display:none}
+  .tcard{grid-template-columns:44px minmax(0,1fr) auto;padding:10px}
+  .tcard .av{width:44px;height:44px;flex-basis:44px;font-size:11px}
+}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;
     transition-duration:.01ms!important}
@@ -3116,6 +3129,7 @@ async function tape(){
   const el=document.getElementById('tape');
   // No launchpad on mainnet — without an address, getLogs would sweep the whole
   // chain. Uniswap swap events need the indexer; say so rather than fake it.
+  if(!onArc()){ el.innerHTML='<span class="ev">'+CHAINS[CHAIN].name+' · explorer via GeckoTerminal · trading opens on the pool\'s DEX</span>'; return; }
   if(!PUMP){
     el.innerHTML = FEED.length
       ? FEED.slice(0,12).map(sw=>'<span class="ev"><span class="'+(sw.side==='buy'?'up':'dn')+'">'+(sw.side==='buy'?'BUY':'SELL')+'</span> '+((sw.meta_ok&&sw.symbol)?sw.symbol:short(sw.token_address))+' '+fmtUsd(sw.usdc_amount)+'</span>').join('')
