@@ -13,7 +13,7 @@
  *   KEEPER_KEY=0x<gas-only key> node limit-keeper.js
  */
 'use strict';
-require('dotenv').config();
+try { require('dotenv').config(); } catch { /* optional: Railway injects env directly */ }
 const { ethers } = require('ethers');
 const { makeProvider } = require('./rpc-retry');
 

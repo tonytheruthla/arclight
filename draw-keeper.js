@@ -21,7 +21,7 @@
  *   OPERATOR_KEY=0x<gas-only key> OPERATOR_SEED=<long random string> node draw-keeper.js
  */
 'use strict';
-require('dotenv').config();
+try { require('dotenv').config(); } catch { /* optional: Railway injects env directly */ }
 const { ethers } = require('ethers');
 const { makeProvider } = require('./rpc-retry');
 
@@ -67,7 +67,12 @@ const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
   const tick = async () => {
     if (inflight) return; inflight = true;
     try {
-      const now = Math.floor(Date.now() / 1000);
+      // Time comes from the chain, not from this container's clock. The
+      // contract decides with block.timestamp, so that is the only clock whose
+      // opinion matters: if Railway's clock ran fast we would send seal() calls
+      // that revert, every tick, burning gas to be told we are early.
+      const head = await provider.getBlock('latest');
+      const now = head ? Number(head.timestamp) : Math.floor(Date.now() / 1000);
       const r = Number(await c.currentRound());
 
       // 1. commit next round (and this one, if it's still empty — the deploy hour)

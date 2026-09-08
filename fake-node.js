@@ -95,6 +95,10 @@ let FLAKY = Number(process.env.FLAKY || 0);   // 0..1 — fraction of reads answ
 
   const server = http.createServer((req, res) => {
     if (req.url === '/revive') { dead = false; sends = 0; res.end('revived\n'); return; }
+    // /warp?s=3600 — push block.timestamp forward. The draw contract keys every
+    // round off the UTC hour, so without this a full seal→draw rehearsal would
+    // mean waiting for a real hour boundary to come round.
+    if (req.url && req.url.startsWith('/warp')) { timestamp += BigInt(new URL(req.url, 'http://x').searchParams.get('s') || 0); res.end('timestamp=' + timestamp + '\n'); return; }
     if (req.url && req.url.startsWith('/flaky')) { FLAKY = Number(new URL(req.url, 'http://x').searchParams.get('p') || 0); res.end('flaky=' + FLAKY + '\n'); return; }
     let body = ''; req.on('data', c => body += c); req.on('end', async () => {
       let out;

@@ -6,7 +6,11 @@
  * Either half is skipped if its variables are absent, so this can go live in stages.
  */
 'use strict';
-require('dotenv').config();
+// dotenv is a local convenience only: it reads a .env file that exists on a
+// developer's machine and nowhere else. Railway injects variables into the
+// process directly, so a hard require here would crash-loop the service for a
+// package it does not need. Optional on purpose.
+try { require('dotenv').config(); } catch { /* no .env, no dotenv — fine */ }
 const { spawn } = require('child_process');
 const env = process.env;
 const parts = [];
