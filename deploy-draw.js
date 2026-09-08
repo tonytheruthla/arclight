@@ -14,6 +14,7 @@
  * SALES, change operator/treasury, and withdraw accrued fees.
  */
 const { ethers } = require('ethers');
+const { makeProvider } = require('./rpc-retry');
 const fs = require('fs');
 const die = m => { console.error('\n  ' + m + '\n'); process.exit(1); };
 
@@ -26,8 +27,7 @@ if (ADMIN && !ethers.isAddress(ADMIN)) die('ADMIN must be a valid address if pro
 
 (async () => {
   const build = JSON.parse(fs.readFileSync(__dirname + '/build-draw.json', 'utf8'));
-  const net = new ethers.Network('arc', CHAIN_ID);
-  const provider = new ethers.JsonRpcProvider(RPC, net, { staticNetwork: net, batchMaxCount: 1 });
+  const provider = makeProvider(RPC, CHAIN_ID);
   const live = Number(await provider.send('eth_chainId', []));
   if (live !== CHAIN_ID) die(`RPC reports chain ${live}, you declared ${CHAIN_ID}. Stopping.`);
   const wallet = new ethers.Wallet(DEPLOYER_KEY, provider);

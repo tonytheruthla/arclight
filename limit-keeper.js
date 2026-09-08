@@ -15,6 +15,7 @@
 'use strict';
 require('dotenv').config();
 const { ethers } = require('ethers');
+const { makeProvider } = require('./rpc-retry');
 
 const LIMIT_ABI = [
   'function count() view returns (uint256)',
@@ -26,9 +27,7 @@ const LIMIT_ABI = [
 const PUMP_ABI = ['function spotPrice(address) view returns (uint256)'];
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), '[limit]', ...a);
 
-async function start({ RPC, CHAIN_ID, LIMIT, PUMP, KEEPER_KEY, TICK_MS = 10_000 }) {
-  const net = new ethers.Network('arc', Number(CHAIN_ID));
-  const provider = new ethers.JsonRpcProvider(RPC, net, { staticNetwork: net, batchMaxCount: 1 });
+async function start({ RPC, CHAIN_ID, LIMIT, PUMP, KEEPER_KEY, TICK_MS = 10_000 }) {  const provider = makeProvider(RPC, CHAIN_ID);
   const wallet = new ethers.Wallet(KEEPER_KEY, provider);
   const book = new ethers.Contract(LIMIT, LIMIT_ABI, wallet);
   const pump = new ethers.Contract(PUMP, PUMP_ABI, provider);

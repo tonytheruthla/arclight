@@ -23,6 +23,7 @@
 'use strict';
 require('dotenv').config();
 const { ethers } = require('ethers');
+const { makeProvider } = require('./rpc-retry');
 
 const { RPC, DRAW, OPERATOR_KEY, OPERATOR_SEED } = process.env;
 const CHAIN_ID = Number(process.env.CHAIN_ID || 5042);
@@ -49,8 +50,7 @@ const commitmentFor = r => ethers.keccak256(abi.encode(['bytes32', 'uint256'], [
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 
 (async () => {
-  const net = new ethers.Network('arc', CHAIN_ID);
-  const provider = new ethers.JsonRpcProvider(RPC, net, { staticNetwork: net, batchMaxCount: 1 });
+  const provider = makeProvider(RPC, CHAIN_ID);
   const wallet = new ethers.Wallet(OPERATOR_KEY, provider);
   const c = new ethers.Contract(DRAW, ABI, wallet);
   const op = await c.operator();
