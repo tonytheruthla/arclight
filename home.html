@@ -670,7 +670,7 @@
   <!-- scene 1: hero -->
   <div class="scene" id="heroScene">
     <div id="heroInner" style="display:flex; flex-direction:column; align-items:center;">
-      <div class="rv"><div class="kicker">Live on Arc Testnet</div></div>
+      <div class="rv"><div class="kicker">Live on Arc</div></div>
       <h1 class="grad-blue rv rv2">Launch. Trade.<br><span class="accent-serif">Predict.</span></h1>
       <p class="big rv rv3">The memecoin launchpad where every coin is priced in real dollars — and every launch is a market you can bet on.</p>
       <div class="rv rv4" style="margin-top:38px; display:flex; gap:14px; flex-wrap:wrap; justify-content:center;">
@@ -708,7 +708,7 @@
     <div class="ghost-num">02</div>
     <div class="rv"><div class="kicker">02 · Trade</div></div>
     <h2 class="grad-green rv rv2">Real dollars.<br>Real <span class="accent-serif">price discovery.</span></h2>
-    <p class="big rv rv3">Every coin is priced in USDC from the first trade. Buy early on the curve, ride it to the $8,000 graduation — a 13× climb — then the liquidity moves on-chain forever.</p>
+    <p class="big rv rv3">Every coin is priced in USDC from the first trade. Buy early on the curve, ride it to the $1,500 graduation, then the liquidity moves on-chain forever.</p>
     <div class="curve-wrap rv rv4">
       <svg id="curveSvg" viewBox="0 0 720 300" fill="none" xmlns="http://www.w3.org/2000/svg">
         <defs>
@@ -724,7 +724,7 @@
           <text x="625" y="38" text-anchor="middle" font-size="14" font-weight="600" fill="#30d158" font-family="-apple-system, sans-serif">graduated 🎓</text>
         </g>
         <text x="14" y="292" font-size="12" fill="rgba(255,255,255,.35)" font-family="-apple-system, sans-serif">$0</text>
-        <text x="690" y="292" text-anchor="end" font-size="12" fill="rgba(255,255,255,.35)" font-family="-apple-system, sans-serif">$8,000 raised</text>
+        <text x="690" y="292" text-anchor="end" font-size="12" fill="rgba(255,255,255,.35)" font-family="-apple-system, sans-serif">$1,500 raised</text>
       </svg>
       <div id="fx"></div>
     </div>
@@ -798,7 +798,7 @@
 
   <section class="panel" id="panel-trade">
     <h2 class="panel-title">Trade.</h2>
-    <p class="panel-sub">Every coin costs real dollars. Graduate at $8,000 raised.</p>
+    <p class="panel-sub">Every coin costs real dollars. Graduate at $1,500 raised.</p>
 
     <!-- Terminal teaser. Deliberately placed ABOVE the coin list: it's the thing
          that differentiates us, and it's the first thing a trader should see. -->
@@ -813,8 +813,8 @@
           <h3>Terminal</h3>
           <span class="tt-arrow">Open →</span>
         </div>
-        <p>Scan every USDC pair on <b>Arc mainnet</b>, or switch to testnet for
-           <b>live graduation odds</b> — a column no other launchpad can render.
+        <p>Scan every USDC pair on <b>Arc</b>, with <b>live graduation odds</b> —
+           a column no other launchpad can render.
            Keyboard-first, two RPC calls a refresh, no account.</p>
         <div class="tt-tags">
           <span>Arc mainnet</span><span>Live odds</span><span>Portfolio</span><span>Free RPC</span>
@@ -840,7 +840,7 @@
         <div class="big-num" id="dPrice">$—</div>
         <div style="font-size:13px; color:var(--ink-2);">per token</div>
         <div style="margin-top:24px; font-size:13px; color:var(--ink-2); display:flex; justify-content:space-between;">
-          <span>Progress to graduation</span><span id="dRaised">$0 / $8,000</span>
+          <span>Progress to graduation</span><span id="dRaised">$0 / —</span>
         </div>
         <div class="progress"><i id="dProgress" style="width:0%"></i></div>
         <div style="margin-top:24px; font-size:13px; color:var(--ink-2);">Your balance</div>
@@ -882,12 +882,12 @@
 </div>
 
 <footer>
-  Arclite · Arc Testnet (chain 5042002) · contracts:
+  Arclite · Arc (chain 5042) · contracts:
   <a id="fPump" target="_blank" class="mono">Pump</a> ·
   <a id="fPredict" target="_blank" class="mono">Predict</a> ·
   <a href="https://github.com/tonytheruthla/arclight" target="_blank">GitHub</a> ·
   <a href="https://x.com/ArcLiteFun" target="_blank" rel="noopener">@ArcLiteFun</a>
-  <div style="margin-top:8px;">Testnet software. Nothing here is financial advice.</div>
+  <div style="margin-top:8px;">Real funds on Arc mainnet. Nothing here is financial advice.</div>
 </footer>
 
 <div id="profilePanel">
@@ -895,7 +895,7 @@
     <canvas class="pp-av" id="ppAv" width="42" height="42"></canvas>
     <div style="flex:1; min-width:0;">
       <div class="pp-addr" id="ppAddr">0x…</div>
-      <div class="pp-net" id="ppNet">Arc Testnet</div>
+      <div class="pp-net" id="ppNet">Arc</div>
     </div>
   </div>
   <div class="pp-stats">
@@ -941,7 +941,7 @@
     </div>
     <div class="wm-sub">Any Ethereum-compatible wallet works on Arc.</div>
     <div id="wmList"></div>
-    <div class="wm-foot">Arc Testnet · chain 5042002 · gas is USDC</div>
+    <div class="wm-foot">Arc · chain 5042 · gas is USDC</div>
   </div>
 </div>
 
@@ -949,13 +949,21 @@
 
 <script>
 /* ================= config ================= */
-const CHAIN_ID = 5042002;
-const CHAIN_HEX = '0x4cef52';
-const RPC = 'https://rpc.testnet.arc.network';
-const EXPLORER = 'https://testnet.arcscan.app';
-const PUMP = '0x07236980c1734d86D94D979A5d512689f7BD209A';
-const PREDICT = '0xC2B2468Bf0D91d0c23A4116567a017Cab5d79259';
-const GRAD = 8000;
+/* Arc mainnet. This page used to run against testnet (chain 5042002) while the
+   product was live on 5042 — it told visitors "Live on Arc Testnet" and would
+   have asked them to switch networks to a chain we no longer use.
+   RPC goes through our own proxy for the same reason the terminal does:
+   Circle has not published a public mainnet endpoint. */
+const CHAIN_ID = 5042;
+const CHAIN_HEX = '0x13b2';
+const RPC = 'https://rpc.arclite.fun';
+const EXPLORER = 'https://arcscan.app';
+const PUMP = '0xa855b64c978118fdAC9746d1795c1E16668dd394';    // ArclitePumpV4
+const PREDICT = '0xb7148f397Bcd7020eCa3A4dbf3eb7D7DE82C4547'; // ArclitePredictV4
+/* Read from graduationUsdc(), never assumed. The terminal shipped a hardcoded
+   8000 here and spent a day telling creators their token graduated at $8,000
+   when the contract said $1,500. null means "not read yet" and the UI says so. */
+let GRAD = null;
 
 const PUMP_ABI = [
   'function createToken(string,string) payable returns (address)',
@@ -964,7 +972,10 @@ const PUMP_ABI = [
   'function quoteBuy(address,uint256) view returns (uint256)',
   'function quoteSell(address,uint256) view returns (uint256)',
   'function spotPrice(address) view returns (uint256)',
-  'function curves(address) view returns (address,uint64,uint64,uint8,uint256,uint256,bool)',
+  // V4 returns ten fields. The first seven are positionally identical to the
+  // old shape, but decoding against the real signature avoids relying on that.
+  'function curves(address) view returns (address,uint64,uint64,uint8,uint256,uint256,bool,bool,uint256,uint256)',
+  'function graduationUsdc() view returns (uint256)',
   'function tokenCount() view returns (uint256)',
   'function allTokens(uint256) view returns (address)',
   // v0.3 batched read. Absent on the v0.2 deployment — loadTokens() probes once
@@ -994,7 +1005,15 @@ const PREDICT_ABI = [
 
 /* ================= state ================= */
 let provider, signer, me, pump, predict;
-const arcNet = new ethers.Network('arc-testnet', CHAIN_ID);
+/* Token names and symbols are chosen by whoever deploys the token, and they
+   land in this page's innerHTML. Escaping them is the difference between a
+   listing and an injection on a page where people connect a wallet. */
+function esc(v){
+  return String(v == null ? '' : v)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+const arcNet = new ethers.Network('arc', CHAIN_ID);
 const readProvider = new ethers.JsonRpcProvider(RPC, arcNet, { staticNetwork: arcNet, batchMaxCount: 1, batchStallTime: 0 });
 readProvider.pollingInterval = 60_000;
 let pumpR = new ethers.Contract(PUMP, PUMP_ABI, readProvider);
@@ -1298,7 +1317,11 @@ document.addEventListener('click', e=>{ if (e.target.closest('.btn')) sfx('ui');
 ================================================================== */
 (function(){
   const cv = document.getElementById('motes'); if(!cv) return;
-  const ctx = cv.getContext('2d'); let ps=[], w=0, h=0, run=true;
+  // Decorative only. If the browser refuses a canvas context (privacy
+  // extensions and hardened profiles do), skip the animation rather than
+  // throwing and taking the rest of the page's setup down with it.
+  const ctx = cv.getContext && cv.getContext('2d'); if(!ctx) return;
+  let ps=[], w=0, h=0, run=true;
   function resize(){ w=cv.width=innerWidth; h=cv.height=innerHeight;
     const n = Math.min(46, Math.floor(w/34));
     ps = Array.from({length:n}, ()=>newP(true)); }
@@ -1612,7 +1635,7 @@ window.connectWith = async function(key) {
     }
     if (!accounts || !accounts.length) throw new Error('No account returned. Unlock your wallet and try again.');
 
-    // 2) make sure we are on Arc Testnet
+    // 2) make sure we are on Arc
     let chainId = await rawRequest(injected, { method: 'eth_chainId' }, 8000).catch(() => null);
     if (chainId !== CHAIN_HEX) {
       try {
@@ -1621,12 +1644,12 @@ window.connectWith = async function(key) {
         if (e.code === 4902 || e.code === -32603) {
           // chain not added yet — add it
           await rawRequest(injected, { method: 'wallet_addEthereumChain', params: [{
-            chainId: CHAIN_HEX, chainName: 'Arc Testnet',
+            chainId: CHAIN_HEX, chainName: 'Arc',
             nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
             rpcUrls: [RPC], blockExplorerUrls: [EXPLORER]
           }]});
         } else if (e.code === 4001) {
-          throw new Error('Please approve the switch to Arc Testnet to continue.');
+          throw new Error('Please approve the switch to Arc to continue.');
         } else { throw e; }
       }
     }
@@ -1645,7 +1668,7 @@ window.connectWith = async function(key) {
     localStorage.setItem('ark_wallet', entry.key);
     window.me = me; window.arkBal = fmt(E(bal), 2); window.arkWalletName = entry.name;
     renderProfile();
-    toast('Connected with ' + entry.name + ' — $' + fmt(E(bal), 2) + ' testnet USDC');
+    toast('Connected with ' + entry.name + ' — $' + fmt(E(bal), 2) + ' USDC');
 
     // react to the user changing account / network in the wallet
     if (injected.on && !injected._arkBound) {
@@ -1665,7 +1688,8 @@ window.connectWith = async function(key) {
 /* ---------- profile panel: identity + balance + disconnect ---------- */
 function blockie(canvas, addr){
   if (!canvas || !addr) return;
-  const ctx = canvas.getContext('2d'); const S = canvas.width; const cells = 7; const c = S/cells;
+  const ctx = canvas.getContext && canvas.getContext('2d'); if (!ctx) return;
+  const S = canvas.width; const cells = 7; const c = S/cells;
   let h = 0; for (let i=2;i<addr.length;i++) h = (h*31 + addr.charCodeAt(i)) >>> 0;
   const hue = h % 360;
   ctx.fillStyle = `hsl(${(hue+200)%360},70%,12%)`; ctx.fillRect(0,0,S,S);
@@ -1681,7 +1705,7 @@ function blockie(canvas, addr){
 function renderProfile(){
   if (!window.me) return;
   document.getElementById('ppAddr').textContent = short(window.me);
-  document.getElementById('ppNet').textContent = 'Arc Testnet · ' + (window.arkWalletName || 'connected');
+  document.getElementById('ppNet').textContent = 'Arc · ' + (window.arkWalletName || 'connected');
   document.getElementById('ppBal').textContent = '$' + (window.arkBal || '0');
   blockie(document.getElementById('ppAv'), window.me);
 }
@@ -1800,14 +1824,14 @@ async function pool(items, limit, fn) {
 function rowHtml(d, idx) {
   const raised = Number(E(d.realUsdc));
   const price  = localSpotPrice(d.realUsdc, d.soldTokens);
-  const pct    = Math.min(100, raised / GRAD * 100);
+  const pct    = GRAD ? Math.min(100, raised / GRAD * 100) : 0;
   const mcap   = Number(E(price)) * 1e9;
   const grad   = d.phase === 2;
   return `
       <div class="row" style="animation-delay:${Math.min(idx,12)*0.07}s" onclick="openToken('${d.addr}')">
-        <div class="avatar" style="background:hsl(${hue(d.addr)},68%,48%)">${d.symbol.slice(0,3)}</div>
+        <div class="avatar" style="background:hsl(${hue(d.addr)},68%,48%)">${esc(d.symbol.slice(0,3))}</div>
         <div class="row-main">
-          <div class="row-title">${d.name} <span style="color:var(--ink-3);font-weight:400">· ${d.symbol}</span></div>
+          <div class="row-title">${esc(d.name)} <span style="color:var(--ink-3);font-weight:400">· ${esc(d.symbol)}</span></div>
           <div class="row-sub">mcap $${fmt(mcap,0)} · raised $${fmt(raised,0)}</div>
           <div class="progress" style="max-width:280px"><i style="width:${pct}%"></i></div>
         </div>
@@ -1857,9 +1881,22 @@ async function fillMeta(rows) {
   return rows;
 }
 
+/** graduationUsdc() is a fact about the deployed contract. Read once, cached. */
+async function ensureGrad(){
+  if (GRAD != null) return GRAD;
+  try {
+    const g = Number(E(await pumpR.graduationUsdc()));
+    if (g > 0) GRAD = g;
+  } catch (e) {
+    console.warn('[grad] could not read graduationUsdc:', String(e && (e.shortMessage||e.message) || e).slice(0,140));
+  }
+  return GRAD;
+}
+
 async function loadTokens(append) {
   const el = document.getElementById('tokenList');
   try {
+    await ensureGrad();
     if (!append) { pageOffset = 0; listExhausted = false; }
     const n = Number(await pumpR.tokenCount());
     if (n === 0) { el.innerHTML = '<div class="empty">No coins yet. Be the first to launch.</div>'; return; }
@@ -1914,8 +1951,8 @@ async function refreshToken() {
     const raised = Number(E(c[5]));
     const grad = Number(c[3])===2;
     document.getElementById('dPrice').textContent = '$' + fmt(E(price),8);
-    document.getElementById('dRaised').textContent = '$' + fmt(raised,0) + ' / $8,000';
-    document.getElementById('dProgress').style.width = Math.min(100,raised/GRAD*100) + '%';
+    document.getElementById('dRaised').textContent = '$' + fmt(raised,0) + ' / ' + (GRAD==null ? '—' : '$'+GRAD.toLocaleString());
+    document.getElementById('dProgress').style.width = (GRAD ? Math.min(100,raised/GRAD*100) : 0) + '%';
     const ph = document.getElementById('dPhase');
     ph.textContent = grad ? 'graduated' : 'live';
     ph.className = 'pill ' + (grad?'grad':'live');
