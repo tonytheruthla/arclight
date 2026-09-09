@@ -13,10 +13,38 @@
 try { require('dotenv').config(); } catch { /* no .env, no dotenv — fine */ }
 const { spawn } = require('child_process');
 const env = process.env;
+
+/* Name the variables that are actually missing, not the ones we require.
+   The old message printed a fixed "(DRAW/OPERATOR_KEY/OPERATOR_SEED unset)"
+   whenever ANY of the three was absent, which reads like all three are gone.
+   On 2026-09-09 that cost a debugging round trip: DRAW was set correctly and
+   only the two secrets were blank, but the log gave no way to tell.
+
+   A variable set to an empty string counts as missing. Railway lets you save a
+   name with no value, and that is exactly how this failed — the three key
+   fields existed but held "". Treat blank as absent so the message is true. */
+const missing = names => names.filter(n => !String(env[n] || '').trim());
+const describe = names => {
+  const gone = missing(names);
+  return gone.length === names.length
+    ? `none of ${names.join(', ')} are set`
+    : `${gone.join(', ')} ${gone.length === 1 ? 'is' : 'are'} empty or unset`;
+};
+
 const parts = [];
-if (env.DRAW && env.OPERATOR_KEY && env.OPERATOR_SEED) parts.push('draw-keeper.js'); else console.log('[keepers] draw keeper off (DRAW/OPERATOR_KEY/OPERATOR_SEED unset)');
-if (env.LIMIT && env.PUMP && env.KEEPER_KEY) parts.push('limit-keeper.js'); else console.log('[keepers] limit keeper off (LIMIT/PUMP/KEEPER_KEY unset)');
-if (!parts.length) { console.log('[keepers] nothing to run — idling'); setInterval(() => {}, 60_000); }
+const drawVars  = ['DRAW', 'OPERATOR_KEY', 'OPERATOR_SEED'];
+const limitVars = ['LIMIT', 'PUMP', 'KEEPER_KEY'];
+
+if (!missing(drawVars).length) parts.push('draw-keeper.js');
+else console.log('[keepers] draw keeper OFF — ' + describe(drawVars));
+
+if (!missing(limitVars).length) parts.push('limit-keeper.js');
+else console.log('[keepers] limit keeper OFF — ' + describe(limitVars));
+
+if (!parts.length) {
+  console.log('[keepers] nothing to run — idling. Set the variables above and redeploy.');
+  setInterval(() => {}, 60_000);
+}
 for (const p of parts) {
   const child = spawn(process.execPath, [__dirname + '/' + p], { stdio: 'inherit', env });
   child.on('exit', code => { console.error(`[keepers] ${p} exited ${code} — restarting in 5s`); setTimeout(() => process.exit(1), 5000); });
