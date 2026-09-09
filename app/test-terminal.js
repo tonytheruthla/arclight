@@ -746,6 +746,35 @@ function boot(url, boptions) {
   ok(xw.__term.esc('<b>&"') === '&lt;b&gt;&amp;&quot;', 'esc escapes <, >, & and quotes');
   }
 
+  // ---- graduation target must never be invented -------------------------
+  // Live bug 2026-09-09: landing on #launch quoted "graduates at $8,000" while
+  // the contract said $1,500, because GRAD_TARGET defaulted to 8000 and was
+  // only corrected inside loadLaunchpad(), which #launch never calls. A wrong
+  // number on the page where someone launches a token is worse than no number.
+  console.log('\n=== graduation target ===');
+  ok(/let GRAD_TARGET = null;/.test(html),
+     'GRAD_TARGET starts unknown rather than at a hardcoded 8000');
+  ok(!/GRAD_TARGET *= *8000/.test(html), 'the 8000 placeholder is gone entirely');
+  ok(/const gradStr = \(\) => GRAD_TARGET == null \? 'reading…'/.test(html),
+     'every display site renders "reading…" while it is unknown');
+  // gradStr() is the one place allowed to format it — it has already checked null.
+  ok(html.split('GRAD_TARGET.toLocaleString()').length - 1 === 1,
+     'exactly one place formats GRAD_TARGET, and it is gradStr()');
+  ok(/console\.warn\('\[grad\] could not read graduationUsdc/.test(html),
+     'a failed read is logged, not swallowed by an empty catch');
+  ok(/async function renderLaunch\(\)\{[\s\S]{0,900}ensureGradTarget\(\)\.then/.test(html),
+     'the Launch view reads the target itself instead of relying on boot');
+
+  // and prove it end to end: land straight on #launch, never touching #launchpad
+  {
+  const gm = boot('https://arclite.fun/app/terminal.html?net=mainnet#launch');
+  await sleep(900);
+  const gtxt = gm.d.getElementById('panel').textContent;
+  ok(!/\$8,000/.test(gtxt), 'landing on #launch never shows $8,000', gtxt.slice(0, 160));
+  ok(/1,500|reading…/.test(gtxt), 'it shows the real target, or says it is still reading',
+     (gtxt.match(/[Gg]raduates? at [^,]{0,14}/) || [''])[0]);
+  }
+
   console.log('\n=== no leftovers ===');
   ok(!/bounty/i.test(html), 'terminal.html contains no "bounty"');
   ok(!/REFERRALS\s*=|bindReferrer|copyRefLink/.test(html), 'terminal.html contains no referral code');

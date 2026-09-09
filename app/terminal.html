@@ -1451,7 +1451,34 @@ function toast(msg, err){
 /* ==================================================================
    STATE
 ================================================================== */
-let GRAD_TARGET = 8000;
+/* The graduation target is a fact about the deployed contract, not a constant
+   we get to choose. It used to default to 8000 and only get corrected inside
+   loadLaunchpad(), so anyone landing straight on #launch was told their token
+   graduates at $8,000 when the contract says $1,500 — a 5x misstatement on the
+   page where people launch. null means "not read yet" and every display site
+   says so rather than inventing a number. */
+let GRAD_TARGET = null;
+let gradPending = null;
+/** Read graduationUsdc() once and cache it. Safe to call from anywhere. */
+async function ensureGradTarget(force){
+  if(GRAD_TARGET != null && !force) return GRAD_TARGET;
+  if(gradPending) return gradPending;
+  if(!pumpR) return null;
+  gradPending = (async () => {
+    try{
+      const g = Number(E(await retry(()=>pumpR.graduationUsdc(), 4, 9000)));
+      if(g > 0) GRAD_TARGET = g;
+    }catch(e){
+      // Previously an empty catch, which is how a boot-time failure turned into
+      // a wrong number on screen for the whole session with nothing in the log.
+      console.warn('[grad] could not read graduationUsdc:', String(e && (e.shortMessage||e.message) || e).slice(0,140));
+    }finally{ gradPending = null; }
+    return GRAD_TARGET;
+  })();
+  return gradPending;
+}
+/** How the target is written wherever it appears. Never a guess. */
+const gradStr = () => GRAD_TARGET == null ? 'reading…' : '$' + GRAD_TARGET.toLocaleString();
 let coins = [];          // merged coin + market rows
 let filter = (typeof NET!=='undefined' && NET.mode==='scanner') ? 'trending' : 'new';
 
@@ -1789,7 +1816,7 @@ async function loadLaunchpad(){
   const tb=document.getElementById('rows');
   if(!pumpR){ render(); return; }
   try{
-    GRAD_TARGET = Number(E(await retry(()=>pumpR.graduationUsdc())));
+    await ensureGradTarget();
 
     const n = Number(await retry(()=>pumpR.tokenCount()));
     if(n===0){
@@ -1853,7 +1880,7 @@ async function loadLaunchpad(){
         addr:a, name:m.name, symbol:m.symbol,
         phase:Number(phase[i]), sold:sold[i], raised:r,
         price:px, mcap:px*SUPPLY,
-        pct: Math.min(100, r/GRAD_TARGET*100),
+        pct: GRAD_TARGET ? Math.min(100, r/GRAD_TARGET*100) : 0,
         creator:creator[i], mkt, market:mk, yesBps
       };
     }).reverse(); // newest first
@@ -2132,7 +2159,7 @@ function render(){
   }
   if(VIEW==='launchpad' && !hasPump()){
     tb.innerHTML='<tr><td colspan="9"><div class="gate"><div><div class="dsp">The Arclite launchpad goes live on mainnet at deploy.</div>'+
-      'Bonding curve, graduation at $'+GRAD_TARGET.toLocaleString()+', 80% of trade fees to creators, and a live odds market on every coin. '+
+      'Bonding curve, graduation at '+gradStr()+', 80% of trade fees to creators, and a live odds market on every coin. '+
       '</div></div></td></tr>';
     return;
   }
@@ -2248,7 +2275,7 @@ function rail(){
      '<div class="big">'+(c.priceStale?'<span class="dim" style="font-size:14px">pending — no swap seen yet</span>':fmtPrice(c.price))+'</div>'+
      '<div class="kv"><span>Market cap</span><b>'+fmtUsd(c.mcap)+'</b></div>'+
      '<div class="kv"><span>Raised</span><b>'+fmtUsd(c.raised,2)+'</b></div>'+
-     '<div class="kv"><span>To graduation</span><b>'+fmtUsd(Math.max(0,GRAD_TARGET-c.raised),0)+'</b></div>'+
+     '<div class="kv"><span>To graduation</span><b>'+(GRAD_TARGET==null?'—':fmtUsd(Math.max(0,GRAD_TARGET-c.raised),0))+'</b></div>'+
      '<div class="bar" style="width:100%;margin-top:8px"><i style="width:'+c.pct+'%"></i></div>'+
    '</div>'+
    (m ? '<div class="card"><h3>Graduation market #'+m.id+'</h3>'+
@@ -2506,7 +2533,7 @@ function paintHero(){
     set('hs1', hasPump()? String(live.length) : (STATS? String(STATS.launched):'—'), 'Launched');
     set('hs2', hasPump()? fmtUsd(vol) : (STATS? fmtUsd(STATS.launchVolume24h):'—'), hasPump()?'Raised on curves':'24h volume');
     set('hs3', hasPump()? String(grads) : '—', 'Graduated');
-    set('hs4', '$'+GRAD_TARGET.toLocaleString(), 'Grad target');
+    set('hs4', gradStr(), 'Grad target');
     return;
   }
   if(VIEW==='draw'){
@@ -2626,8 +2653,16 @@ function railDefault(el){
 let launchFee = null;   // native USDC wei, read from the pump
 async function renderLaunch(){
   const el=document.getElementById('panel');
+  /* Read the target here rather than relying on boot having managed it. This
+     page is the one that quotes the number to a creator, so it is the page
+     that should be responsible for having it. Cached after the first read, so
+     revisits cost nothing; if it is still unknown the copy says "reading…"
+     and a repaint follows when the answer lands. */
+  if(GRAD_TARGET == null && pumpR){
+    ensureGradTarget().then(v => { if(v != null && VIEW === 'launch') renderLaunch(); });
+  }
   const fixed = [
-    ['Supply','1,000,000,000'],['Curve seed','$3,000 virtual USDC'],['Graduates at','$'+GRAD_TARGET.toLocaleString()+' raised'],
+    ['Supply','1,000,000,000'],['Curve seed','$3,000 virtual USDC'],['Graduates at', gradStr()+' raised'],
     ['Trade fee','1%'],['Creator share','80% of every trade fee, claim any time'],['Launch fee', launchFee==null?'reading…':(launchFee===0n?'free':fmtUsd(Number(E(launchFee)),2))],
     ['Cooldown','10 min per wallet'],['Tax / mint / owner','none · none · none'],
   ];
@@ -2640,7 +2675,7 @@ async function renderLaunch(){
   el.innerHTML =
     '<div class="ph"><div><h1>Launch a token on <em>Arc</em></h1>'+
       '<div class="sub">Straight onto a bonding curve — live from the first buy. No presale, no allocation, no admin keys on the token. '+
-      'It graduates at $'+GRAD_TARGET.toLocaleString()+' raised, and every trade pays you 80% of the fee, forever.</div></div>'+
+      'It graduates at '+gradStr()+' raised, and every trade pays you 80% of the fee, forever.</div></div>'+
       '<div class="pillrow" style="margin:0 0 0 auto"><span class="pill">1B supply</span><span class="pill">~$2.8K start mcap</span><span class="pill">fee 1% · 80% → creator</span><span class="pill">'+NET.label+'</span></div></div>'+
     '<div class="grid2">'+
       '<div class="form"><h3>Token</h3><div class="sub">Fixed 1,000,000,000 supply. No owner, no mint, no tax. The contract has no levers to pull.</div>'+
@@ -2922,7 +2957,7 @@ function laneDefs(){
   return [
     { key:'new',   title:'New',       cls:'hot',  empty:'Nothing launched yet — be first',      pick: v => v.filter(c=>c.phase===1 && c.pct<5) },
     { key:'climb', title:'Climbing',  cls:'warn', empty:'No coin past 5% of the curve yet',     pick: v => v.filter(c=>c.phase===1 && c.pct>=5).sort((a,b)=>b.pct-a.pct) },
-    { key:'grad',  title:'Graduated', cls:'ok',   empty:'First graduation at $'+GRAD_TARGET.toLocaleString()+' raised', pick: v => v.filter(c=>c.phase===2) },
+    { key:'grad',  title:'Graduated', cls:'ok',   empty:'First graduation at '+gradStr()+' raised', pick: v => v.filter(c=>c.phase===2) },
   ];
 }
 
@@ -4107,11 +4142,9 @@ window.__term = { get VIEW(){ return VIEW; }, get coins(){ return coins; }, get 
    never triggers a launchpad load on an explorer-first network. Read it once at
    boot from the contract itself rather than trusting the placeholder default. */
 async function readCurveParams(){
-  if(!pumpR) return;
-  try{
-    const g = Number(E(await retry(()=>pumpR.graduationUsdc(),2,8000)));
-    if(g>0 && g!==GRAD_TARGET){ GRAD_TARGET=g; if(VIEW==='launch') renderLaunch(); paintHero(); }
-  }catch(e){}
+  const before = GRAD_TARGET;
+  await ensureGradTarget();
+  if(GRAD_TARGET !== before){ if(VIEW==='launch') renderLaunch(); paintHero(); }
 }
 
 /* ==================================================================
