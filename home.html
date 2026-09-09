@@ -624,8 +624,8 @@
       <div class="stat-strip rv rv4">
         <div class="stat"><b id="statTokens">—</b><span>coins launched</span></div>
         <div class="stat"><b id="statMarkets">—</b><span>open markets</span></div>
-        <div class="stat"><b>$1</b><span>to deploy</span></div>
-        <div class="stat"><b>$8K</b><span>to graduate</span></div>
+        <div class="stat"><b id="statFee">—</b><span>to deploy</span></div>
+        <div class="stat"><b id="statGrad">—</b><span>to graduate</span></div>
       </div>
     </div>
     <div class="scroll-cue">⌄</div>
@@ -791,7 +791,12 @@ const PREDICT = '0xb7148f397Bcd7020eCa3A4dbf3eb7D7DE82C4547'; // ArclitePredictV
    an ABI with buy/sell/createToken in it. If a future change needs one of
    those here, that is the moment to ask whether it belongs on the terminal
    instead. */
-const PUMP_ABI = ['function tokenCount() view returns (uint256)'];
+const PUMP_ABI = [
+  'function tokenCount() view returns (uint256)',
+  // read-only, for the two headline figures in the hero
+  'function graduationUsdc() view returns (uint256)',
+  'function deploymentFee() view returns (uint256)',
+];
 const PREDICT_ABI = ['function marketCount() view returns (uint256)'];
 
 /* ================= state ================= */
@@ -1245,13 +1250,23 @@ function enterApp(tab) {
   location.href = '/app/terminal.html#' + (APP_VIEW[tab] || 'tokens');
 }
 /* ================= stats ================= */
+/* Exact under $10K. "$1,500" reads as a real figure; "$1.5K" reads as a
+   rounded marketing one, and precision costs nothing at this width. */
+const money0 = n => n >= 10000 ? '$' + Math.round(n/1000) + 'K' : '$' + Math.round(n).toLocaleString();
 async function loadStats() {
   try {
     const tc = await pumpR.tokenCount(); await sleep(80);
-    const mc = await predictR.marketCount();
+    const mc = await predictR.marketCount(); await sleep(80);
     countUp(document.getElementById('statTokens'), tc.toString());
     countUp(document.getElementById('statMarkets'), mc.toString());
   } catch (e) { console.warn('stats:', e.message); }
+  // Separate try: a failure reading the fees must not blank the counters above.
+  try {
+    const [grad, fee] = [await pumpR.graduationUsdc(), await pumpR.deploymentFee()];
+    const g = Number(E(grad)), f = Number(E(fee));
+    document.getElementById('statGrad').textContent = money0(g);
+    document.getElementById('statFee').textContent  = f === 0 ? 'free' : money0(f);
+  } catch (e) { console.warn('fees:', e.message); }
 }
 loadStats();
 

@@ -50,8 +50,8 @@ const TESTNET_LEFTOVERS = [
   console.log('\n=== contracts ===');
   ok('pump is the deployed ArclitePumpV4', html.includes(MAINNET.pump));
   ok('predict is the deployed ArclitePredictV4', html.includes(MAINNET.predict));
-  ok('no curves()/graduationUsdc() ABI here — the terminal owns curve reads',
-     !/'function curves\(address\)/.test(html) && !/'function graduationUsdc\(\)/.test(html));
+  ok('no curve-state ABI here — the terminal owns per-token reads',
+     !/'function curves\(address\)/.test(html) && !/'function page\(/.test(html));
 
   // Decoding a real V4 return with the old 7-field ABI happens to work because
   // the leading fields line up. Prove that, so the change is understood rather
@@ -78,14 +78,29 @@ const TESTNET_LEFTOVERS = [
   ok('no prediction market writes', !/function betM|function claimM|function createMarket/.test(html));
   ok('the ABI it ships cannot spend money',
      !/'function (buy|sell|createToken|approve|bet|claim)\(/.test(html));
-  ok('  ...it is just the two counters',
-     /const PUMP_ABI = \['function tokenCount\(\) view returns \(uint256\)'\];/.test(html) &&
-     /const PREDICT_ABI = \['function marketCount\(\) view returns \(uint256\)'\];/.test(html));
+  ok('  ...every entry in it is a view function',
+     (html.match(/'function [^']+'/g) || []).every(e => /\bview\b/.test(e)),
+     (html.match(/'function [^']+'/g) || []).filter(e => !/\bview\b/.test(e)).join(' | '));
   ok('every CTA leaves for the terminal', /location\.href = '\/app\/terminal\.html#'/.test(html));
   ok('the nav button is a link to the app, not a connect handler',
      /<a class="btn btn-primary" id="connectBtn" href="\/app\/terminal\.html#tokens">/.test(html));
   ok('nothing untrusted is rendered, so no escaper is needed',
      !/\$\{d\.name\}|\$\{d\.symbol\}|innerHTML *= *`/.test(html));
+
+  // ---- 3b. headline numbers come from the chain --------------------------
+  // "$8K to graduate" survived the first pass because it is not spelled
+  // "8,000" — a grep for the comma missed it. It was wrong by 5x, in the hero,
+  // next to "$1 to deploy" which was also wrong (deploymentFee() is 0).
+  console.log('\n=== headline figures ===');
+  ok('no hardcoded $8K anywhere', !/\$8K/.test(html));
+  ok('no hardcoded "$1</b><span>to deploy" either', !/<b>\$1<\/b><span>to deploy/.test(html));
+  ok('graduation figure has an id to fill from chain', /id="statGrad"/.test(html));
+  ok('deploy fee has one too', /id="statFee"/.test(html));
+  ok('both are read from the pump contract',
+     /pumpR\.graduationUsdc\(\)/.test(html) && /pumpR\.deploymentFee\(\)/.test(html));
+  ok('a zero fee is shown as "free", not "$0"', /f === 0 \? 'free'/.test(html));
+  ok('the fee read is in its own try, so it cannot blank the counters',
+     /Separate try: a failure reading the fees/.test(html));
 
   // ---- 4. no testnet remnants in anything a visitor sees ------------------
   console.log('\n=== no testnet remnants ===');
