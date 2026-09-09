@@ -50,9 +50,8 @@ const TESTNET_LEFTOVERS = [
   console.log('\n=== contracts ===');
   ok('pump is the deployed ArclitePumpV4', html.includes(MAINNET.pump));
   ok('predict is the deployed ArclitePredictV4', html.includes(MAINNET.predict));
-  ok('curves() is declared with V4\'s ten fields',
-     /curves\(address\) view returns \(address,uint64,uint64,uint8,uint256,uint256,bool,bool,uint256,uint256\)/.test(html));
-  ok('graduationUsdc() is in the ABI so the target can be read', /function graduationUsdc\(\) view returns \(uint256\)/.test(html));
+  ok('no curves()/graduationUsdc() ABI here — the terminal owns curve reads',
+     !/'function curves\(address\)/.test(html) && !/'function graduationUsdc\(\)/.test(html));
 
   // Decoding a real V4 return with the old 7-field ABI happens to work because
   // the leading fields line up. Prove that, so the change is understood rather
@@ -66,14 +65,27 @@ const TESTNET_LEFTOVERS = [
   ok('the fields home.html reads (phase, realUsdc) are positionally identical in both shapes',
      Number(d7[3]) === Number(d10[3]) && d7[5] === d10[5]);
 
-  // ---- 3. no invented numbers --------------------------------------------
-  console.log('\n=== graduation target ===');
-  ok('GRAD starts unknown, not at a hardcoded number', /let GRAD = null;/.test(html));
-  ok('no "const GRAD = 8000" left anywhere', !/GRAD *= *8000/.test(html));
-  ok('the live drawer figure follows the contract, not a literal',
-     !/' \/ \$8,000'/.test(html) && /GRAD==null \? '—' : '\$'\+GRAD\.toLocaleString\(\)/.test(html));
-  ok('the percentage never divides by null', !/raised *\/ *GRAD \* 100(?!\s*:)/.test(html) || /GRAD \?/.test(html));
-  ok('a failed read is logged rather than swallowed', /\[grad\] could not read graduationUsdc/.test(html));
+  // ---- 3. the money path lives in exactly one place ----------------------
+  // This page used to carry its own connect / launch / buy / bet flows — a
+  // second implementation of everything the terminal does, with no tests
+  // behind it. Every contract change had to be made twice and only one copy
+  // would have been caught. It is now a shop window: two read-only counters
+  // and links to /app.
+  console.log('\n=== one money path ===');
+  ok('no wallet connect on the homepage', !/function connect\b|walletModal|eip6963/i.test(html));
+  ok('no launch form', !/id="tokName"|createToken\(\)/.test(html));
+  ok('no buy/sell UI', !/id="tradeBtn"|function doTrade/.test(html));
+  ok('no prediction market writes', !/function betM|function claimM|function createMarket/.test(html));
+  ok('the ABI it ships cannot spend money',
+     !/'function (buy|sell|createToken|approve|bet|claim)\(/.test(html));
+  ok('  ...it is just the two counters',
+     /const PUMP_ABI = \['function tokenCount\(\) view returns \(uint256\)'\];/.test(html) &&
+     /const PREDICT_ABI = \['function marketCount\(\) view returns \(uint256\)'\];/.test(html));
+  ok('every CTA leaves for the terminal', /location\.href = '\/app\/terminal\.html#'/.test(html));
+  ok('the nav button is a link to the app, not a connect handler',
+     /<a class="btn btn-primary" id="connectBtn" href="\/app\/terminal\.html#tokens">/.test(html));
+  ok('nothing untrusted is rendered, so no escaper is needed',
+     !/\$\{d\.name\}|\$\{d\.symbol\}|innerHTML *= *`/.test(html));
 
   // ---- 4. no testnet remnants in anything a visitor sees ------------------
   console.log('\n=== no testnet remnants ===');
@@ -123,16 +135,10 @@ const TESTNET_LEFTOVERS = [
     ok('the page script runs without throwing', false, String(e.message).slice(0, 160));
   }
 
-  ok('esc() exists', typeof w.esc === 'function');
-  if (typeof w.esc === 'function') {
-    ok('esc neutralises an <img onerror> payload',
-       w.esc('<img src=x onerror="alert(1)">') === '&lt;img src=x onerror=&quot;alert(1)&quot;&gt;',
-       w.esc('<img src=x onerror="alert(1)">'));
-    ok('esc handles null without printing "null"', w.esc(null) === '');
-  }
-  ok('token names are escaped where they reach innerHTML', /\$\{esc\(d\.name\)\}/.test(html));
-  ok('token symbols are escaped too', /\$\{esc\(d\.symbol\)\}/.test(html));
-  ok('the avatar initials are escaped', /\$\{esc\(d\.symbol\.slice\(0,3\)\)\}/.test(html));
+  ok('the page defines no token-rendering helpers at all',
+     typeof w.rowHtml === 'undefined' && typeof w.loadTokens === 'undefined');
+  ok('enterApp routes rather than revealing a hidden panel',
+     typeof w.enterApp === 'function' && !/showPanel/.test(html));
 
   ok('no uncaught page errors while offline', errors.length === 0, errors.slice(0, 2).join(' | '));
 

@@ -329,52 +329,9 @@
     box-shadow: 0 0 10px rgba(34,211,238,.7); transition: width .1s linear; }
 
 
-  /* ---- wallet picker modal ---- */
-  #walletModal { position: fixed; inset: 0; z-index: 300; display: none; align-items: center; justify-content: center;
-    background: rgba(0,0,0,.72); backdrop-filter: blur(10px); padding: 20px; }
-  #walletModal.open { display: flex; animation: wmIn .35s var(--ease); }
-  @keyframes wmIn { from { opacity: 0; } to { opacity: 1; } }
-  .wm-card { width: min(420px, 94vw); background: linear-gradient(180deg,#1c1c1f,#141416);
-    border: 1px solid var(--hairline); border-radius: 22px; padding: 26px;
-    box-shadow: 0 30px 80px rgba(0,0,0,.7); animation: wmPop .45s var(--spring); max-height: 86vh; overflow-y: auto; }
   @keyframes wmPop { from { transform: translateY(18px) scale(.96); } to { transform: none; } }
-  .wm-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
-  .wm-title { font-family:'Space Grotesk',sans-serif; font-size: 22px; font-weight: 700; letter-spacing: -.02em; }
-  .wm-x { background: none; border: none; color: var(--ink-3); font-size: 22px; cursor: pointer; line-height: 1; padding: 4px 8px; }
-  .wm-x:hover { color: var(--ink); }
-  .wm-sub { font-size: 13.5px; color: var(--ink-2); margin-bottom: 18px; }
-  .wm-item { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; cursor: pointer;
-    background: rgba(255,255,255,.045); border: 1px solid var(--hairline); border-radius: 15px;
-    padding: 13px 15px; margin-bottom: 9px; font-family: inherit; color: var(--ink);
-    transition: transform .35s var(--spring), background .25s var(--ease), border-color .25s var(--ease); }
-  .wm-item:hover { background: rgba(255,255,255,.09); border-color: rgba(255,255,255,.2); transform: translateY(-2px); }
-  .wm-item:active { transform: scale(.985); }
-  .wm-ico { width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0; object-fit: cover;
-    background: linear-gradient(135deg,var(--accent),var(--accent-2)); display:flex; align-items:center;
-    justify-content:center; font-weight:700; font-size:15px; color:#fff; }
-  .wm-name { font-weight: 600; font-size: 15.5px; }
-  .wm-meta { font-size: 12px; color: var(--ink-3); }
-  .wm-badge { margin-left: auto; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; padding: 3px 9px;
-    border-radius: 980px; background: rgba(48,209,88,.15); color: var(--green); }
-  .wm-badge.warn { background: rgba(255,214,10,.14); color: var(--amber); }
-  .wm-empty { text-align: center; padding: 10px 0 4px; }
-  .wm-links { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
-  .wm-links a { font-size: 13.5px; }
-  .wm-foot { font-size: 11.5px; color: var(--ink-3); margin-top: 14px; text-align: center; }
 
   /* ---- profile dropdown (under the wallet button) ---- */
-  #profilePanel { position: fixed; top: 62px; right: 18px; z-index: 260; width: 320px;
-    background: linear-gradient(180deg,#1c1c1f,#141416); border: 1px solid var(--hairline);
-    border-radius: 20px; padding: 20px; box-shadow: 0 26px 70px rgba(0,0,0,.72);
-    display: none; }
-  #profilePanel.open { display: block; animation: wmPop .4s var(--spring); }
-  .pp-top { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
-  .pp-av { width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0;
-    box-shadow: 0 0 0 1px rgba(255,255,255,.12), 0 0 18px rgba(10,132,255,.4); }
-  .pp-addr { font-family:'SF Mono',ui-monospace,Menlo,monospace; font-size: 14px; font-weight: 600; }
-  .pp-net { font-size: 11.5px; color: var(--green); display:flex; align-items:center; gap:5px; }
-  .pp-net::before { content:''; width:6px; height:6px; border-radius:50%; background: var(--green);
-    box-shadow:0 0 8px var(--green); }
   /* ---- Lucky Trencher: the gold scene + its countdown popup ---- */
   .lt-wrap { width: min(760px, 94vw); margin: 44px auto 0; padding: 28px;
     background: linear-gradient(165deg, rgba(36,26,8,.9), rgba(20,16,20,.75) 60%, rgba(12,13,18,.7));
@@ -425,19 +382,6 @@
   #ltPop .fine { margin-top:9px; font-size:10px; color:var(--ink-3); text-align:center; line-height:1.45; }
   @media (max-width:560px){ #ltPop{ right:10px; left:10px; width:auto; bottom:10px } .lt-cd b{ font-size:46px } }
 
-  .pp-stats { display:flex; gap:8px; margin-bottom: 14px; }
-  .pp-stat { flex:1; background: rgba(255,255,255,.045); border:1px solid var(--hairline);
-    border-radius: 12px; padding: 10px; text-align:center; }
-  .pp-stat b { display:block; font-size:17px; font-variant-numeric:tabular-nums; }
-  .pp-stat span { font-size:10px; letter-spacing:.1em; color: var(--ink-3); }
-  .pp-row { display:flex; gap:8px; }
-  .pp-btn { flex:1; font-family:inherit; font-size:13px; font-weight:600; cursor:pointer;
-    border-radius: 11px; padding: 10px; border:1px solid var(--hairline);
-    background: rgba(255,255,255,.05); color: var(--ink); transition: all .25s var(--ease); }
-  .pp-btn:hover { background: rgba(255,255,255,.1); }
-  .pp-btn.danger { color: var(--red); border-color: rgba(255,69,58,.3); background: rgba(255,69,58,.08); }
-  .pp-btn.danger:hover { background: rgba(255,69,58,.16); }
-  @media (max-width: 520px){ #profilePanel { right: 10px; left: 10px; width: auto; } }
 
   /* ---- Lucky Trencher countdown popup ---- */
   #drawPop { position: fixed; right: 24px; bottom: 24px; width: 320px; z-index: 250;
@@ -660,7 +604,7 @@
       <a class="nav-link" href="/app/rpc.html" style="text-decoration:none">RPC</a>
     </div>
     <button id="soundToggle" class="sound-btn" onclick="toggleSound()" title="Toggle sound" aria-label="Toggle sound">♪</button>
-    <button class="btn btn-primary" id="connectBtn" onclick="connect()">Connect</button>
+    <a class="btn btn-primary" id="connectBtn" href="/app/terminal.html#tokens">Open app →</a>
   </div>
 </nav>
 
@@ -778,108 +722,11 @@
   </div>
 </div>
 
-<!-- ============ APP ============ -->
-<div id="app">
-<main>
-  <section class="panel" id="panel-launch">
-    <h2 class="panel-title">Launch a coin.</h2>
-    <p class="panel-sub">One click. One dollar. Your coin trades instantly on a bonding curve priced in USDC.</p>
-    <div class="card hoverable" style="max-width:560px">
-      <label style="margin-top:0">Name</label>
-      <input type="text" id="tokName" placeholder="Moon Cat" maxlength="32">
-      <label>Symbol</label>
-      <input type="text" id="tokSymbol" placeholder="MCAT" maxlength="10" style="text-transform:uppercase">
-      <div style="margin-top:28px; display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
-        <button class="btn btn-primary btn-lg" id="createBtn" onclick="createToken()">Create for $1</button>
-        <span style="font-size:13px; color:var(--ink-2); max-width:260px;">1 USDC deploy fee · creator allocation locks until 30d after graduation</span>
-      </div>
-    </div>
-  </section>
-
-  <section class="panel" id="panel-trade">
-    <h2 class="panel-title">Trade.</h2>
-    <p class="panel-sub">Every coin costs real dollars. Graduate at $1,500 raised.</p>
-
-    <!-- Terminal teaser. Deliberately placed ABOVE the coin list: it's the thing
-         that differentiates us, and it's the first thing a trader should see. -->
-    <a class="term-teaser" href="/app/terminal.html">
-      <div class="tt-shot">
-        <img src="/app/terminal-preview.png" alt="Arclite Terminal — dense coin table with live graduation odds" loading="lazy">
-        <div class="tt-scrim"></div>
-        <span class="tt-badge">Live on Arc mainnet</span>
-      </div>
-      <div class="tt-body">
-        <div class="tt-head">
-          <h3>Terminal</h3>
-          <span class="tt-arrow">Open →</span>
-        </div>
-        <p>Scan every USDC pair on <b>Arc</b>, with <b>live graduation odds</b> —
-           a column no other launchpad can render.
-           Keyboard-first, two RPC calls a refresh, no account.</p>
-        <div class="tt-tags">
-          <span>Arc mainnet</span><span>Live odds</span><span>Portfolio</span><span>Free RPC</span>
-        </div>
-      </div>
-    </a>
-
-    <div id="tokenList"><div class="empty">Loading tokens…</div></div>
-  </section>
-
-  <section class="panel" id="panel-token">
-    <button class="back" onclick="enterApp('trade')">‹ All coins</button>
-    <div class="grid-2">
-      <div class="card">
-        <div style="display:flex; align-items:center; gap:14px; margin-bottom:8px;">
-          <div class="avatar" id="dAvatar">?</div>
-          <div>
-            <div style="font-weight:700; font-size:22px; letter-spacing:-.02em;" id="dName">—</div>
-            <div style="font-size:13px; color:var(--ink-2);" id="dSymbol">—</div>
-          </div>
-          <span class="pill live" id="dPhase" style="margin-left:auto">live</span>
-        </div>
-        <div class="big-num" id="dPrice">$—</div>
-        <div style="font-size:13px; color:var(--ink-2);">per token</div>
-        <div style="margin-top:24px; font-size:13px; color:var(--ink-2); display:flex; justify-content:space-between;">
-          <span>Progress to graduation</span><span id="dRaised">$0 / —</span>
-        </div>
-        <div class="progress"><i id="dProgress" style="width:0%"></i></div>
-        <div style="margin-top:24px; font-size:13px; color:var(--ink-2);">Your balance</div>
-        <div style="font-weight:600; font-size:17px;" id="dBalance">—</div>
-        <div style="margin-top:18px;"><a id="dExplorer" target="_blank" class="mono">view on arcscan ↗</a></div>
-      </div>
-      <div class="card">
-        <div class="seg" id="segCtl">
-          <div class="thumb"></div>
-          <button id="segBuy" class="on" onclick="setSide(true)">Buy</button>
-          <button id="segSell" onclick="setSide(false)">Sell</button>
-        </div>
-        <label id="amtLabel">Amount in USDC</label>
-        <input type="number" id="tradeAmt" placeholder="10" min="0" step="any" oninput="quoteTrade()">
-        <div class="quote" id="tradeQuote"></div>
-        <button class="btn btn-primary btn-lg" id="tradeBtn" style="width:100%; margin-top:18px;" onclick="doTrade()">Buy</button>
-        <div style="font-size:12px; color:var(--ink-3); margin-top:12px;">1% platform fee · slippage-protected</div>
-      </div>
-    </div>
-  </section>
-
-  <section class="panel" id="panel-predict">
-    <h2 class="panel-title">Predict.</h2>
-    <p class="panel-sub">Will it graduate? Stake USDC. Winners split the pot. The blockchain settles it — no oracle, no judge.</p>
-    <div class="card" style="display:flex; gap:14px; align-items:flex-end; flex-wrap:wrap;">
-      <div style="flex:1; min-width:220px;">
-        <label style="margin-top:0">Token address</label>
-        <input type="text" id="mkToken" placeholder="0x…" class="mono">
-      </div>
-      <div>
-        <label style="margin-top:0">Days until deadline</label>
-        <input type="number" id="mkDays" value="7" min="1" style="max-width:110px">
-      </div>
-      <button class="btn btn-ghost" style="height:49px" onclick="createMarket()">Open market</button>
-    </div>
-    <div id="marketList"><div class="empty">Loading markets…</div></div>
-  </section>
-</main>
-</div>
+<!-- The launch / trade / predict panels used to live here, as a second
+     implementation of the money path with no tests behind it. Everything now
+     routes to /app/terminal.html, which is the tested one. Keeping two ways to
+     spend the same money meant every contract change had to be made twice, and
+     only one of the two would have been caught by a test. -->
 
 <footer>
   Arclite · Arc (chain 5042) · contracts:
@@ -890,23 +737,10 @@
   <div style="margin-top:8px;">Real funds on Arc mainnet. Nothing here is financial advice.</div>
 </footer>
 
-<div id="profilePanel">
-  <div class="pp-top">
-    <canvas class="pp-av" id="ppAv" width="42" height="42"></canvas>
-    <div style="flex:1; min-width:0;">
-      <div class="pp-addr" id="ppAddr">0x…</div>
-      <div class="pp-net" id="ppNet">Arc</div>
-    </div>
-  </div>
-  <div class="pp-stats">
-    <div class="pp-stat"><b id="ppBal">$0</b><span>USDC</span></div>
-  </div>
-  <div class="pp-row">
-    <button class="pp-btn" onclick="copyAddr()">Copy address</button>
-    <button class="pp-btn danger" onclick="disconnectWallet()">Disconnect</button>
-  </div>
-</div>
-
+ hidden>
+  <div class="dp-glow"></div>
+  <button class="dp-x" id="drawPopX" aria-label="Dismiss">×</button>
+  <div class="dp-kick">🎟 Hourly draw · live on Arc</div>
 <div id="drawPop" hidden>
   <div class="dp-glow"></div>
   <button class="dp-x" id="drawPopX" aria-label="Dismiss">×</button>
@@ -933,18 +767,6 @@
   <div class="fine">Winner takes the pot. Commit → public blockhash → reveal.</div>
 </div>
 
-<div id="walletModal" onclick="if(event.target===this) closeWalletModal()">
-  <div class="wm-card">
-    <div class="wm-head">
-      <div class="wm-title">Connect wallet</div>
-      <button class="wm-x" onclick="closeWalletModal()" aria-label="Close">×</button>
-    </div>
-    <div class="wm-sub">Any Ethereum-compatible wallet works on Arc.</div>
-    <div id="wmList"></div>
-    <div class="wm-foot">Arc · chain 5042 · gas is USDC</div>
-  </div>
-</div>
-
 <div id="toast"></div>
 
 <script>
@@ -960,67 +782,28 @@ const RPC = 'https://rpc.arclite.fun';
 const EXPLORER = 'https://arcscan.app';
 const PUMP = '0xa855b64c978118fdAC9746d1795c1E16668dd394';    // ArclitePumpV4
 const PREDICT = '0xb7148f397Bcd7020eCa3A4dbf3eb7D7DE82C4547'; // ArclitePredictV4
-/* Read from graduationUsdc(), never assumed. The terminal shipped a hardcoded
-   8000 here and spent a day telling creators their token graduated at $8,000
-   when the contract said $1,500. null means "not read yet" and the UI says so. */
-let GRAD = null;
+/* The graduation figure appears only in static marketing copy now; the live
+   number is rendered by the terminal, which reads it from graduationUsdc().
+   Nothing here computes a percentage, so there is no value to get wrong. */
 
-const PUMP_ABI = [
-  'function createToken(string,string) payable returns (address)',
-  'function buy(address,uint256) payable returns (uint256)',
-  'function sell(address,uint256,uint256) returns (uint256)',
-  'function quoteBuy(address,uint256) view returns (uint256)',
-  'function quoteSell(address,uint256) view returns (uint256)',
-  'function spotPrice(address) view returns (uint256)',
-  // V4 returns ten fields. The first seven are positionally identical to the
-  // old shape, but decoding against the real signature avoids relying on that.
-  'function curves(address) view returns (address,uint64,uint64,uint8,uint256,uint256,bool,bool,uint256,uint256)',
-  'function graduationUsdc() view returns (uint256)',
-  'function tokenCount() view returns (uint256)',
-  'function allTokens(uint256) view returns (address)',
-  // v0.3 batched read. Absent on the v0.2 deployment — loadTokens() probes once
-  // and falls back to parallel per-token reads if it isn't there.
-  'function page(uint256,uint256) view returns (address[],uint8[],uint256[],uint256[],address[])',
-  'function redeem(address,uint256) returns (uint256)',
-  'function redemptionOpen(address) view returns (bool)',
-  'event TokenCreated(address indexed token, address indexed creator, string name, string symbol)'
-];
-const TOKEN_ABI = [
-  'function name() view returns (string)',
-  'function symbol() view returns (string)',
-  'function balanceOf(address) view returns (uint256)',
-  'function allowance(address,address) view returns (uint256)',
-  'function approve(address,uint256) returns (bool)'
-];
-const PREDICT_ABI = [
-  'function createMarket(address,uint64) returns (uint256)',
-  'function bet(uint256,bool) payable',
-  'function resolve(uint256)',
-  'function claim(uint256)',
-  'function marketCount() view returns (uint256)',
-  'function markets(uint256) view returns (address,uint64,bool,bool,uint256,uint256)',
-  'function impliedYesBps(uint256) view returns (uint256)',
-  'function positions(uint256,address) view returns (uint256,uint256,bool)'
-];
+/* Read-only, and deliberately tiny. This page shows two counters and sends
+   people to /app for anything that costs money, so it has no business holding
+   an ABI with buy/sell/createToken in it. If a future change needs one of
+   those here, that is the moment to ask whether it belongs on the terminal
+   instead. */
+const PUMP_ABI = ['function tokenCount() view returns (uint256)'];
+const PREDICT_ABI = ['function marketCount() view returns (uint256)'];
 
 /* ================= state ================= */
-let provider, signer, me, pump, predict;
-/* Token names and symbols are chosen by whoever deploys the token, and they
-   land in this page's innerHTML. Escaping them is the difference between a
-   listing and an injection on a page where people connect a wallet. */
-function esc(v){
-  return String(v == null ? '' : v)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-}
+/* No signer, no wallet, no token metadata rendered anywhere — which is why
+   this page no longer needs an escaper. The safest way to not have an
+   injection bug is to have nothing untrusted to render. */
 const arcNet = new ethers.Network('arc', CHAIN_ID);
 const readProvider = new ethers.JsonRpcProvider(RPC, arcNet, { staticNetwork: arcNet, batchMaxCount: 1, batchStallTime: 0 });
 readProvider.pollingInterval = 60_000;
 let pumpR = new ethers.Contract(PUMP, PUMP_ABI, readProvider);
 let predictR = new ethers.Contract(PREDICT, PREDICT_ABI, readProvider);
 const sleep = ms => new Promise(r=>setTimeout(r,ms));
-let curToken = null, sideBuy = true;
-const tokenMeta = {};
 
 document.getElementById('fPump').href = EXPLORER + '/address/' + PUMP;
 document.getElementById('fPredict').href = EXPLORER + '/address/' + PREDICT;
@@ -1454,289 +1237,13 @@ window.shareSite = function(){
 })();
 
 /* ================= landing <-> app ================= */
+/* The homepage sells; the terminal trades. Every CTA leaves for /app rather
+   than revealing a second, untested copy of the same flows. The tab names the
+   marketing copy uses map onto the terminal's own views. */
+const APP_VIEW = { launch:'launch', trade:'tokens', predict:'launchpad', draw:'draw', token:'tokens' };
 function enterApp(tab) {
-  dismissIntro();
-  document.getElementById('landing').style.display = 'none';
-  document.getElementById('app').style.display = 'block';
-  document.getElementById('nav').classList.add('shown');
-  showPanel(tab || 'trade');
+  location.href = '/app/terminal.html#' + (APP_VIEW[tab] || 'tokens');
 }
-function goLanding() {
-  document.getElementById('app').style.display = 'none';
-  document.getElementById('landing').style.display = 'block';
-  document.querySelectorAll('.nav-link').forEach(b=>b.classList.remove('active'));
-  window.scrollTo({top:0, behavior:'instant'});
-  loadStats();
-}
-function showPanel(tab) {
-  document.querySelectorAll('section.panel').forEach(s=>s.classList.remove('visible','entering'));
-  document.querySelectorAll('.nav-link').forEach(b=>b.classList.remove('active'));
-  const p = document.getElementById('panel-'+tab);
-  p.classList.add('visible');
-  requestAnimationFrame(()=>p.classList.add('entering'));
-  const nb = document.querySelector(`.nav-link[data-tab="${tab==='token'?'trade':tab}"]`);
-  if (nb) nb.classList.add('active');
-  if (tab==='trade') loadTokens();
-  if (tab==='predict') loadMarkets();
-  window.scrollTo({top:0, behavior:'instant'});
-}
-
-/* ================= wallet ================= */
-
-/* ---------- multi-wallet discovery: EIP-6963 + legacy injections ---------- */
-const wallets = new Map();          // key -> { key, name, icon, provider, source }
-function addWallet(key, name, provider, icon, source){
-  if (!provider || !key) return;
-  if (wallets.has(key)) return;
-  // de-dupe by wallet name across detection methods; EIP-6963 entry always wins
-  const nm = (name||'').toLowerCase();
-  for (const [k,w] of wallets) {
-    if ((w.name||'').toLowerCase() === nm) {
-      if (w.source === '6963') return;                  // keep the richer 6963 entry
-      if (source === '6963') { wallets.delete(k); break; } // upgrade legacy -> 6963
-      return;
-    }
-  }
-  wallets.set(key, { key, name, provider, icon, source });
-}
-function labelFor(p){
-  if (!p) return null;
-  if (p.isMetaMask && !p.isBraveWallet && !p.isRabby) return 'MetaMask';
-  if (p.isPhantom) return 'Phantom';
-  if (p.isSafePal || p.isSafePalWallet) return 'SafePal';
-  if (p.isCoinbaseWallet || p.isCoinbaseBrowser) return 'Coinbase Wallet';
-  if (p.isRabby) return 'Rabby';
-  if (p.isTrust || p.isTrustWallet) return 'Trust Wallet';
-  if (p.isOkxWallet || p.isOKExWallet) return 'OKX Wallet';
-  if (p.isBraveWallet) return 'Brave Wallet';
-  if (p.isBitKeep || p.isBitget) return 'Bitget Wallet';
-  if (p.isRainbow) return 'Rainbow';
-  if (p.isZerion) return 'Zerion';
-  if (p.isFrame) return 'Frame';
-  return 'Injected Wallet';
-}
-// 1) EIP-6963 — the modern standard every major wallet now supports
-window.addEventListener('eip6963:announceProvider', e => {
-  const { info, provider } = e.detail || {};
-  if (!info || !provider) return;
-  addWallet(info.rdns || info.uuid || info.name, info.name, provider, info.icon, '6963');
-});
-function requestProviders(){ window.dispatchEvent(new Event('eip6963:requestProvider')); }
-requestProviders();
-// 2) legacy / namespaced injections (covers wallets that skip 6963)
-function scanLegacy(){
-  const eth = window.ethereum;
-  if (eth) {
-    if (Array.isArray(eth.providers) && eth.providers.length) {
-      eth.providers.forEach((p,i)=> addWallet('legacy:'+(labelFor(p)||i), labelFor(p), p, null, 'legacy'));
-    } else {
-      addWallet('legacy:'+(labelFor(eth)||'injected'), labelFor(eth), eth, null, 'legacy');
-    }
-  }
-  const named = [
-    ['Phantom',        window.phantom && window.phantom.ethereum],
-    ['SafePal',        window.safepal || window.safepalProvider],
-    ['OKX Wallet',     window.okxwallet],
-    ['Trust Wallet',   window.trustwallet],
-    ['Coinbase Wallet',window.coinbaseWalletExtension],
-    ['Bitget Wallet',  window.bitkeep && window.bitkeep.ethereum],
-    ['Rabby',          window.rabby],
-  ];
-  named.forEach(([n,p])=>{ if (p && typeof p.request === 'function') addWallet('named:'+n, n, p, null, 'named'); });
-}
-scanLegacy();
-setTimeout(()=>{ requestProviders(); scanLegacy(); }, 900);   // late-injecting wallets
-
-const INSTALL_LINKS = [
-  ['MetaMask','https://metamask.io/download/'],
-  ['Phantom','https://phantom.com/download'],
-  ['SafePal','https://www.safepal.com/download'],
-  ['Rabby','https://rabby.io/'],
-];
-// raw request with a timeout so a jammed wallet can't hang the UI forever
-function rawRequest(injected, args, ms = 45000) {
-  return Promise.race([
-    injected.request(args),
-    new Promise((_, rej) => setTimeout(() => {
-      const e = new Error('timeout'); e.code = 'TIMEOUT'; rej(e);
-    }, ms))
-  ]);
-}
-
-/* ---------- picker UI ---------- */
-window.closeWalletModal = function(){ document.getElementById('walletModal').classList.remove('open'); };
-function walletIconHTML(w){
-  if (w.icon) return `<img class="wm-ico" src="${w.icon}" alt="">`;
-  const initial = (w.name||'W').trim().charAt(0).toUpperCase();
-  return `<div class="wm-ico">${initial}</div>`;
-}
-function renderWalletList(){
-  const list = document.getElementById('wmList');
-  const arr = [...wallets.values()];
-  // preferred order, then the rest
-  const rank = n => { const o=['MetaMask','Phantom','SafePal','Rabby','Coinbase Wallet','Trust Wallet','OKX Wallet']; const i=o.indexOf(n); return i<0?99:i; };
-  arr.sort((a,b)=> rank(a.name)-rank(b.name) || (a.name||'').localeCompare(b.name||''));
-  if (!arr.length){
-    list.innerHTML = `<div class="wm-empty">
-      <div style="font-size:14px;color:var(--ink-2);margin-bottom:6px;">No wallet detected in this browser.</div>
-      <div style="font-size:12.5px;color:var(--ink-3);">Install one of these, then reload the page:</div>
-      <div class="wm-links">${INSTALL_LINKS.map(([n,u])=>`<a href="${u}" target="_blank" rel="noopener">${n} →</a>`).join('')}</div>
-    </div>`;
-    return;
-  }
-  const last = localStorage.getItem('ark_wallet');
-  list.innerHTML = arr.map(w=>`
-    <button class="wm-item" onclick="connectWith('${w.key.replace(/'/g,"\\'")}')">
-      ${walletIconHTML(w)}
-      <div>
-        <div class="wm-name">${w.name||'Wallet'}</div>
-        <div class="wm-meta">${w.source==='6963'?'detected':'injected'}</div>
-      </div>
-      ${last===w.key?'<span class="wm-badge">last used</span>':''}
-    </button>`).join('');
-}
-window.connect = function(){
-  if (window.me) { toggleProfile(); return; }      // already connected -> show profile
-  requestProviders(); scanLegacy();
-  renderWalletList();
-  document.getElementById('walletModal').classList.add('open');
-};
-
-let connecting = false;
-window.connectWith = async function(key) {
-  const entry = wallets.get(key);
-  if (!entry) { toast('That wallet is no longer available — reload and try again.'); return; }
-  const injected = entry.provider;
-  if (connecting) { toast('Check your wallet — a request is already open.'); return; }
-  closeWalletModal();
-  connecting = true;
-  const btn = document.getElementById('connectBtn');
-  const label = btn.textContent;
-  btn.disabled = true; btn.innerHTML = '<span class="spin"></span>Connecting…';
-  try {
-    // 0) pre-flight: eth_chainId is answered locally & instantly by a healthy wallet.
-    //    If it stalls, the extension itself is wedged — fail fast with a fix, don't hang.
-    try {
-      await rawRequest(injected, { method: 'eth_chainId' }, 3500);
-    } catch (pf) {
-      if (pf.code === 'TIMEOUT') {
-        throw new Error(entry.name + ' is not responding. Unlock it, or click Connect again and pick a different wallet.');
-      }
-    }
-    // 1) request accounts (opens the wallet popup)
-    let accounts;
-    try {
-      accounts = await rawRequest(injected, { method: 'eth_requestAccounts' });
-    } catch (e) {
-      if (e.code === 4001) throw new Error('You rejected the connection. Click Connect and approve in your wallet.');
-      if (e.code === -32002) throw new Error('Your wallet already has a pending request — open the MetaMask popup and approve or reject it, then try again.');
-      if (e.code === 'TIMEOUT') throw new Error('Wallet not responding. Fix: open the MetaMask extension (unlock + clear any pending popup), or disable/re-enable it in chrome://extensions, then reload this page.');
-      throw e;
-    }
-    if (!accounts || !accounts.length) throw new Error('No account returned. Unlock your wallet and try again.');
-
-    // 2) make sure we are on Arc
-    let chainId = await rawRequest(injected, { method: 'eth_chainId' }, 8000).catch(() => null);
-    if (chainId !== CHAIN_HEX) {
-      try {
-        await rawRequest(injected, { method: 'wallet_switchEthereumChain', params: [{ chainId: CHAIN_HEX }] });
-      } catch (e) {
-        if (e.code === 4902 || e.code === -32603) {
-          // chain not added yet — add it
-          await rawRequest(injected, { method: 'wallet_addEthereumChain', params: [{
-            chainId: CHAIN_HEX, chainName: 'Arc',
-            nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
-            rpcUrls: [RPC], blockExplorerUrls: [EXPLORER]
-          }]});
-        } else if (e.code === 4001) {
-          throw new Error('Please approve the switch to Arc to continue.');
-        } else { throw e; }
-      }
-    }
-
-    // 3) wire up ethers against the confirmed injected provider
-    provider = new ethers.BrowserProvider(injected);
-    signer = await provider.getSigner();
-    me = await signer.getAddress();
-    pump = new ethers.Contract(PUMP, PUMP_ABI, signer);
-    predict = new ethers.Contract(PREDICT, PREDICT_ABI, signer);
-
-    let bal = 0n;
-    try { bal = await provider.getBalance(me); } catch (e) {}
-    btn.disabled = false;
-    btn.textContent = short(me) + ' · $' + fmt(E(bal), 2);
-    localStorage.setItem('ark_wallet', entry.key);
-    window.me = me; window.arkBal = fmt(E(bal), 2); window.arkWalletName = entry.name;
-    renderProfile();
-    toast('Connected with ' + entry.name + ' — $' + fmt(E(bal), 2) + ' USDC');
-
-    // react to the user changing account / network in the wallet
-    if (injected.on && !injected._arkBound) {
-      injected._arkBound = true;
-      injected.on('accountsChanged', () => location.reload());
-      injected.on('chainChanged', () => location.reload());
-    }
-    loadStats();
-  } catch (e) {
-    btn.disabled = false; btn.textContent = label;
-    toast(errMsg(e));
-    console.warn('connect failed:', e);
-  } finally {
-    connecting = false;
-  }
-}
-/* ---------- profile panel: identity + balance + disconnect ---------- */
-function blockie(canvas, addr){
-  if (!canvas || !addr) return;
-  const ctx = canvas.getContext && canvas.getContext('2d'); if (!ctx) return;
-  const S = canvas.width; const cells = 7; const c = S/cells;
-  let h = 0; for (let i=2;i<addr.length;i++) h = (h*31 + addr.charCodeAt(i)) >>> 0;
-  const hue = h % 360;
-  ctx.fillStyle = `hsl(${(hue+200)%360},70%,12%)`; ctx.fillRect(0,0,S,S);
-  for (let y=0;y<cells;y++) for (let x=0;x<Math.ceil(cells/2);x++){
-    h = (h*1103515245 + 12345) >>> 0;
-    if ((h>>>16) % 100 < 46){
-      ctx.fillStyle = ((h>>>8)%2) ? `hsl(${hue},85%,62%)` : `hsl(${(hue+40)%360},90%,70%)`;
-      ctx.fillRect(x*c, y*c, c+.5, c+.5);
-      ctx.fillRect((cells-1-x)*c, y*c, c+.5, c+.5);   // mirror for symmetry
-    }
-  }
-}
-function renderProfile(){
-  if (!window.me) return;
-  document.getElementById('ppAddr').textContent = short(window.me);
-  document.getElementById('ppNet').textContent = 'Arc · ' + (window.arkWalletName || 'connected');
-  document.getElementById('ppBal').textContent = '$' + (window.arkBal || '0');
-  blockie(document.getElementById('ppAv'), window.me);
-}
-window.toggleProfile = function(){
-  const p = document.getElementById('profilePanel');
-  if (p.classList.contains('open')) { p.classList.remove('open'); return; }
-  renderProfile(); p.classList.add('open');
-};
-window.copyAddr = function(){
-  if (!window.me) return;
-  navigator.clipboard.writeText(window.me).then(()=>toast('Address copied'),()=>toast('Copy failed'));
-};
-window.disconnectWallet = function(){
-  provider = null; signer = null; me = null; pump = null; predict = null;
-  window.me = null; window.arkBal = null; window.arkWalletName = null;
-  localStorage.removeItem('ark_wallet');
-  document.getElementById('profilePanel').classList.remove('open');
-  const b = document.getElementById('connectBtn');
-  b.textContent = 'Connect'; b.disabled = false;
-  toast('Wallet disconnected.');
-};
-// close the profile when clicking outside it
-document.addEventListener('click', e=>{
-  const p = document.getElementById('profilePanel');
-  if (!p || !p.classList.contains('open')) return;
-  if (!p.contains(e.target) && e.target.id !== 'connectBtn') p.classList.remove('open');
-});
-
-const needWallet = () => { if (!signer) { toast('Connect your wallet first.'); return true; } return false; };
-const errMsg = e => (e.shortMessage || e.message || 'Something went wrong').split('(')[0].slice(0,120);
-
 /* ================= stats ================= */
 async function loadStats() {
   try {
@@ -1748,396 +1255,6 @@ async function loadStats() {
 }
 loadStats();
 
-/* ================= launch ================= */
-async function createToken() {
-  if (needWallet()) return;
-  const name = document.getElementById('tokName').value.trim();
-  const sym = document.getElementById('tokSymbol').value.trim().toUpperCase();
-  if (!name || !sym) { toast('Give your coin a name and symbol.'); return; }
-  const btn = document.getElementById('createBtn');
-  btn.disabled = true;
-  try {
-    toast('<span class="spin"></span>Deploying ' + sym + '…', true);
-    const tx = await pump.createToken(name, sym, {value: P('1')});
-    const rc = await tx.wait();
-    let addr = null;
-    for (const log of rc.logs) {
-      try { const p = pump.interface.parseLog(log); if (p && p.name==='TokenCreated') addr = p.args[0]; } catch(e){}
-    }
-    toastHide();
-    toast('🚀 ' + sym + ' is live! ' + (addr?short(addr):''));
-    document.getElementById('tokName').value=''; document.getElementById('tokSymbol').value='';
-    loadStats();
-    if (addr) { await loadTokens(); openToken(addr); } else showPanel('trade');
-  } catch (e) { toastHide(); toast(errMsg(e)); }
-  btn.disabled = false;
-}
-
-/* ================= trade list ================= */
-/* ---- token list loading -------------------------------------------------
-   The original implementation made 5 SERIAL RPC calls per token
-   (allTokens, name, symbol, spotPrice, curves) with a 60ms sleep between
-   each — 100 round-trips and ~6s of artificial delay for 20 tokens, per
-   user, per page view, against a rate-limited public RPC. It would have
-   made the launchpad unusable at a few hundred tokens.
-
-   This version:
-     1. uses the v0.3 `page()` view when the deployed contract has it —
-        one call for the whole page instead of one call per token;
-     2. otherwise falls back to a bounded-concurrency pool (no serial sleeps);
-     3. permanently caches name/symbol in localStorage — they're immutable,
-        so repeat visits never re-fetch them;
-     4. derives spot price locally from curve state instead of a separate
-        RPC call, using the same formula the contract uses.
-   Net: 5 calls/token serial  ->  1 call/page (v0.3) or 2 calls/token
-   parallel (v0.2), and 0 metadata calls once warm.                     */
-
-const PAGE_SIZE = 20;
-let pageOffset = 0, listExhausted = false;
-
-const V_USDC   = 3000n * 10n**18n;          // VIRTUAL_USDC
-const V_TOKENS = 1080000000n * 10n**18n;    // VIRTUAL_TOKENS
-function localSpotPrice(realUsdc, soldTokens) {
-  const tR = V_TOKENS - soldTokens;
-  if (tR <= 0n) return 0n;
-  return ((V_USDC + realUsdc) * 10n**18n) / tR;
-}
-
-const META_KEY = 'ark_token_meta';
-try { Object.assign(tokenMeta, JSON.parse(localStorage.getItem(META_KEY) || '{}')); } catch(e){}
-function saveMeta() { try { localStorage.setItem(META_KEY, JSON.stringify(tokenMeta)); } catch(e){} }
-
-/** Run tasks with at most `limit` in flight. Replaces serial awaits + sleep(). */
-async function pool(items, limit, fn) {
-  const out = new Array(items.length);
-  let next = 0;
-  await Promise.all(Array.from({length: Math.min(limit, items.length)}, async () => {
-    while (true) {
-      const i = next++;
-      if (i >= items.length) return;
-      try { out[i] = await fn(items[i], i); } catch (e) { out[i] = null; }
-    }
-  }));
-  return out;
-}
-
-function rowHtml(d, idx) {
-  const raised = Number(E(d.realUsdc));
-  const price  = localSpotPrice(d.realUsdc, d.soldTokens);
-  const pct    = GRAD ? Math.min(100, raised / GRAD * 100) : 0;
-  const mcap   = Number(E(price)) * 1e9;
-  const grad   = d.phase === 2;
-  return `
-      <div class="row" style="animation-delay:${Math.min(idx,12)*0.07}s" onclick="openToken('${d.addr}')">
-        <div class="avatar" style="background:hsl(${hue(d.addr)},68%,48%)">${esc(d.symbol.slice(0,3))}</div>
-        <div class="row-main">
-          <div class="row-title">${esc(d.name)} <span style="color:var(--ink-3);font-weight:400">· ${esc(d.symbol)}</span></div>
-          <div class="row-sub">mcap $${fmt(mcap,0)} · raised $${fmt(raised,0)}</div>
-          <div class="progress" style="max-width:280px"><i style="width:${pct}%"></i></div>
-        </div>
-        <div class="row-right">
-          <div class="row-price">$${fmt(E(price),6)}</div>
-          <span class="pill ${grad?'grad':'live'}">${grad?'graduated':'live'}</span>
-        </div>
-      </div>`;
-}
-
-/** Fetch one page of curves. Prefers the single-call v0.3 `page()` view. */
-let hasPageView = null; // null = untested, false = v0.2 contract, true = v0.3
-async function fetchPage(offset, limit) {
-  // --- fast path: v0.3 batched read, one RPC call for the whole page.
-  //     Probed at most once per session so v0.2 never pays a wasted call.
-  if (hasPageView !== false) {
-    try {
-      const [tokens, phases, sold, raised] = await pumpR.page(offset, limit);
-      hasPageView = true;
-      return tokens.map((addr, i) => ({
-        addr, phase: Number(phases[i]), soldTokens: sold[i], realUsdc: raised[i]
-      }));
-    } catch (e) { hasPageView = false; /* contract predates page(); fall through */ }
-  }
-  // --- fallback: v0.2, parallel with bounded concurrency instead of serial+sleep
-  const idxs = [];
-  for (let i = 0; i < limit; i++) idxs.push(offset + i);
-  const addrs = (await pool(idxs, 5, i => pumpR.allTokens(i))).filter(Boolean);
-  const curves = await pool(addrs, 5, a => pumpR.curves(a));
-  return addrs.map((addr, i) => curves[i] && ({
-    addr, phase: Number(curves[i][3]), soldTokens: curves[i][4], realUsdc: curves[i][5]
-  })).filter(Boolean);
-}
-
-/** Resolve name/symbol for any address not already cached. */
-async function fillMeta(rows) {
-  const missing = rows.filter(r => !tokenMeta[r.addr]);
-  if (missing.length) {
-    await pool(missing, 5, async r => {
-      const t = new ethers.Contract(r.addr, TOKEN_ABI, readProvider);
-      const [nm, sy] = await Promise.all([t.name(), t.symbol()]);
-      tokenMeta[r.addr] = { name: nm, symbol: sy };
-    });
-    saveMeta();
-  }
-  rows.forEach(r => Object.assign(r, tokenMeta[r.addr] || { name: '—', symbol: '—' }));
-  return rows;
-}
-
-/** graduationUsdc() is a fact about the deployed contract. Read once, cached. */
-async function ensureGrad(){
-  if (GRAD != null) return GRAD;
-  try {
-    const g = Number(E(await pumpR.graduationUsdc()));
-    if (g > 0) GRAD = g;
-  } catch (e) {
-    console.warn('[grad] could not read graduationUsdc:', String(e && (e.shortMessage||e.message) || e).slice(0,140));
-  }
-  return GRAD;
-}
-
-async function loadTokens(append) {
-  const el = document.getElementById('tokenList');
-  try {
-    await ensureGrad();
-    if (!append) { pageOffset = 0; listExhausted = false; }
-    const n = Number(await pumpR.tokenCount());
-    if (n === 0) { el.innerHTML = '<div class="empty">No coins yet. Be the first to launch.</div>'; return; }
-    if (!append) el.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div>';
-
-    // newest first: walk the array backwards a page at a time
-    const end = Math.max(0, n - pageOffset);
-    const start = Math.max(0, end - PAGE_SIZE);
-    if (end <= 0) { listExhausted = true; return; }
-
-    let rows = await fetchPage(start, end - start);
-    rows = await fillMeta(rows);
-    rows.reverse(); // newest first within the page
-
-    const html = rows.map((d, i) => rowHtml(d, i)).join('');
-    if (append) {
-      document.getElementById('loadMoreWrap')?.remove();
-      el.insertAdjacentHTML('beforeend', html);
-    } else {
-      el.innerHTML = html;
-    }
-    pageOffset += rows.length;
-    if (pageOffset >= n) listExhausted = true;
-
-    if (!listExhausted) {
-      el.insertAdjacentHTML('beforeend',
-        `<div id="loadMoreWrap" style="text-align:center;padding:18px 0">
-           <button class="btn ghost" onclick="loadTokens(true)">Load more (${n - pageOffset} left)</button>
-         </div>`);
-    }
-  } catch (e) { el.innerHTML = '<div class="empty">Could not load tokens. '+errMsg(e)+'</div>'; }
-}
-
-/* ================= trade detail ================= */
-async function openToken(addr) {
-  curToken = addr;
-  showPanel('token');
-  document.querySelector('.nav-link[data-tab="trade"]').classList.add('active');
-  const m = tokenMeta[addr] || {name:'—',symbol:'—'};
-  document.getElementById('dName').textContent = m.name;
-  document.getElementById('dSymbol').textContent = m.symbol + ' · ' + short(addr);
-  document.getElementById('dAvatar').textContent = m.symbol.slice(0,3);
-  document.getElementById('dAvatar').style.background = `hsl(${hue(addr)},68%,48%)`;
-  document.getElementById('dExplorer').href = EXPLORER + '/address/' + addr;
-  refreshToken();
-}
-async function refreshToken() {
-  if (!curToken) return;
-  try {
-    const price = await pumpR.spotPrice(curToken); await sleep(70);
-    const c = await pumpR.curves(curToken);
-    const raised = Number(E(c[5]));
-    const grad = Number(c[3])===2;
-    document.getElementById('dPrice').textContent = '$' + fmt(E(price),8);
-    document.getElementById('dRaised').textContent = '$' + fmt(raised,0) + ' / ' + (GRAD==null ? '—' : '$'+GRAD.toLocaleString());
-    document.getElementById('dProgress').style.width = (GRAD ? Math.min(100,raised/GRAD*100) : 0) + '%';
-    const ph = document.getElementById('dPhase');
-    ph.textContent = grad ? 'graduated' : 'live';
-    ph.className = 'pill ' + (grad?'grad':'live');
-    if (me) {
-      await sleep(70);
-      const t = new ethers.Contract(curToken, TOKEN_ABI, readProvider);
-      const b = await t.balanceOf(me);
-      document.getElementById('dBalance').textContent = fmt(E(b),2) + ' ' + (tokenMeta[curToken]?.symbol||'');
-    } else document.getElementById('dBalance').textContent = 'connect wallet';
-  } catch(e){}
-}
-function setSide(buy) {
-  sideBuy = buy;
-  document.getElementById('segCtl').classList.toggle('right', !buy);
-  document.getElementById('segBuy').classList.toggle('on', buy);
-  document.getElementById('segSell').classList.toggle('on', !buy);
-  document.getElementById('amtLabel').textContent = buy ? 'Amount in USDC' : 'Amount in tokens';
-  document.getElementById('tradeBtn').textContent = buy ? 'Buy' : 'Sell';
-  document.getElementById('tradeBtn').style.background = buy ? 'var(--accent)' : 'rgba(255,255,255,.14)';
-  document.getElementById('tradeQuote').textContent = '';
-  document.getElementById('tradeAmt').value = '';
-}
-let quoteTimer;
-function quoteTrade() {
-  clearTimeout(quoteTimer);
-  quoteTimer = setTimeout(async () => {
-    const v = document.getElementById('tradeAmt').value;
-    const q = document.getElementById('tradeQuote');
-    if (!v || Number(v)<=0 || !curToken) { q.textContent=''; return; }
-    try {
-      if (sideBuy) {
-        const net = P(v) * 99n / 100n;
-        const out = await pumpR.quoteBuy(curToken, net);
-        q.textContent = '≈ ' + fmt(E(out),0) + ' ' + (tokenMeta[curToken]?.symbol||'tokens');
-      } else {
-        const out = await pumpR.quoteSell(curToken, P(v));
-        q.textContent = '≈ $' + fmt(Number(E(out))*0.99, 4) + ' USDC';
-      }
-    } catch(e){ q.textContent = ''; }
-  }, 300);
-}
-async function doTrade() {
-  if (needWallet()) return;
-  const v = document.getElementById('tradeAmt').value;
-  if (!v || Number(v)<=0) { toast('Enter an amount.'); return; }
-  const btn = document.getElementById('tradeBtn'); btn.disabled = true;
-  try {
-    if (sideBuy) {
-      toast('<span class="spin"></span>Buying…', true);
-      const net = P(v) * 99n / 100n;
-      const out = await pumpR.quoteBuy(curToken, net);
-      const tx = await pump.buy(curToken, out * 97n / 100n, {value: P(v)});
-      await tx.wait();
-      toastHide(); toast('Bought ' + fmt(E(out),0) + ' ' + (tokenMeta[curToken]?.symbol||''));
-    } else {
-      const t = new ethers.Contract(curToken, TOKEN_ABI, signer);
-      const allowance = await t.allowance(me, PUMP);
-      if (allowance < P(v)) {
-        toast('<span class="spin"></span>Approving…', true);
-        await (await t.approve(PUMP, ethers.MaxUint256)).wait();
-      }
-      toast('<span class="spin"></span>Selling…', true);
-      const out = await pumpR.quoteSell(curToken, P(v));
-      const tx = await pump.sell(curToken, P(v), out * 97n / 100n);
-      await tx.wait();
-      toastHide(); toast('Sold for ≈ $' + fmt(Number(E(out))*0.99,4));
-    }
-    document.getElementById('tradeAmt').value=''; document.getElementById('tradeQuote').textContent='';
-    refreshToken();
-  } catch (e) { toastHide(); toast(errMsg(e)); }
-  btn.disabled = false;
-}
-
-/* ================= predict ================= */
-async function loadMarkets() {
-  const el = document.getElementById('marketList');
-  try {
-    const n = Number(await predictR.marketCount());
-    if (n===0) { el.innerHTML = '<div class="empty">No markets yet. Open one on any live coin.</div>'; return; }
-    el.innerHTML = '<div class="skeleton" style="height:150px"></div>';
-    let html = ''; let idx = 0;
-    for (let i=n; i>=1 && i>n-20; i--) {
-      const mk = await predictR.markets(i); await sleep(80);
-      const [tokAddr, deadline, resolved, outcome, yesPool, noPool] = mk;
-      if (!tokenMeta[tokAddr]) {
-        try {
-          const t = new ethers.Contract(tokAddr, TOKEN_ABI, readProvider);
-          const nm = await t.name(); await sleep(60);
-          const sy = await t.symbol(); await sleep(60);
-          tokenMeta[tokAddr] = {name:nm, symbol:sy};
-        } catch(e){ tokenMeta[tokAddr] = {name:short(tokAddr), symbol:'?'}; }
-      }
-      const m = tokenMeta[tokAddr];
-      const pot = Number(E(yesPool)) + Number(E(noPool));
-      const yesPct = pot>0 ? Math.round(Number(E(yesPool))/pot*100) : 50;
-      const dl = new Date(Number(deadline)*1000);
-      const expired = Date.now()/1000 > Number(deadline);
-      let status, action;
-      if (resolved) {
-        status = outcome ? '<span class="pill grad">resolved · YES</span>' : '<span class="pill" style="background:rgba(255,69,58,.15);color:var(--red)">resolved · NO</span>';
-        action = `<button class="btn btn-ghost btn-sm" onclick="claimM(${i})">Claim winnings</button>`;
-      } else if (expired) {
-        status = '<span class="pill" style="background:rgba(255,214,10,.14);color:var(--amber)">awaiting resolution</span>';
-        action = `<button class="btn btn-ghost btn-sm" onclick="resolveM(${i})">Resolve</button>`;
-      } else {
-        status = '<span class="pill live">open</span>';
-        action = `
-        <div class="bet-row">
-          <input type="number" id="betAmt${i}" placeholder="$" min="0" step="any">
-          <button class="btn btn-yes btn-sm" onclick="betM(${i},true)">YES ${yesPct}¢</button>
-          <button class="btn btn-no btn-sm" onclick="betM(${i},false)">NO ${100-yesPct}¢</button>
-          <button class="btn btn-ghost btn-sm" onclick="resolveM(${i})" title="resolves YES instantly if already graduated">Resolve</button>
-        </div>`;
-      }
-      html += `
-      <div class="card hoverable" style="opacity:0; transform:translateY(16px); animation: rise .7s var(--ease) ${idx*0.08}s forwards;">
-        <div style="display:flex; align-items:center; gap:12px;">
-          <div class="avatar" style="background:hsl(${hue(tokAddr)},68%,48%); width:38px; height:38px; font-size:12px;">${m.symbol.slice(0,3)}</div>
-          <div style="flex:1">
-            <div style="font-weight:600; font-size:16px;">Will ${m.name} graduate by ${dl.toLocaleDateString('en-US',{month:'short',day:'numeric'})}?</div>
-            <div style="font-size:13px; color:var(--ink-2)">Market #${i} · pot $${fmt(pot,2)} · deadline ${dl.toLocaleString()}</div>
-          </div>
-          ${status}
-        </div>
-        <div class="odds-bar">
-          <div class="odds-yes" style="width:${Math.max(8,yesPct)}%">YES ${yesPct}%</div>
-          <div class="odds-no">NO ${100-yesPct}%</div>
-        </div>
-        ${action}
-      </div>`;
-      idx++;
-    }
-    el.innerHTML = html;
-  } catch (e) { el.innerHTML = '<div class="empty">Could not load markets. '+errMsg(e)+'</div>'; }
-}
-async function createMarket() {
-  if (needWallet()) return;
-  const tok = document.getElementById('mkToken').value.trim();
-  const days = Number(document.getElementById('mkDays').value);
-  if (!ethers.isAddress(tok)) { toast('Enter a valid token address.'); return; }
-  if (!days || days<1) { toast('Deadline must be at least 1 day out.'); return; }
-  try {
-    toast('<span class="spin"></span>Opening market…', true);
-    const deadline = Math.floor(Date.now()/1000) + days*86400;
-    const tx = await predict.createMarket(tok, deadline);
-    await tx.wait();
-    toastHide(); toast('Market open. Place the first bet.');
-    document.getElementById('mkToken').value='';
-    loadMarkets(); loadStats();
-  } catch (e) { toastHide(); toast(errMsg(e)); }
-}
-async function betM(id, yes) {
-  if (needWallet()) return;
-  const v = document.getElementById('betAmt'+id).value;
-  if (!v || Number(v)<=0) { toast('Enter a bet amount in USDC.'); return; }
-  try {
-    toast('<span class="spin"></span>Placing bet…', true);
-    const tx = await predict.bet(id, yes, {value: P(v)});
-    await tx.wait();
-    toastHide(); toast('Bet placed: $' + v + ' on ' + (yes?'YES':'NO'));
-    loadMarkets();
-  } catch (e) { toastHide(); toast(errMsg(e)); }
-}
-async function resolveM(id) {
-  if (needWallet()) return;
-  try {
-    toast('<span class="spin"></span>Resolving…', true);
-    const tx = await predict.resolve(id);
-    await tx.wait();
-    toastHide(); toast('Market resolved.');
-    loadMarkets();
-  } catch (e) { toastHide(); toast(errMsg(e)); }
-}
-async function claimM(id) {
-  if (needWallet()) return;
-  try {
-    toast('<span class="spin"></span>Claiming…', true);
-    const tx = await predict.claim(id);
-    await tx.wait();
-    toastHide(); toast('Winnings claimed 🎉');
-    loadMarkets();
-  } catch (e) { toastHide(); toast(errMsg(e)); }
-}
-
-setInterval(()=>{ if (document.getElementById('panel-token').classList.contains('visible')) refreshToken(); }, 15000);
 </script>
 </body>
 </html>
