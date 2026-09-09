@@ -7,6 +7,11 @@
 const http = require('http');
 const { spawn } = require('child_process');
 
+const REVERTER = '0x000000000000000000000000000000000000dEaD';
+// ABI-encoded Error(string) 'SafeMath: multiplication overflow' — the exact
+// payload the live endpoint returned through trace_call.
+const REVERT_DATA = '0x08c379a0' + '0'.repeat(62) + '20' + '0'.repeat(62) + '21' +
+  Buffer.from('SafeMath: multiplication overflow').toString('hex').padEnd(64, '0');
 let pass = 0, fail = 0;
 const ok = (n, c, d) => { if (c) { pass++; console.log('  ✓ ' + n); } else { fail++; console.log('  ✗ ' + n + (d ? '  -> ' + d : '')); } };
 
@@ -21,6 +26,18 @@ function upstream(port, opts) {
       state.calls++;
       const p = JSON.parse(b);
       const one = (r) => {
+        // 'nocall' models the real Arc upstream as measured on 2026-09-09: every
+        // method works EXCEPT eth_call, which is refused every single time.
+        if (state.mode === 'nocall') {
+          if (r.method === 'eth_call')
+            return { jsonrpc: '2.0', id: r.id, error: { code: -32005, message: 'project ID exceeded quota' } };
+          if (r.method === 'trace_call') {
+            const to = (r.params[0] && r.params[0].to) || '';
+            if (to === REVERTER)
+              return { jsonrpc: '2.0', id: r.id, result: { output: REVERT_DATA, stateDiff: null, trace: [{ type: 'call', error: 'Reverted' }] } };
+            return { jsonrpc: '2.0', id: r.id, result: { output: '0x' + port.toString(16), stateDiff: null, trace: [{ type: 'call' }] } };
+          }
+        }
         if (state.mode === 'quota')
           return { jsonrpc: '2.0', id: r.id, error: { code: -32005, message: 'project ID exceeded quota' } };
         // 'burst' models the real endpoint: refuses a few calls, then answers.
@@ -70,7 +87,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   const B = upstream(19002, { mode: 'ok' });
 
   const proxy = spawn(process.execPath, [__dirname + '/server.js'], {
-    env: Object.assign({}, process.env, {
+    env: Object.assign({}, process.env, { ETH_CALL_SHIM: '', 
       PORT: '19000', CHAIN_ID: '5042',
       UPSTREAMS: 'http://127.0.0.1:19001,http://127.0.0.1:19002',
       RATE_PER_MIN: '30',
@@ -205,7 +222,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   const C = upstream(19003, { mode: 'ok', chainId: '0x1' });   // claims Ethereum mainnet
   const D = upstream(19004, { mode: 'ok' });                    // correctly claims Arc (5042)
   const proxy2 = spawn(process.execPath, [__dirname + '/server.js'], {
-    env: Object.assign({}, process.env, {
+    env: Object.assign({}, process.env, { ETH_CALL_SHIM: '', 
       PORT: '19005', CHAIN_ID: '5042',
       UPSTREAMS: 'http://127.0.0.1:19003,http://127.0.0.1:19004',
       RATE_PER_MIN: '30',
@@ -245,7 +262,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   console.log('\n  transport failures with a single upstream');
   const E = upstream(19006, { mode: 'ok' });
   const proxy3 = spawn(process.execPath, [__dirname + '/server.js'], {
-    env: Object.assign({}, process.env, {
+    env: Object.assign({}, process.env, { ETH_CALL_SHIM: '', 
       PORT: '19007', CHAIN_ID: '5042',
       UPSTREAMS: 'http://127.0.0.1:19006',
       RATE_PER_MIN: '300',
@@ -283,6 +300,65 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
      !!(s3.json && s3.json.lastTransportError), s3.json && s3.json.lastTransportError);
 
   proxy3.kill(); E.close();
+
+  // ---- eth_call shim ----------------------------------------------------
+  // The live outage on 2026-09-09: the Arc upstream answered every method
+  // except eth_call, so every read the terminal makes 502'd and nobody could
+  // launch, buy or enter the draw. Retrying and extra capacity cannot fix a
+  // method-level refusal; translating to trace_call can.
+  console.log('\n  eth_call shim (upstream refuses eth_call)');
+  const F = upstream(19008, { mode: 'nocall' });
+  const proxy4 = spawn(process.execPath, [__dirname + '/server.js'], {
+    env: Object.assign({}, process.env, { ETH_CALL_SHIM: '', 
+      PORT: '19009', CHAIN_ID: '5042',
+      UPSTREAMS: 'http://127.0.0.1:19008', RATE_PER_MIN: '300',
+    }),
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  await sleep(900);
+
+  const k1 = await rpc(19009, 'eth_call', [{ to: '0x1' }, 'latest']);
+  ok('eth_call succeeds even though the upstream refuses eth_call',
+     k1.status === 200 && k1.json && k1.json.result === '0x' + (19008).toString(16),
+     `status ${k1.status} ${JSON.stringify(k1.json)}`);
+
+  // a revert must stay a revert — not become an empty success
+  const k2 = await rpc(19009, 'eth_call', [{ to: REVERTER }, 'latest'], 2);
+  ok('a reverting call is reported as an error, not as empty data',
+     k2.json && k2.json.error && k2.json.error.code === 3 && /reverted/i.test(k2.json.error.message),
+     JSON.stringify(k2.json).slice(0, 140));
+  ok('  ...and carries the revert data so ethers can decode the reason',
+     k2.json && k2.json.error && k2.json.error.data === REVERT_DATA,
+     String(k2.json && k2.json.error && k2.json.error.data).slice(0, 60));
+  // prove the reason really decodes
+  let reason = null;
+  try {
+    const d = k2.json.error.data;
+    if (d.startsWith('0x08c379a0')) reason = Buffer.from(d.slice(138, 138 + 66), 'hex').toString('utf8').replace(/\0+$/, '');
+  } catch {}
+  ok('  ...decoding it yields "SafeMath: multiplication overflow"',
+     reason === 'SafeMath: multiplication overflow', String(reason));
+
+  // other methods are untouched
+  const k3 = await rpc(19009, 'eth_getCode', ['0xabc', 'latest']);
+  ok('non-call methods are unaffected by the shim', k3.json && k3.json.result === '0xdeadbeef');
+
+  const k4 = await get(19009, '/stats');
+  ok('/stats says the shim is active and counts its use',
+     k4.json && /active/.test(k4.json.ethCallShim || '') && k4.json.callShimUsed >= 2,
+     JSON.stringify({ shim: k4.json && k4.json.ethCallShim, used: k4.json && k4.json.callShimUsed }));
+
+  // A malformed trace_call reply must NOT become an empty success. This is the
+  // failure mode that matters most: "0x" decodes as zero, and a zero price or a
+  // zero balance on a trading page is worse than a visible error.
+  F.state.mode = 'ok';                      // now trace_call returns junk ('0x1')
+  await sleep(50);
+  const k5 = await rpc(19009, 'eth_call', [{ to: '0x2' }, 'latest'], 5);
+  ok('a malformed trace_call reply becomes an error, never an empty 0x result',
+     !!(k5.json && k5.json.error) && k5.json.result === undefined,
+     JSON.stringify(k5.json));
+
+  proxy4.kill(); F.close();
 
   console.log('  ' + '─'.repeat(46));
   console.log(`  ${pass} passed, ${fail} failed\n`);

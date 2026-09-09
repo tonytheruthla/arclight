@@ -282,7 +282,7 @@ setInterval(() => {
 // (a second provider) is not the fix for dropped sockets (retry harder), and
 // for a month we had no way to tell which we were looking at.
 const stats = { started: Date.now(), requests: 0, cacheHits: 0, upstreamCalls: 0, rateLimited: 0, errors: 0,
-                retries: 0, quotaFail: 0, transportFail: 0, lastTransportError: null };
+                retries: 0, quotaFail: 0, transportFail: 0, lastTransportError: null, callShimUsed: 0 };
 
 // keep headBlock warm so the finalized-block cache rule works
 async function pollHead() {
@@ -331,6 +331,75 @@ setInterval(verifyAllUpstreams, 5 * 60_000).unref();
 verifyAllUpstreams();
 
 // ---------------------------------------------------------------- rpc handling
+/* ==================================================================
+   eth_call SHIM  —  the reason the site could not launch, buy or draw.
+
+   Measured on the live endpoint 2026-09-09: our Arc upstream answers
+   eth_getCode, eth_getBalance, eth_blockNumber, eth_getStorageAt,
+   eth_estimateGas and trace_call perfectly, and refuses exactly one
+   method: eth_call. 6/6 refusals, every variant — with `from`, at a
+   pinned block, at `pending`, with and without the block tag. It is a
+   method-level restriction on the key, not a rate limit, so no amount
+   of retrying or of adding capacity fixes it.
+
+   Every read the terminal makes goes through eth_call, so the whole
+   product was down: no curve params, no quotes, no draw state.
+
+   trace_call executes the identical EVM call and hands back the same
+   bytes in `output`, so we translate:
+     no trace error  -> result = output
+     "Reverted"      -> a real JSON-RPC error 3 carrying `output` as
+                        data, which is what eth_call returns and what
+                        ethers needs to decode a revert reason or a
+                        custom error. Verified end to end: a failing
+                        ERC-20 transfer came back with the ABI-encoded
+                        "SafeMath: multiplication overflow" intact.
+
+   It learns rather than paying the retry cost every time: the first
+   refusal flips the flag, and after RETRY_AFTER we try eth_call once
+   more, so the day we point at a provider that allows it we go back to
+   native calls on our own.
+================================================================== */
+/* ETH_CALL_SHIM=on skips the discovery step. Without it the first eth_call
+   after every boot (and after every 10-minute re-probe) spends the full retry
+   schedule finding out what we already know, which is ~5s of latency for
+   whoever happens to load the page at that moment. Set it while the current
+   upstream is the one refusing; unset it the day we move provider. */
+const CALL_SHIM = {
+  blocked: /^(1|on|true|yes)$/i.test(String(process.env.ETH_CALL_SHIM || '')),
+  since: Date.now(),
+  RETRY_AFTER: Number(process.env.ETH_CALL_SHIM_REPROBE_MS || 10 * 60 * 1000),
+};
+if (CALL_SHIM.blocked) console.log('  eth_call   shim forced on (ETH_CALL_SHIM) — served via trace_call');
+const looksBlocked = e => !!e && /exhausted|unavailable|not allowed|unsupported|does not exist|method not found|forbidden|unauthorized|restricted/i.test(String(e.message || e));
+
+async function ethCallViaTrace(req) {
+  const p = req.params || [];
+  const tx = p[0], block = p[1] || 'latest';
+  const r = await forward({ jsonrpc: '2.0', id: req.id, method: 'trace_call', params: [tx, ['trace'], block] });
+  if (r && r.error) return r;                       // trace_call refused too — report honestly
+  const t = r && r.result;
+  stats.callShimUsed = (stats.callShimUsed || 0) + 1;
+
+  // Never invent a successful answer. A real node always returns an object with
+  // a hex `output` — even a call to an EOA gives "0x". Anything else means the
+  // upstream did not actually run the call, and returning "0x" here would hand
+  // the caller an empty result that ethers decodes as a zero. On a page that
+  // prices tokens and sizes trades, a silent zero is worse than an error.
+  if (!t || typeof t !== 'object' || typeof t.output !== 'string') {
+    stats.callShimBad = (stats.callShimBad || 0) + 1;
+    return { jsonrpc: '2.0', id: req.id,
+             error: { code: -32603, message: 'eth_call shim: trace_call returned no output' } };
+  }
+
+  const reverted = t.error || (Array.isArray(t.trace) && t.trace[0] && t.trace[0].error);
+  if (reverted) {
+    return { jsonrpc: '2.0', id: req.id,
+             error: { code: 3, message: 'execution reverted', data: t.output } };
+  }
+  return { jsonrpc: '2.0', id: req.id, result: t.output };
+}
+
 async function handleOne(req) {
   if (!req || req.jsonrpc !== '2.0' || typeof req.method !== 'string') {
     return { jsonrpc: '2.0', id: (req && req.id) ?? null,
@@ -349,7 +418,30 @@ async function handleOne(req) {
   }
 
   stats.upstreamCalls++;
-  const res = await forward({ jsonrpc: '2.0', id: req.id, method: req.method, params: req.params || [] });
+  let res;
+  if (req.method === 'eth_call') {
+    const shimActive = CALL_SHIM.blocked && (Date.now() - CALL_SHIM.since) < CALL_SHIM.RETRY_AFTER;
+    if (shimActive) {
+      res = await ethCallViaTrace(req);
+    } else {
+      try {
+        res = await forward({ jsonrpc: '2.0', id: req.id, method: req.method, params: req.params || [] });
+      } catch (e) { res = { jsonrpc: '2.0', id: req.id, error: { code: -32603, message: String(e.message || e) } }; }
+      if (res && res.error && looksBlocked(res.error)) {
+        if (!CALL_SHIM.blocked) console.log('[shim] eth_call refused upstream — falling back to trace_call');
+        CALL_SHIM.blocked = true; CALL_SHIM.since = Date.now();
+        res = await ethCallViaTrace(req);
+      } else if (res && !res.error && CALL_SHIM.blocked) {
+        console.log('[shim] eth_call is working again — leaving the shim');
+        CALL_SHIM.blocked = false;
+      }
+    }
+    // A shim result that is still an upstream failure must reach the caller as
+    // a 502, exactly as before, rather than as a silent empty answer.
+    if (res && res.error && looksBlocked(res.error)) throw new Error(res.error.message);
+  } else {
+    res = await forward({ jsonrpc: '2.0', id: req.id, method: req.method, params: req.params || [] });
+  }
   if (ttl && res && res.result !== undefined && res.error === undefined) {
     // Never pin a null receipt — the tx may simply not be mined yet.
     if (!(req.method === 'eth_getTransactionReceipt' && res.result === null)) {
@@ -389,6 +481,7 @@ const server = http.createServer((req, res) => {
     if (path === '/stats') {
       const total = stats.cacheHits + stats.upstreamCalls;
       return send(res, 200, Object.assign({}, stats, {
+        ethCallShim: CALL_SHIM.blocked ? 'active (upstream refuses eth_call; served via trace_call)' : 'off (native eth_call)',
         chainId: CHAIN_ID, head: headBlock, cacheEntries: cache.size,
         cacheHitRate: total ? (stats.cacheHits / total * 100).toFixed(1) + '%' : '0%',
         upstreams: pool.map((p, i) => ({
