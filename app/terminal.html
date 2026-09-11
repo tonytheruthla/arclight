@@ -148,23 +148,32 @@ body{
   box-shadow:0 6px 20px rgba(245,166,35,.32);transition:.16s}
 #drawPop .go:hover{filter:brightness(1.07);transform:translateY(-1px)}
 #drawPop .fine{margin-top:9px;font:500 10px var(--fs);color:var(--ink3);text-align:center;line-height:1.45}
+#drawPop .mute{display:block;margin:8px auto 0;border:0;background:none;font:500 10px var(--fs);color:var(--ink3);
+  cursor:pointer;text-decoration:underline;text-underline-offset:2px;opacity:.7}
+#drawPop .mute:hover{opacity:1;color:var(--ink2)}
 @media (max-width:560px){ #drawPop{right:10px;left:10px;width:auto;bottom:10px} }
 
 /* ---- hero strip ---- */
-.hero{display:flex;align-items:center;gap:28px;padding:26px 34px;border-bottom:1px solid var(--hair);
+/* Header. Was ~140px: a 30px wordmark, a bracketed dev-style tagline in caps,
+   and four boxed KPI cards. Now ~68px: a smaller wordmark, one sentence-case
+   line of real copy, and the four figures as a single inline readout — mono
+   values, dim labels, hairline dividers. Reads as an instrument, and the 70px
+   it gives back goes to the token lanes, which is what people came for. */
+.hero{display:flex;align-items:center;gap:28px;padding:15px 34px 14px;border-bottom:1px solid var(--hair);
   background:radial-gradient(900px 120px at 12% 0%,rgba(10,132,255,.14),transparent 60%),
              radial-gradient(700px 120px at 88% 100%,rgba(34,211,238,.09),transparent 60%),var(--bg2)}
-.hero .ttl{display:flex;flex-direction:column;gap:10px;min-width:0}
-.hero .ttl b{font:700 30px/1 var(--fd);letter-spacing:-.02em;
+.hero .ttl{display:flex;flex-direction:column;gap:5px;min-width:0}
+.hero .ttl b{font:700 21px/1 var(--fd);letter-spacing:-.02em;
   background:linear-gradient(90deg,#fff,#9fd0ff);-webkit-background-clip:text;background-clip:text;color:transparent}
-.hero .ttl span{font:500 11px var(--fm);letter-spacing:.2em;color:var(--light);text-transform:uppercase}
-.hstats{display:flex;gap:12px;margin-left:auto}
-.hstat{min-width:138px;background:rgba(14,17,24,.85);border:1px solid var(--hair2);border-radius:12px;padding:14px 18px}
-.hstat span{display:block;font:600 9.5px var(--fs);letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);
-  white-space:nowrap}
-.hstat b{white-space:nowrap}
-.hstat b{display:block;font:700 19px var(--fd);letter-spacing:-.01em;margin-top:7px;font-variant-numeric:tabular-nums}
-.hstat b.dim{font-size:13px;font-weight:500}
+.hero .ttl span{font:500 12.5px/1.3 var(--fs);letter-spacing:-.005em;color:var(--ink2);text-transform:none;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hstats{display:flex;align-items:center;gap:0;margin-left:auto;flex-wrap:nowrap}
+.hstat{display:flex;align-items:baseline;gap:7px;padding:0 18px;border-left:1px solid var(--hair2);white-space:nowrap}
+.hstat:first-child{border-left:0}
+.hstat:last-child{padding-right:0}
+.hstat span{display:block;font:600 9.5px var(--fs);letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);order:2}
+.hstat b{display:block;font:700 15px var(--fm);letter-spacing:-.01em;font-variant-numeric:tabular-nums;color:var(--ink)}
+.hstat b.dim{font-size:13px;font-weight:500;color:var(--ink3)}
 
 /* ---- trending ticker ---- */
 .ticker{display:flex;align-items:center;overflow:hidden;border-bottom:1px solid var(--hair);background:#090b10;
@@ -172,7 +181,9 @@ body{
 .ticker .lbl{flex:0 0 auto;padding:0 26px;color:var(--cyan);letter-spacing:.12em;font-weight:600;
   border-right:1px solid var(--hair);height:100%;display:flex;align-items:center;gap:6px;
   position:relative;z-index:2;background:#090b10;white-space:nowrap}   /* sits above the sliding track */
-.ticker .trackwrap{flex:1;overflow:hidden;height:100%;display:flex;align-items:center}
+.ticker .trackwrap{flex:1;overflow:hidden;height:100%;display:flex;align-items:center;
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 36px,#000 calc(100% - 36px),transparent);
+          mask-image:linear-gradient(90deg,transparent,#000 36px,#000 calc(100% - 36px),transparent)}
 .ticker .track{display:flex;gap:82px;white-space:nowrap;padding-left:34px;animation:tick 60s linear infinite;will-change:transform}
 .ticker:hover .track{animation-play-state:paused}
 .ticker .ti{color:var(--ink2);cursor:pointer}
@@ -450,9 +461,31 @@ td.l{text-align:left}
   border:1px solid rgba(10,132,255,.34);border-radius:15px;
   padding:16px 15px 15px;margin:14px 0;
   box-shadow:0 14px 34px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.035) inset,
-             0 0 26px rgba(10,132,255,.13);
-  transform:translateZ(0);animation:swpop .2s ease-out}
+             0 0 30px rgba(10,132,255,.22);
+  transform:translateZ(0);animation:swpop .2s ease-out, swlum 1.5s cubic-bezier(.2,.7,.2,1)}
 @keyframes swpop{from{opacity:0;transform:translateY(6px) scale(.985)}to{opacity:1;transform:none}}
+/* Luminescence on selection. Clicking a ticker re-renders this card, which
+   restarts the animation, so every pick makes the buy panel bloom and settle:
+   a ring flares out to ~70px and a hairline of light runs the border, then
+   both fall back to the resting glow above. The old 200ms pop alone was
+   invisible in the corner of the eye — a user could pick a token and never
+   notice where to buy it. */
+@keyframes swlum{
+  0%  {box-shadow:0 14px 34px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.035) inset,0 0 0 rgba(10,132,255,0);
+       border-color:rgba(10,132,255,.34)}
+  18% {box-shadow:0 14px 34px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.12) inset,0 0 70px rgba(34,211,238,.55),0 0 0 2px rgba(125,211,252,.55);
+       border-color:rgba(125,211,252,.95)}
+  45% {box-shadow:0 14px 34px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.06) inset,0 0 44px rgba(10,132,255,.38),0 0 0 1px rgba(125,211,252,.35);
+       border-color:rgba(10,132,255,.7)}
+  100%{box-shadow:0 14px 34px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.035) inset,0 0 30px rgba(10,132,255,.22);
+       border-color:rgba(10,132,255,.34)}
+}
+/* a beam of light sweeps the top edge once, left to right, on the same trigger */
+.swapcard::before{content:'';position:absolute;left:14px;right:14px;top:0;height:1px;border-radius:1px;pointer-events:none;z-index:2;
+  background:linear-gradient(90deg,transparent,rgba(125,211,252,.95),transparent);
+  background-size:40% 100%;background-repeat:no-repeat;background-position:-40% 0;
+  animation:swbeam 1.1s .08s cubic-bezier(.4,0,.2,1) both}
+@keyframes swbeam{from{background-position:-40% 0;opacity:1}to{background-position:140% 0;opacity:0}}
 /* the vignette: darker at the edges so the card reads as lifted, not painted on */
 .swapcard::after{content:'';position:absolute;inset:0;border-radius:15px;pointer-events:none;z-index:-1;
   background:radial-gradient(120% 90% at 50% 0%,rgba(10,132,255,.10) 0%,rgba(0,0,0,0) 58%),
@@ -460,7 +493,7 @@ td.l{text-align:left}
 .swapcard h3{color:var(--ink);letter-spacing:-.2px}
 .swapcard .chip.on{border-color:var(--light);color:var(--light)}
 .swapcard .btn.primary{margin-top:4px;box-shadow:0 5px 16px rgba(10,132,255,.3)}
-@media (prefers-reduced-motion:reduce){ .swapcard{animation:none} }
+@media (prefers-reduced-motion:reduce){ .swapcard{animation:none} .swapcard::before{animation:none;opacity:0} }
 
 /* ---- wallet control + dropdown ----
    Replaces the network switcher, the balance pill and the Fund button. It is
@@ -580,7 +613,8 @@ td.l{text-align:left}
   .topbar::-webkit-scrollbar{display:none}
   .toolbar{overflow-x:auto;scrollbar-width:none}
   .sitechip{display:none}
-  .tcard{grid-template-columns:44px minmax(0,1fr) auto;padding:10px}
+  .tcard{grid-template-columns:44px minmax(0,1fr) auto;padding:11px 12px}
+  .tcard .side .mcap b{font-size:13px}
   .tcard .av{width:44px;height:44px;flex-basis:44px;font-size:11px}
 }
 @media (prefers-reduced-motion:reduce){
@@ -654,7 +688,7 @@ tbody tr.new{animation:newrow 6s ease-out}
 .laneh.info .dot{background:var(--info);box-shadow:0 0 8px var(--info)}
 .laneh.vio .dot{background:var(--violet);box-shadow:0 0 8px var(--violet)}
 .cards{overflow:auto;min-height:0;flex:1;padding:8px}
-.tcard{display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:11px;padding:11px 12px;margin-bottom:8px;
+.tcard{display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:12px;padding:13px 14px;margin-bottom:10px;
   background:var(--panel);border:1px solid var(--hair);border-radius:13px;cursor:pointer;transition:border-color .14s,background .14s,transform .14s}
 .tcard:hover{border-color:var(--hair2);background:var(--panel2)}
 .tcard.sel{border-color:rgba(139,125,255,.6);background:rgba(139,125,255,.07);box-shadow:0 0 0 1px rgba(139,125,255,.25)}
@@ -676,6 +710,17 @@ tbody tr.new{animation:newrow 6s ease-out}
 .tcard .side{display:flex;flex-direction:column;align-items:flex-end;gap:2px;font:500 11.5px var(--fm);white-space:nowrap}
 .tcard .side .k{color:var(--ink3);font:600 9.5px var(--fs);letter-spacing:.06em;margin-right:5px}
 .tcard .side .mc{font-weight:700;font-size:13px}
+/* Market cap is the stat people actually rank by, and it was missing from the
+   scanner cards entirely. It leads the side column in its own pill so the eye
+   lands on it first; V / P / TX sit under it in the plain style. */
+.tcard .side .mcap{display:inline-flex;align-items:baseline;gap:6px;margin-bottom:4px;padding:3px 9px 3px 8px;
+  border-radius:7px;background:rgba(255,214,10,.07);border:1px solid rgba(255,214,10,.24);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+.tcard .side .mcap .k{color:rgba(255,214,10,.72);margin-right:0}
+.tcard .side .mcap b{font:700 14.5px var(--fm);color:var(--warn);letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.tcard .side .mcap.none{background:none;border-color:var(--hair);box-shadow:none}
+.tcard .side .mcap.none .k{color:var(--ink3)} .tcard .side .mcap.none b{color:var(--ink3);font-weight:500}
+.tcard .side > span:not(.mcap){color:var(--ink2)}
 .tcard .foot{grid-column:1 / -1;display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-top:2px}
 .tcard .foot .spacer{flex:1}
 .tcard .star{font-size:14px;padding:0 3px}
@@ -753,6 +798,83 @@ tbody tr.new{animation:newrow 6s ease-out}
 @keyframes jackgrow{0%{transform:scale(1)}30%{transform:scale(1.12);color:var(--warn)}100%{transform:scale(1)}}
 .jack .odds{font:500 11px var(--fs);color:var(--ink2);margin-left:auto;text-align:right;line-height:1.4}
 /* tier cards */
+
+/* ═══════════ THE DRAW — takeover between :00 and the reveal ═══════════
+   Before this, the hour turned, the ring went violet for three seconds, and
+   the page quietly rolled into the next round with the tiers reset to $0 —
+   while the actual draw settled off-screen in a "Last draw" box below the
+   fold. Nobody watching learned who won. This stage replaces the tier cards
+   from the moment the hour turns until every tier has resolved, then holds
+   the result long enough to read before handing back to the new round. */
+.dstage{position:relative;border-radius:18px;padding:22px 22px 20px;margin-bottom:14px;overflow:hidden;isolation:isolate;
+  background:radial-gradient(900px 420px at 50% -10%,rgba(139,125,255,.22),transparent 60%),
+             radial-gradient(700px 360px at 50% 110%,rgba(255,214,10,.10),transparent 60%),linear-gradient(180deg,#0d1019,#090b12);
+  border:1px solid rgba(139,125,255,.35);box-shadow:0 30px 80px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.06);
+  animation:dstagein .5s cubic-bezier(.2,.8,.2,1)}
+@keyframes dstagein{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}
+.dstage::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:0;opacity:.14;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='.5'/%3E%3C/svg%3E")}
+.dstage>*{position:relative;z-index:1}
+.dstage .dhead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:16px}
+.dstage .dhead h2{font:800 22px var(--fd);letter-spacing:.06em;text-transform:uppercase;color:#fff;margin:0}
+.dstage .dhead h2 em{font-style:normal;color:#c4b5fd}
+.dstage .dhead .rn{font:500 11.5px var(--fm);color:var(--ink3);letter-spacing:.06em}
+.dstage .dhead .st{font:600 11px var(--fm);letter-spacing:.14em;text-transform:uppercase;color:#c4b5fd;display:flex;align-items:center;gap:8px}
+.dstage .dhead .st i{width:7px;height:7px;border-radius:50%;background:#c4b5fd;box-shadow:0 0 10px #c4b5fd;animation:blip .8s infinite}
+.dstage .dhead .st.done{color:var(--pos)} .dstage .dhead .st.done i{background:var(--pos);box-shadow:0 0 10px var(--pos);animation:none}
+.dcols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.dcol{position:relative;border-radius:14px;padding:14px 14px 16px;min-height:236px;display:flex;flex-direction:column;
+  background:rgba(255,255,255,.028);border:1px solid var(--hair2);overflow:hidden;transition:border-color .3s,box-shadow .3s}
+.dcol::before{content:'';position:absolute;inset:0 0 auto 0;height:3px;background:var(--tc)}
+.dcol.t0{--tc:var(--pos);--tcr:48,209,88} .dcol.t1{--tc:var(--violet);--tcr:139,125,255} .dcol.t2{--tc:var(--warn);--tcr:255,214,10}
+.dcol .dn{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.dcol .dn b{font:800 12px var(--fd);letter-spacing:.08em;text-transform:uppercase;color:var(--tc)}
+.dcol .dn span{font:500 11px var(--fm);color:var(--ink3)}
+.dcol .dpot{font:800 26px/1 var(--fm);letter-spacing:-.03em;color:#fff;margin:10px 0 12px;font-variant-numeric:tabular-nums}
+/* the live reel: ticket indices cycling until the chain answers */
+.dreel{position:relative;height:132px;border-radius:11px;overflow:hidden;
+  background:linear-gradient(180deg,#05060a,#0b0e16 50%,#05060a);border:1px solid rgba(255,255,255,.07);
+  box-shadow:inset 0 12px 20px rgba(0,0,0,.6),inset 0 -12px 20px rgba(0,0,0,.6)}
+.dreel .strip{position:absolute;left:0;right:0;top:0;will-change:transform}
+.dreel .cell{height:44px;display:flex;align-items:center;justify-content:center;gap:10px;font:600 15px var(--fm);color:var(--ink3);font-variant-numeric:tabular-nums}
+.dreel .cell .ix{color:var(--ink2)}
+.dreel .cell.hit{color:#fff}
+.dreel .cell.hit .ix{color:var(--tc);text-shadow:0 0 14px rgba(var(--tcr),.8)}
+.dreel .mk{position:absolute;left:0;right:0;top:44px;height:44px;pointer-events:none;
+  border-top:1px solid rgba(var(--tcr),.55);border-bottom:1px solid rgba(var(--tcr),.55);
+  background:linear-gradient(90deg,rgba(var(--tcr),.10),transparent 30%,transparent 70%,rgba(var(--tcr),.10))}
+.dreel .blur{position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(180deg,#05060a 0%,transparent 30%,transparent 70%,#05060a 100%)}
+.dreel.spin .strip{animation:dspin .42s linear infinite}
+@keyframes dspin{from{transform:translateY(0)}to{transform:translateY(-528px)}}   /* 12 cells × 44 */
+.dreel.spin .cell{filter:blur(.6px);opacity:.75}
+.dreel.land .strip{transition:transform 2.6s cubic-bezier(.12,.82,.18,1)}
+.dcol .dstat{margin-top:auto;padding-top:12px;font:500 11.5px var(--fm);color:var(--ink3);text-align:center;line-height:1.5}
+.dcol.calm .dreel{opacity:.35}
+/* ── the reveal: the winner pops ── */
+.dcol.won{border-color:rgba(var(--tcr),.7);box-shadow:0 0 0 1px rgba(var(--tcr),.35),0 0 44px rgba(var(--tcr),.28)}
+.dcol.won::after{content:'';position:absolute;inset:0;pointer-events:none;border-radius:inherit;
+  background:radial-gradient(circle at 50% 42%,rgba(var(--tcr),.45),transparent 60%);animation:dflash 1.1s ease-out both}
+@keyframes dflash{0%{opacity:0}18%{opacity:1}100%{opacity:0}}
+.dwin{margin-top:12px;padding:12px 12px 11px;border-radius:12px;text-align:center;
+  background:linear-gradient(180deg,rgba(var(--tcr),.16),rgba(var(--tcr),.05));border:1px solid rgba(var(--tcr),.45);
+  animation:dpop .55s cubic-bezier(.2,1.4,.3,1) both}
+@keyframes dpop{from{opacity:0;transform:translateY(8px) scale(.9)}to{opacity:1;transform:none}}
+.dwin .k{font:600 10px var(--fs);letter-spacing:.2em;text-transform:uppercase;color:rgba(var(--tcr),.9)}
+.dwin .addr{display:block;margin:6px 0 2px;font:700 18px var(--fm);letter-spacing:-.01em;color:#fff;cursor:copy;
+  text-shadow:0 0 22px rgba(var(--tcr),.6)}
+.dwin .addr:hover{color:var(--tc)}
+.dwin .prize{font:800 24px/1 var(--fm);letter-spacing:-.03em;color:#fff;margin-top:6px;font-variant-numeric:tabular-nums}
+.dwin .prize.jp{color:var(--warn);text-shadow:0 0 22px rgba(255,214,10,.6)}
+.dwin .you{display:inline-block;margin-top:8px;padding:3px 10px;border-radius:100px;font:800 10.5px var(--fs);letter-spacing:.16em;
+  background:var(--pos);color:#06110a;animation:dyou 1s ease-in-out infinite alternate}
+@keyframes dyou{from{box-shadow:0 0 0 rgba(48,209,88,0)}to{box-shadow:0 0 22px rgba(48,209,88,.8)}}
+.dwin .tx{display:block;margin-top:7px;font:500 10.5px var(--fm);color:var(--ink3);text-decoration:none}
+.dwin .tx:hover{color:var(--ink)}
+.dstage .dfoot{display:flex;align-items:center;justify-content:space-between;margin-top:14px;font:500 11px var(--fm);color:var(--ink3)}
+.dstage .dfoot .btn{padding:6px 12px;font-size:11px}
+@media (max-width:1000px){ .dcols{grid-template-columns:1fr} .dcol{min-height:0} }
+@media (prefers-reduced-motion:reduce){ .dreel.spin .strip{animation:none} .dreel.spin .cell{filter:none} .dcol.won::after{animation:none;opacity:0} }
 .tiers{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:14px}
 .tier{position:relative;background:var(--panel);border:1px solid var(--hair);border-radius:14px;padding:14px 15px;overflow:hidden;transition:border-color .2s}
 .tier::before{content:'';position:absolute;inset:0 0 auto 0;height:3px;background:var(--tc)}
@@ -892,7 +1014,7 @@ tbody tr.new{animation:newrow 6s ease-out}
 
   <!-- ================= hero strip ================= -->
   <div class="hero" id="hero">
-    <div class="ttl"><b id="heroTitle">ARCLITE</b><span id="heroTag">[ track, launch and trade tokens on arc ]</span></div>
+    <div class="ttl"><b id="heroTitle">ARCLITE</b><span id="heroTag">The whole chain, one screen.</span></div>
     <div class="hstats" id="hstats">
       <div class="hstat"><span id="hs1k">Tokens</span><b id="hs1" class="dim">—</b></div>
       <div class="hstat"><span id="hs2k">24h volume</span><b id="hs2" class="dim">—</b></div>
@@ -915,6 +1037,7 @@ tbody tr.new{animation:newrow 6s ease-out}
     </div>
     <a class="go" href="#draw" id="drawPopGo">Enter the draw →</a>
     <div class="fine">Winner takes the pot. Provably fair: commit → public blockhash → reveal.</div>
+    <button class="mute" id="drawPopMute">Not today</button>
   </div>
 
   <!-- ================= trending ticker ================= -->
@@ -1745,6 +1868,14 @@ async function loadFromIndexer(){
       volume24h:Number(t.volume_24h)||0, txns24h:Number(t.txns_24h)||0,
       traders24h:Number(t.traders_24h)||0, holders:Number(t.holders)||0,
       change24h: t.change_24h==null ? null : Number(t.change_24h),
+      // Market cap = OUR price × total supply. The supply comes from the
+      // indexer (derived from Tolly's marketCap/price ratio, stored once);
+      // the price is the one we show next to it, so the two always agree.
+      // Both gates matter: a stale price or a missing supply gives 0, which
+      // renders as "—" rather than a confident wrong number.
+      supply: t.total_supply==null ? null : Number(t.total_supply),
+      mcap: (t.price!=null && Number(t.price)>0 && t.total_supply!=null && Number(t.total_supply)>0)
+              ? Number(t.price)*Number(t.total_supply) : 0,
     }));
   }catch(e){ return null; }
 }
@@ -2526,7 +2657,7 @@ function paintHero(){
   const set=(k,v,lbl)=>{ const el=document.getElementById(k); if(!el) return; el.textContent=v; el.classList.toggle('dim', v==='—'); if(lbl){ const l=document.getElementById(k+'k'); if(l) l.textContent=lbl; } };
   const tag=document.getElementById('heroTag');
   if(VIEW==='launchpad' || VIEW==='launch'){
-    if(tag) tag.textContent='[ tokens born on arclite · live from first trade ]';
+    if(tag) tag.textContent='Born on Arclite. Live from the first trade.';
     const live=coins.filter(c=>!c.scanner);
     const vol=live.reduce((a,c)=>a+(c.raised||0),0);
     const grads=live.filter(c=>c.phase===2).length;
@@ -2537,7 +2668,7 @@ function paintHero(){
     return;
   }
   if(VIEW==='draw'){
-    if(tag) tag.textContent='[ lucky trencher · every hour on the hour · utc ]';
+    if(tag) tag.textContent='Every hour, on the hour. Winner takes the pot.';
     const has=hasDraw() && DW.cur;
     set('hs1', has? fmtUsd(Number(E(DW.jackpot)),2):'—', 'Mega jackpot');
     set('hs2', has? fmtUsd(Number(E(DW.totalPaid)),0):'—', 'Paid out');
@@ -2545,14 +2676,17 @@ function paintHero(){
     set('hs4', has? '#'+DW.round:'—', 'Round');
     return;
   }
+  // One line per view, all lifted from the launch copy so the site says what
+  // the film and the posts say. Sentence case; the bracketed caps read as a
+  // dev placeholder that never got replaced.
   if(tag) tag.textContent = VIEW==='points'
-    ? '[ earn as you trade · 1 point per usdc · 1 per share ]'
-    : '[ track, launch and trade tokens on arc mainnet ]';
+    ? 'Points for trading. Points for posting.'
+    : 'The whole chain, one screen.';
   if(!onArc()){
     const cs=chainStats(); const has=coins.length>0;
     set('hs1', has? String(cs.tokens):'—', 'Pools shown'); set('hs2', has? fmtUsd(cs.volume24h):'—', '24h volume');
     set('hs3', has? kfmt(cs.txns24h):'—', '24h txns'); set('hs4', has? kfmt(cs.traders24h):'—', '24h traders');
-    if(tag) tag.textContent='[ '+CHAINS[CHAIN].name.toLowerCase()+' · explorer · via geckoterminal ]';
+    if(tag) tag.textContent=CHAINS[CHAIN].name+' · explorer via GeckoTerminal';
     return;
   }
   set('hs1', STATS? Number(STATS.tokens).toLocaleString():'—', 'Tokens');
@@ -2894,6 +3028,7 @@ function cardHtml(c, i, fresh){
           (!named?'<span class="pend" style="font-size:9.5px;padding:1px 6px">name pending</span>':'')+'</div>'+
       '</div>'+
       '<div class="side">'+
+        '<span class="mcap'+((c.mcap||0)>0?'':' none')+'"><span class="k">MCAP</span><b>'+((c.mcap||0)>0?fmtUsd(c.mcap):'—')+'</b></span>'+
         '<span><span class="k">V</span><span class="vol">'+((c.volume24h||0)>0?fmtUsd(c.volume24h):'—')+'</span></span>'+
         '<span><span class="k">P</span>'+(verified?fmtPrice(c.price):'<span class="dim">—</span>')+'</span>'+
         '<span><span class="k">TX</span>'+((c.txns24h||0)>0?c.txns24h:'—')+'</span>'+
@@ -2927,7 +3062,7 @@ function cardHtml(c, i, fresh){
         '<span class="num '+(c.pct>=70?'up':'dim')+'" style="font-size:10.5px">'+c.pct.toFixed(0)+'% to grad</span></div>'+
     '</div>'+
     '<div class="side">'+
-      '<span><span class="k">MC</span><span class="mc">'+fmtUsd(c.mcap)+'</span></span>'+
+      '<span class="mcap"><span class="k">MCAP</span><b>'+fmtUsd(c.mcap)+'</b></span>'+
       '<span><span class="k">RAISED</span>'+fmtUsd(c.raised,0)+'</span>'+
       '<span><span class="k">P</span>'+fmtPrice(c.price)+'</span>'+
     '</div>'+
@@ -3151,6 +3286,189 @@ function railDraw(){
       'Randomness: operator commit → public blockhash seal → reveal. Nobody can steer it alone; if we ever fail to reveal, anyone can force the draw and our fee goes to the winner.</div></div>'+
   '</div>';
 }
+
+/* ═══════════════════════ THE DRAW ═══════════════════════
+   Driven by settlement, not by a timer. The old flow rolled into the next
+   round ~3s after the hour and left the result in a "Last draw" box below the
+   fold; the moment people were watching for was never on screen.
+
+   Lifecycle
+     hour turns, ending round had tickets  -> liveEnter()   stage takes over,
+                                                             reels spin, poll every 2.5s
+     prev.isSettled with tierState in hand  -> liveCheck()   each tier lands + pops
+     all tiers resolved                     -> hold ~16s     then back to the round
+
+   Nothing here invents an outcome. The reel spins on ticket indices, which is
+   true (the draw is resolving on-chain), and stops only on the index the
+   Drawn event reports. A tier with one wallet never spins — it refunds. */
+DW.live = null; DW.liveTimer = null;
+
+function liveEnter(round, cur, { settledNow = false } = {}){
+  if(DW.live && DW.live.round === round) return;
+  const tiers = [0,1,2].map(t => ({ n: Number(cur.tickets[t]), w: Number(cur.wallets[t]), pot: cur.pots[t] }));
+  if(!tiers.some(x => x.n > 0)) return;                       // nothing to draw — no stage
+  DW.animated.add(round);                                      // the small reel path stands down
+  DW.live = { round, tiers, resolved: {}, allDone: false, dismissed: false, t0: Date.now() };
+  renderDraw();
+  if(settledNow) liveCheck(); else liveFastPoll();
+}
+
+function liveFastPoll(){
+  if(DW.liveTimer) clearInterval(DW.liveTimer);
+  DW.liveTimer = setInterval(async () => {
+    if(!DW.live || DW.live.allDone){ clearInterval(DW.liveTimer); DW.liveTimer = null; return; }
+    try{ await drawRead(); await drawEvents(); }catch(e){}
+    liveCheck();
+    // give up gracefully after 3 minutes — the draw is still real, we just can't see it
+    if(Date.now() - DW.live.t0 > 180000){ const st=document.querySelector('.dstage .st'); if(st) st.innerHTML='<i></i>still settling — check the winners wall'; liveFinish(30000); }
+  }, 2500);
+}
+
+function liveCheck(){
+  const L = DW.live; if(!L || L.allDone) return;
+  const settled = DW.round === L.round + 1 && DW.prev && DW.prev.isSettled && DW.prevTiers;
+  if(!settled) return;
+  let delay = 0;
+  for(let t = 0; t < 3; t++){
+    if(L.resolved[t]) continue;
+    L.resolved[t] = true;
+    const ts = DW.prevTiers[t];
+    setTimeout(() => liveResolve(t, ts), delay);            // stagger so each lands on its own
+    if(Number(ts.tickets) > 1 && !ts.refunded) delay += 900;
+  }
+  L.allDone = true;
+  liveFinish(delay + 2600 + 16000);
+}
+
+function liveFinish(ms){
+  const L = DW.live;
+  if(DW.liveTimer){ clearInterval(DW.liveTimer); DW.liveTimer = null; }
+  setTimeout(() => {
+    const st = document.querySelector('.dstage .st'); if(st){ st.className = 'st done'; st.innerHTML = '<i></i>settled'; }
+    const f = document.querySelector('.dstage .dfoot span'); if(f) f.textContent = 'Round #' + (L.round + 1) + ' is open';
+  }, Math.max(0, ms - 16000));
+  setTimeout(() => { if(DW.live === L && !L.dismissed){ DW.live = null; renderDraw(); } }, ms);
+}
+
+function liveDismiss(){ if(DW.live){ DW.live.dismissed = true; DW.live = null; if(DW.liveTimer){ clearInterval(DW.liveTimer); DW.liveTimer=null; } renderDraw(); } }
+
+function liveReelCells(n, upto, hit){
+  // `upto` cells; if `hit` is given, cell 33 carries the winner's index
+  const out = [];
+  for(let i = 0; i < upto; i++){
+    const ix = hit == null ? (i % Math.max(n,1)) : (((hit - 33 + i) % n) + n) % n;
+    const isHit = hit != null && i === 33;
+    out.push('<div class="cell' + (isHit ? ' hit' : '') + '"><span class="ix">#' + ix + '</span><span>' + (isHit ? 'winner' : 'ticket') + '</span></div>');
+  }
+  return out.join('');
+}
+
+function liveStageHtml(){
+  const L = DW.live, m = TIER_META;
+  const rn = 'round #' + L.round + ' · ' + new Date(L.round*3600*1000).toISOString().slice(11,16) + ' UTC';
+  const cols = [0,1,2].map(t => {
+    const x = L.tiers[t];
+    const head = '<div class="dn"><b>' + m[t].name + '</b><span>' + x.n + ' ticket' + (x.n===1?'':'s') + ' · ' + x.w + ' wallet' + (x.w===1?'':'s') + '</span></div>' +
+                 '<div class="dpot">' + fmtUsd(Number(E(x.pot)), 2) + '</div>';
+    if(x.n === 0)
+      return '<div class="dcol t' + t + ' calm" data-dcol="' + t + '">' + head + '<div class="dreel"><div class="blur"></div></div><div class="dstat">No tickets this round.</div></div>';
+    if(x.w < 2)
+      return '<div class="dcol t' + t + ' calm" data-dcol="' + t + '">' + head + '<div class="dreel"><div class="blur"></div></div>' +
+             '<div class="dstat">One wallet entered.<br>Refunding ' + x.n + ' ticket' + (x.n===1?'':'s') + ' — no fee.</div></div>';
+    return '<div class="dcol t' + t + '" data-dcol="' + t + '">' + head +
+           '<div class="dreel spin"><div class="strip">' + liveReelCells(x.n, 24, null) + '</div><div class="mk"></div><div class="blur"></div></div>' +
+           '<div class="dstat">Drawing one of ' + x.n + ' tickets…</div></div>';
+  }).join('');
+  return '<div class="dstage" id="dstage">' +
+    '<div class="dhead"><div><h2>THE <em>DRAW</em></h2><div class="rn">' + rn + '</div></div><div class="st"><i></i>resolving on-chain</div></div>' +
+    '<div class="dcols">' + cols + '</div>' +
+    '<div class="dfoot"><span>Commit–reveal · the hash was on-chain before sales opened</span><button class="btn" data-livedismiss>Back to the round</button></div>' +
+  '</div>';
+}
+
+function liveResolve(t, ts){
+  const col = document.querySelector('.dcol[data-dcol="' + t + '"]'); if(!col) return;
+  const n = Number(ts.tickets), reel = col.querySelector('.dreel'), stat = col.querySelector('.dstat');
+  if(n === 0) return;
+  if(ts.refunded || n < 2){
+    col.classList.add('calm'); if(stat) stat.innerHTML = 'Refunded — one wallet entered.<br>Every ticket returned, no fee.';
+    return;
+  }
+  // decelerate onto the real winning index
+  const win = (DW.wall.find(x => x.round === DW.live.round && x.tier === t) || {}).idx;
+  const idx = Number(win != null ? win : 0);
+  const strip = reel.querySelector('.strip');
+  reel.classList.remove('spin');
+  strip.style.transform = 'translateY(0)';
+  strip.innerHTML = liveReelCells(n, 37, idx);
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    reel.classList.add('land');
+    strip.style.transform = 'translateY(-' + (33*44 - 44) + 'px)';
+  }));
+  if(stat) stat.textContent = 'Landing…';
+  setTimeout(() => {
+    const isMe = me && ts.winner.toLowerCase() === me.toLowerCase();
+    const prize = Number(E(ts.prize));
+    const entry = DW.wall.find(x => x.round === DW.live.round && x.tier === t) || {};
+    col.classList.add('won');
+    if(stat) stat.remove();
+    col.insertAdjacentHTML('beforeend',
+      '<div class="dwin"><div class="k">Ticket #' + idx + ' of ' + n + '</div>' +
+      '<span class="addr" data-copy="' + ts.winner + '" title="Copy the winner\'s address">' + short(ts.winner) + '</span>' +
+      '<div class="prize' + (ts.hitJackpot ? ' jp' : '') + '" data-count="' + prize + '">$0.00</div>' +
+      (ts.hitJackpot ? '<div class="k" style="margin-top:6px;color:var(--warn)">★ Mega Jackpot hit</div>' : '') +
+      (isMe ? '<span class="you">YOU WON</span>' : '') +
+      (entry.tx ? '<a class="tx" href="' + EXPLORER + '/tx/' + entry.tx + '" target="_blank" rel="noopener">view the draw on-chain ↗</a>' : '') +
+      '</div>');
+    liveCountUp(col.querySelector('.prize'), prize, 1300);
+    if(isMe || ts.hitJackpot) confetti();
+  }, 2650);
+}
+
+function liveCountUp(el, to, ms){
+  if(!el) return;
+  const t0 = performance.now();
+  const tick = now => {
+    const k = Math.min(1, (now - t0) / ms), e = 1 - Math.pow(1 - k, 3);
+    el.textContent = fmtUsd(to * e, 2);
+    if(k < 1) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
+
+/* Dev hatch: play the whole draw sequence on demand, with fake data, so it
+   can be judged without waiting for an hour boundary. Only runs when the URL
+   carries ?demo=draw, stops the real polling first so nothing overwrites the
+   fake round, and stamps DEMO on the stage so the fake can never be mistaken
+   for a result. It sends nothing and reads nothing from the chain. */
+function liveDemo(){
+  if(new URLSearchParams(location.search).get('demo') !== 'draw') return false;
+  stopDraw();
+  const now = Math.floor(Date.now()/1000), r = Math.floor(now/3600);
+  const U = n => BigInt(Math.round(n*1e6)) * 10n**12n;
+  const W1 = '0x7a3f' + 'c1d2'.repeat(8) + 'e9b4', W2 = '0x12ab' + '90ef'.repeat(8) + '3c7d';
+  const ending = { pots:[U(41),U(135),U(250)], tickets:[41n,27n,5n], wallets:[19n,11n,1n], open:false, isSealed:true, isSettled:false, committed:true, closeAt:BigInt(now-120), endAt:BigInt(now) };
+  Object.assign(DW, { round:r, cur:ending, prev:null, prevTiers:null, mine:[2,0,0], jackpot:U(18.4), totalPaid:U(2210), biggestPot:U(250), claimable:0n, tape:[], wall:[], err:null });
+  renderDraw();
+  liveEnter(r, ending);
+  const st = document.querySelector('.dstage .dhead .rn'); if(st) st.textContent += ' · DEMO — fake data';
+  setTimeout(() => {
+    Object.assign(DW, { round:r+1,
+      cur:{ ...ending, pots:[0n,0n,0n], tickets:[0n,0n,0n], wallets:[0n,0n,0n], open:true, isSealed:false, closeAt:BigInt(now+3480), endAt:BigInt(now+3600) },
+      prev:{ ...ending, isSettled:true },
+      prevTiers:[
+        { pot:U(41),  tickets:41n, wallets:19n, drawn:true,  refunded:false, winner:W1, prize:U(39.98), hitJackpot:false },
+        { pot:U(135), tickets:27n, wallets:11n, drawn:true,  refunded:false, winner:me||W2, prize:U(131.6+18.4), hitJackpot:true },
+        { pot:U(250), tickets:5n,  wallets:1n,  drawn:false, refunded:true,  winner:'0x'+'0'.repeat(40), prize:0n, hitJackpot:false },
+      ],
+      wall:[ { key:'d0', round:r, tier:0, winner:W1, idx:17, n:41, prize:U(39.98), jp:false, tx:'0x'+'ab'.repeat(32) },
+             { key:'d1', round:r, tier:1, winner:me||W2, idx:6, n:27, prize:U(150), jp:true, tx:'0x'+'cd'.repeat(32) } ] });
+    liveCheck();
+  }, 4200);
+  return true;
+}
+
 async function renderDraw(){
   const el=document.getElementById('panel');
   if(!hasDraw()){
@@ -3161,6 +3479,15 @@ async function renderDraw(){
   }
   const ph=drawPhase();
   if(!DW.cur){ el.innerHTML='<div class="dwhead"><div><h1>LUCKY TRENCHER</h1><div class="sub">loading the round…</div></div></div>'+(DW.err?'<div class="gate">'+DW.err+'</div>':''); return; }
+  // A live stage owns the DOM while it runs: the 12s poll must not rebuild the
+  // panel under a reel mid-spin. The ring and phase pill update on their own.
+  if(DW.live && document.getElementById('dstage')) return;
+  // Late arrival: the round just settled and nobody has seen it — show the
+  // reveal rather than the quiet "Last draw" box, for up to a minute after.
+  if(!DW.live && DW.prev && DW.prev.isSettled && DW.prevTiers && !DW.animated.has(DW.round-1)
+     && (Math.floor(Date.now()/1000) - Number(DW.prev.endAt)) < 60 && DW.prev.tickets.some(t=>t>0n)){
+    liveEnter(DW.round-1, DW.prev, { settledNow:true }); return;
+  }
   const jackTxt = fmtUsd(Number(E(DW.jackpot)),2);
   el.innerHTML =
     '<div class="dw"><div>'+
@@ -3172,8 +3499,7 @@ async function renderDraw(){
       '</div>'+
       (DW.claimable>0n ? '<div class="claimbar">🎉 You have '+fmtUsd(Number(E(DW.claimable)),2)+' to claim (prize or refund).<button class="btn primary" id="dwClaim">Claim</button></div>' : '')+
       '<div class="jack"><span class="lbl">★ MEGA JACKPOT</span><span class="amt'+(DW.jackBump?' grow':'')+'" id="jackAmt">'+jackTxt+'</span><span class="odds">hits 1 in 20 winning tickets<br>+0.5% of every pot, every hour</span></div>'+
-      '<div class="tiers">'+[0,1,2].map(tierCard).join('')+'</div>'+
-      stageHtml()+
+      (DW.live ? liveStageHtml() : '<div class="tiers">'+[0,1,2].map(tierCard).join('')+'</div>'+stageHtml())+
     '</div>'+railDraw()+'</div>';
   DW.jackBump=false;
   // proof panel is async (two reads); slot it in after paint
@@ -3199,6 +3525,9 @@ function confetti(){
   for(let i=0;i<120;i++){ const s=document.createElement('i'); s.style.left=Math.random()*100+'vw'; s.style.background=cols[i%cols.length]; s.style.animationDuration=(2.2+Math.random()*1.8)+'s'; s.style.animationDelay=(Math.random()*.6)+'s'; s.style.transform='rotate('+Math.random()*360+'deg)'; c.appendChild(s); }
   document.body.appendChild(c); setTimeout(()=>c.remove(),4500);
 }
+document.addEventListener('click', e => {
+  if(e.target.closest('[data-livedismiss]')) liveDismiss();
+});
 async function buyTickets(t){
   if(!signer) return connect();
   drawContracts();
@@ -3244,16 +3573,20 @@ async function drawLoop(){
 }
 function startDraw(){
   stopDraw();
+  if(liveDemo()) return;
   drawLoop(); drawEvents().then(()=>{ if(VIEW==='draw') renderDraw(); });
   drawTimer=setInterval(()=>{ drawLoop(); drawEvents().then(()=>{ if(VIEW==='draw') renderDraw(); }); }, 12000);
   // the ring + phase repaint every second without re-reading the chain
   drawTick=setInterval(()=>{ if(VIEW!=='draw'||!DW.cur) return; const ph=drawPhase(); const r=document.querySelector('.dwhead .ring'); if(r) r.outerHTML=ringHtml(ph);
     const pill=document.querySelector('.phasepill'); if(pill){ pill.className='phasepill '+ph.k; pill.innerHTML='<span class="livedot"></span>'+ph.label; }
     // roll into the new round the moment the hour turns
-    if(Math.floor(Date.now()/1000)>=Number(DW.cur.endAt) && !DW._rolled){ DW._rolled=true; setTimeout(()=>{ DW._rolled=false; drawLoop(); drawEvents().then(()=>renderDraw()); }, 2500); }
+    if(Math.floor(Date.now()/1000)>=Number(DW.cur.endAt) && !DW._rolled){ DW._rolled=true;
+      liveEnter(DW.round, DW.cur);                           // the stage takes over on the ending round
+      setTimeout(()=>{ DW._rolled=false; drawLoop(); drawEvents().then(()=>{ renderDraw(); liveCheck(); }); }, 2500); }
   }, 1000);
 }
-function stopDraw(){ if(drawTimer) clearInterval(drawTimer); if(drawTick) clearInterval(drawTick); drawTimer=drawTick=null; }
+function stopDraw(){ if(drawTimer) clearInterval(drawTimer); if(drawTick) clearInterval(drawTick); drawTimer=drawTick=null;
+  if(DW.liveTimer){ clearInterval(DW.liveTimer); DW.liveTimer=null; } DW.live=null; }
 
 /* ==================================================================
    LIMIT ORDERS — ArcliteLimit on the launchpad curve.
@@ -4117,6 +4450,8 @@ document.addEventListener('keydown',e=>{
 window.__term = { get VIEW(){ return VIEW; }, get coins(){ return coins; }, get filter(){ return filter; }, get NET(){ return NET; },
   setWallet(s, a){ signer=s; me=a; }, setCoins(list){ coins=list; render(); ticker(); paintHero(); rail(); },
   get DW(){ return DW; }, setDraw(addr, state){ NET.draw=addr; stopDraw(); Object.assign(DW, state||{}); paintHero(); renderDraw(); }, spinReels,
+  liveEnter, liveCheck, liveStageHtml, liveReelCells, liveDismiss, fmtUsd, renderDraw,
+  get POP(){ return POP; }, tickDraw,
   setDrawContracts(r, w){ drawR=r; drawW=w; },
   get LO(){ return LO; }, setLimit(addr, r, w){ NET.limit=addr; limitR=r; limitW=w; LO.loaded=false; },
   get CHAIN(){ return CHAIN; }, setChain, geckoCoin,
@@ -4164,12 +4499,17 @@ function drawClock(now){
   return { round, endAt, closeAt, secs, closed: t >= closeAt,
            label: mmss(t >= closeAt ? Math.max(0, endAt - t) : secs) };
 }
-const DRAW_POP_KEY = 'ark_drawpop_dismissed';
-function drawPopDismissed(round){
-  try { return Number(localStorage.getItem(DRAW_POP_KEY) || -1) === round; } catch(e){ return false; }
-}
+const DRAW_POP_KEY  = 'ark_drawpop_dismissed';   // round in which the user closed the early nudge
+const DRAW_POP_LATE = 'ark_drawpop_late';        // round in which the five-minute nudge already fired
+const DRAW_POP_MUTE = 'ark_drawpop_mute';        // UTC day on which the user said "not today"
+const POP = { arm: Date.now() + 25000, clock: null };   // arm: first nudge after the page settles; clock: test override
+const lsGet = k => { try { return localStorage.getItem(k); } catch(e){ return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch(e){} };
+function drawPopDismissed(round){ return Number(lsGet(DRAW_POP_KEY) || -1) === round; }
+function drawPopLateDone(round){ return Number(lsGet(DRAW_POP_LATE) || -1) === round; }
+function drawPopMuted(){ return lsGet(DRAW_POP_MUTE) === new Date().toISOString().slice(0,10); }
 function tickDraw(){
-  const c = drawClock();
+  const c = (POP.clock || drawClock)();
   const hasDraw = !!NET.draw && onArc();
   // ---- nav entry
   const navi = document.getElementById('naviDraw'), cd = document.getElementById('naviCd');
@@ -4177,16 +4517,28 @@ function tickDraw(){
     navi.classList.toggle('soon', hasDraw && !c.closed && c.secs <= 300);   // last 5 min: pulse
     if(cd) cd.textContent = hasDraw ? (c.closed ? 'DRAW' : c.label) : '—';
   }
-  // ---- popup: only where the contract actually exists, once per round,
-  //      and only in the last 20 minutes when there's a reason to hurry.
+  // ---- popup cadence.
+  //   Before: only in the last 20 minutes of the hour, once per round. For the
+  //   first 38 minutes of every round nobody saw it — and most sessions are
+  //   shorter than the wait, so in practice it never nudged anyone to enter.
+  //   Now, two moments per round, each once:
+  //     early  — 25s after the page settles, any time sales are open with more
+  //              than 5 minutes left. Closed with × → quiet for this round.
+  //     late   — the last 5 minutes, even if the early one was closed, because
+  //              the situation changed. Fires once, then quiet.
+  //   "Not today" mutes both until the next UTC day. Never on the draw view,
+  //   never inside the final minute (too late to buy), never past close.
   const pop = document.getElementById('drawPop');
   if(!pop) return;
-  const should = hasDraw && !c.closed && c.secs <= 1200 && !drawPopDismissed(c.round) && VIEW !== 'draw';
+  const early = c.secs > 300 && Date.now() >= POP.arm && !drawPopDismissed(c.round);
+  const late  = c.secs <= 300 && c.secs > 60 && !drawPopLateDone(c.round);
+  const should = hasDraw && !c.closed && VIEW !== 'draw' && !drawPopMuted() && (early || late);
   if(should){
+    if(late && pop.hidden) lsSet(DRAW_POP_LATE, String(c.round));
     if(pop.hidden){ pop.hidden = false; requestAnimationFrame(()=>pop.classList.add('show')); }
     const big = document.getElementById('popCd'), lab = document.getElementById('popLab');
     if(big) big.textContent = c.label;
-    if(lab) lab.textContent = c.secs <= 120 ? 'Sales close in' : 'Draw starts in';
+    if(lab) lab.textContent = c.secs <= 300 ? 'Sales close in' : 'Draw starts in';
   } else if(!pop.hidden){
     pop.classList.remove('show');
     setTimeout(()=>{ if(!pop.classList.contains('show')) pop.hidden = true; }, 460);
@@ -4195,9 +4547,11 @@ function tickDraw(){
 (function initDrawPop(){
   const pop = document.getElementById('drawPop'); if(!pop) return;
   const x = document.getElementById('drawPopX');
-  const dismiss = () => { try{ localStorage.setItem(DRAW_POP_KEY, String(drawClock().round)); }catch(e){}
-    pop.classList.remove('show'); setTimeout(()=>{ pop.hidden = true; }, 460); };
+  const hide = () => { pop.classList.remove('show'); setTimeout(()=>{ pop.hidden = true; }, 460); };
+  const dismiss = () => { const c = (POP.clock || drawClock)(); lsSet(DRAW_POP_KEY, String(c.round)); if(c.secs <= 300) lsSet(DRAW_POP_LATE, String(c.round)); hide(); };
   if(x) x.addEventListener('click', dismiss);
+  const mute = document.getElementById('drawPopMute');
+  if(mute) mute.addEventListener('click', ()=>{ lsSet(DRAW_POP_MUTE, new Date().toISOString().slice(0,10)); hide(); });
   const go = document.getElementById('drawPopGo');
   if(go) go.addEventListener('click', ()=>{ dismiss(); setView('draw'); });
   tickDraw(); setInterval(tickDraw, 1000);

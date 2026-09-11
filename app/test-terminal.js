@@ -25,7 +25,7 @@ const TOK = '0x1111111111111111111111111111111111111111';
 const TOK2 = '0x2222222222222222222222222222222222222222';
 const TOK3 = '0x3333333333333333333333333333333333333330';
 const fakeTokens = { tokens: [
-  { address: TOK, name: 'Alpha', symbol: 'ALPHA', decimals: 18, dex: 'v3', pool_ref: '0x3333333333333333333333333333333333333333', first_seen_block: 100, first_seen_at: new Date(Date.now()-86400e3).toISOString(), meta_ok: true, price: '0.5', volume_24h: '1200', txns_24h: '9', traders_24h: '4', holders: '20', change_24h: '12.5', logo_url: 'ipfs://bafyALPHA', website: 'https://alpha.fun', twitter: 'https://x.com/alphaonarc', telegram: null, profile_source: 'tolly' },
+  { address: TOK, name: 'Alpha', symbol: 'ALPHA', decimals: 18, dex: 'v3', pool_ref: '0x3333333333333333333333333333333333333333', first_seen_block: 100, first_seen_at: new Date(Date.now()-86400e3).toISOString(), meta_ok: true, price: '0.5', volume_24h: '1200', txns_24h: '9', traders_24h: '4', holders: '20', change_24h: '12.5', total_supply: '1000000000', logo_url: 'ipfs://bafyALPHA', website: 'https://alpha.fun', twitter: 'https://x.com/alphaonarc', telegram: null, profile_source: 'tolly' },
   { address: TOK2, name: 'Beta Named', symbol: 'BETA', decimals: 18, dex: 'v4', pool_ref: '0x'+'ab'.repeat(32), first_seen_block: 200, first_seen_at: new Date().toISOString(), meta_ok: false, price: null, volume_24h: '0', txns_24h: '0', traders_24h: '0', holders: '2', change_24h: null },
   { address: TOK3, name: '', symbol: '', decimals: 18, dex: 'v3', pool_ref: '0x'+'cd'.repeat(20), first_seen_block: 210, first_seen_at: new Date().toISOString(), meta_ok: false, price: null, volume_24h: '0', txns_24h: '0', traders_24h: '0', holders: '1', change_24h: null },
 ]};
@@ -170,7 +170,7 @@ function boot(url, boptions) {
   const r1 = d.querySelector('#panel table.lb tbody tr');
   ok(r1.textContent.includes('0xaaaa') && r1.textContent.includes('122'), 'leaderboard row: wallet + points');
   ok(ptxt.includes('Connect your wallet to see your rank'), 'disconnected: connect prompt for rank');
-  ok(d.getElementById('hs1k').textContent === 'Tokens' && d.getElementById('heroTag').textContent.includes('earn as you trade'), 'hero tagline switches for Points');
+  ok(d.getElementById('hs1k').textContent === 'Tokens' && d.getElementById('heroTag').textContent === 'Points for trading. Points for posting.', 'hero tagline switches for Points — the campaign line, sentence case');
 
   w.location.hash = '#launch';
   await sleep(250);
@@ -252,7 +252,7 @@ function boot(url, boptions) {
   ok(ll.map(l=>l.querySelectorAll('.tcard').length).join(',') === '1,2,1', 'lane membership: new(<5%)=1, climbing=2, graduated=1');
   const climb = ll[1].querySelector('.tcard');
   ok(climb.querySelector('.av .dx').textContent === 'ARC', 'launchpad card: ARC badge (ours, not a Uniswap pool)');
-  ok(climb.querySelector('.side .mc') && climb.querySelector('.side .mc').classList.contains('mc'), 'launchpad card: market cap in amber (warn colour = MC, like gmgn)');
+  ok(climb.querySelector('.side .mcap b') && climb.querySelector('.side .mcap b').textContent.startsWith('$'), 'launchpad card: market cap leads the side column in the amber pill');
   ok(!!climb.querySelector('.tug') && climb.querySelector('.oddsv.up').textContent === '80', 'launchpad card: odds tug shows YES 80 (the column nobody else has)');
   ok(climb.querySelector('.qb') && climb.querySelector('.qb').textContent === 'Buy $1', 'launchpad card: one-click Buy with the preset amount');
   ok(climb.querySelector('.ch.warn') && climb.querySelector('.ch.warn').textContent === 'NEAR GRAD', 'card ≥70% gets the amber NEAR GRAD chip');
@@ -773,6 +773,198 @@ function boot(url, boptions) {
   ok(!/\$8,000/.test(gtxt), 'landing on #launch never shows $8,000', gtxt.slice(0, 160));
   ok(/1,500|reading…/.test(gtxt), 'it shows the real target, or says it is still reading',
      (gtxt.match(/[Gg]raduates? at [^,]{0,14}/) || [''])[0]);
+  }
+
+
+  console.log('\n=== market cap on the ticker cards ===');
+  {
+  // Market cap was missing from scanner cards entirely — the one number people
+  // rank by. It is OUR indexed price × the supply the indexer now reports, and
+  // it must never be shown when either half is missing.
+  const mw = boot('https://arclite.fun/app/terminal.html?net=mainnet');
+  await sleep(700);
+  const md = mw.d;
+  const alpha = mw.w.__term.coins.find(c => c.addr.toLowerCase() === TOK.toLowerCase());
+  const beta  = mw.w.__term.coins.find(c => c.addr.toLowerCase() === TOK2.toLowerCase());
+  ok(alpha && alpha.supply === 1e9, 'total_supply from the indexer lands as coin.supply');
+  ok(alpha && alpha.mcap === 0.5 * 1e9, 'mcap = our price × supply = $500,000,000');
+  ok(beta && beta.mcap === 0 && beta.supply == null, 'a token with no price and no supply gets mcap 0 — never a guess');
+  const cardA = md.querySelector('.tcard[data-addr="' + alpha.addr + '"]');
+  const cardB = md.querySelector('.tcard[data-addr="' + beta.addr + '"]');
+  ok(cardA && cardA.querySelector('.side .mcap b') && cardA.querySelector('.side .mcap b').textContent === mw.w.__term.fmtUsd(5e8),
+     'Alpha\'s card leads its side column with MCAP ' + mw.w.__term.fmtUsd(5e8));
+  ok(cardA && cardA.querySelector('.side').firstElementChild.classList.contains('mcap'), 'MCAP is the FIRST stat on the card, above V / P / TX');
+  ok(cardB && cardB.querySelector('.side .mcap.none') && cardB.querySelector('.side .mcap.none b').textContent === '—',
+     'Beta\'s card shows MCAP — (dim, no pill) rather than a number it cannot stand behind');
+  ok(/\.tcard \.side \.mcap\{[^}]*rgba\(255,214,10/.test(html), 'the MCAP pill is amber — the highlight the user asked for');
+  ok(/\.tcard\{[^}]*padding:13px 14px[^}]*margin-bottom:10px/.test(html), 'cards got more room: 13×14 padding, 10px between');
+  }
+
+  console.log('\n=== buy panel: luminescence on selection ===');
+  {
+  // Picking a ticker re-renders the swap card; that restart is what makes it
+  // bloom. jsdom does not run CSS animations, so this pins the rules that
+  // produce it and proves the card is rebuilt (not patched) on selection.
+  ok(/@keyframes swlum\{/.test(html) && /\.swapcard\{[^}]*animation:[^}]*swlum/.test(html), 'the swap card animates swlum on every (re)render');
+  ok(/@keyframes swbeam\{/.test(html) && /\.swapcard::before\{[^}]*animation:[^}]*swbeam/.test(html), 'a beam of light sweeps the top edge on the same trigger');
+  ok(/18%\s*\{[^}]*0 0 70px rgba\(34,211,238,\.55\)/.test(html), 'the bloom peaks at a 70px cyan ring');
+  ok(/prefers-reduced-motion:reduce\)\{[^}]*\.swapcard\{animation:none\}[^}]*\.swapcard::before\{animation:none/.test(html), 'reduced-motion users get neither the bloom nor the beam');
+  const sw = boot('https://arclite.fun/app/terminal.html?net=mainnet');
+  await sleep(700);
+  const sd = sw.d;
+  const v3 = sd.querySelector('.tcard[data-addr="' + TOK + '"]') || sd.querySelector('.tcard[data-addr="' + TOK.toLowerCase() + '"]');
+  v3.dispatchEvent(new sw.w.MouseEvent('click', { bubbles: true })); await sleep(400);
+  const card1 = sd.getElementById('swapCard');
+  ok(!!card1 && card1.classList.contains('swapcard'), 'clicking a ticker renders the swap card');
+  // pick a different token, then come back — the card must be a NEW element.
+  // render() rebuilds the list on every click, so re-query rather than reuse
+  // a reference to a node that is no longer in the document.
+  const pick = addr => { const el = sd.querySelector('.tcard[data-addr="' + addr + '"]') || sd.querySelector('.tcard[data-addr="' + addr.toLowerCase() + '"]'); el.dispatchEvent(new sw.w.MouseEvent('click', { bubbles: true })); };
+  const otherAddr = [...sd.querySelectorAll('.tcard[data-i]')].map(c => c.dataset.addr).find(a => a.toLowerCase() !== TOK.toLowerCase());
+  pick(otherAddr); await sleep(300);
+  pick(TOK); await sleep(400);
+  const card2 = sd.getElementById('swapCard');
+  ok(!!card2 && card2 !== card1, 're-selecting rebuilds the card — a new element, so the luminescence restarts');
+  }
+
+  console.log('\n=== THE DRAW: the stage takes over from :00 until every tier has resolved ===');
+  {
+  const lw = boot('https://arclite.fun/app/terminal.html?net=mainnet#draw');
+  await sleep(700);
+  const ld = lw.d, T = lw.w.__term;
+  const U = n => BigInt(Math.round(n*1e6)) * 10n**12n;
+  const now = Math.floor(Date.now()/1000), r = Math.floor(now/3600);
+  const W1 = '0x' + 'a1'.repeat(20), ME = '0x' + 'b2'.repeat(20);
+
+  // reel geometry: the winner sits in cell 33, which lands under the marker
+  const cells = T.liveReelCells(7, 37, 4);
+  const hitAt = cells.split('<div class="cell').findIndex(x => x.startsWith(' hit')) - 1;
+  ok(hitAt === 33 && /class="cell hit"><span class="ix">#4<\/span>/.test(cells), 'liveReelCells puts the winning index (#4 of 7) in cell 33');
+  ok(!/hit/.test(T.liveReelCells(7, 24, null)), 'the live-spinning strip carries no winner at all');
+
+  // the hour turns on a round with tickets in three different states
+  const ending = { pots:[U(5),U(10),U(0)], tickets:[5n,2n,0n], wallets:[3n,1n,0n], open:false, isSealed:true, isSettled:false, committed:true, closeAt:BigInt(now-120), endAt:BigInt(now) };
+  T.setDraw('0x'+'d4'.repeat(20), { round:r, cur:ending, prev:null, prevTiers:null, mine:[1,0,0], jackpot:U(3), totalPaid:0n, biggestPot:U(10), claimable:0n, tape:[], wall:[] });
+  await sleep(100);
+  T.liveEnter(r, ending);
+  await sleep(120);
+  const stage = ld.getElementById('dstage');
+  ok(!!stage && ld.querySelectorAll('.dstage .dcol').length === 3 && !ld.querySelector('#panel .tiers'), 'the stage replaces the tier cards');
+  ok(ld.querySelector('.dcol[data-dcol="0"] .dreel.spin'), 'Degen (5 tickets, 3 wallets) spins a live reel');
+  ok(ld.querySelector('.dcol[data-dcol="1"].calm') && /Refunding 2 tickets/.test(ld.querySelector('.dcol[data-dcol="1"]').textContent), 'Trencher (2 tickets, 1 wallet) does not spin — it says it is refunding');
+  ok(ld.querySelector('.dcol[data-dcol="2"].calm') && /No tickets/.test(ld.querySelector('.dcol[data-dcol="2"]').textContent), 'Whale (empty) says so');
+  ok(/resolving on-chain/.test(ld.querySelector('.dstage .st').textContent), 'status reads "resolving on-chain" — nothing is invented');
+
+  // the 12s poll must not tear the stage down mid-spin
+  const before = ld.getElementById('dstage');
+  T.renderDraw();                            // what the 12s poll does
+  await sleep(50);
+  ok(ld.getElementById('dstage') === before, 'a re-render while live leaves the stage element untouched');
+
+  // the chain answers: round r settled, Degen drawn to ticket #3 → W1, Trencher refunded
+  const prevTiers = [
+    { pot:U(5), tickets:5n, wallets:3n, drawn:true,  refunded:false, winner:W1, prize:U(4.875), hitJackpot:false },
+    { pot:U(10), tickets:2n, wallets:1n, drawn:false, refunded:true, winner:'0x'+'0'.repeat(40), prize:0n, hitJackpot:false },
+    { pot:0n, tickets:0n, wallets:0n, drawn:false, refunded:false, winner:'0x'+'0'.repeat(40), prize:0n, hitJackpot:false },
+  ];
+  Object.assign(T.DW, { round:r+1, cur:{ ...ending, tickets:[0n,0n,0n], wallets:[0n,0n,0n], pots:[0n,0n,0n], open:true, isSealed:false, closeAt:BigInt(now+3480), endAt:BigInt(now+3600) },
+    prev:{ ...ending, isSettled:true }, prevTiers,
+    wall:[{ key:'w', round:r, tier:0, winner:W1, idx:3, n:5, prize:U(4.875), jp:false, tx:'0x'+'e5'.repeat(32) }] });
+  T.liveCheck();
+  await sleep(150);
+  ok(!ld.querySelector('.dcol[data-dcol="0"] .dreel.spin') && ld.querySelector('.dcol[data-dcol="0"] .dreel.land'), 'Degen\'s reel stops spinning and decelerates onto the result');
+  ok(/#3<\/span><span>winner/.test(ld.querySelector('.dcol[data-dcol="0"] .strip').innerHTML), 'the landing strip carries ticket #3 — the index the Drawn event reported');
+  await sleep(2800);
+  const won = ld.querySelector('.dcol[data-dcol="0"]');
+  ok(won.classList.contains('won') && !!won.querySelector('.dwin'), 'after the landing, the Degen column pops the winner card');
+  ok(won.querySelector('.dwin .addr').textContent === '0xa1a1…a1a1' || won.querySelector('.dwin .addr').textContent.startsWith('0xa1a1'), 'the winner\'s address is the headline of the pop');
+  ok(won.querySelector('.dwin .addr').dataset.copy === W1, 'clicking the address copies the full wallet');
+  ok(/Ticket #3 of 5/.test(won.querySelector('.dwin .k').textContent), 'it says which ticket won out of how many');
+  ok(won.querySelector('.dwin .tx') && won.querySelector('.dwin .tx').href.includes('e5e5'), 'and links to the draw transaction');
+  await sleep(1400);
+  ok(won.querySelector('.dwin .prize').textContent === T.fmtUsd(4.875, 2), 'the prize counts up to the real amount, ' + T.fmtUsd(4.875, 2));
+  ok(!won.querySelector('.dwin .you'), 'no YOU WON badge — W1 is not this wallet');
+  ok(/Refunded — one wallet/.test(ld.querySelector('.dcol[data-dcol="1"]').textContent), 'Trencher resolves as a refund, calmly');
+  ok(ld.querySelector('.dstage .st.done') && /settled/.test(ld.querySelector('.dstage .st').textContent), 'status flips to "settled"');
+
+  // the stage stands down on dismiss, and the new round is what's left
+  ld.querySelector('[data-livedismiss]').click(); await sleep(80);
+  ok(!ld.getElementById('dstage') && ld.querySelectorAll('#panel .tier').length === 3 && T.DW.live === null, '"Back to the round" dismisses the stage and the tier cards return');
+
+  // when nothing was sold, the hour turning shows no stage at all
+  T.liveEnter(r+5, { ...ending, tickets:[0n,0n,0n], wallets:[0n,0n,0n] });
+  await sleep(60);
+  ok(T.DW.live === null && !ld.getElementById('dstage'), 'an empty round never opens the stage');
+
+  // YOU WON: the pop badges your own wallet and fires confetti
+  T.setWallet({}, ME);
+  const mine = { ...ending, tickets:[3n,0n,0n], wallets:[2n,0n,0n], endAt:BigInt(now) };
+  T.liveEnter(r+9, mine); await sleep(80);
+  Object.assign(T.DW, { round:r+10, prev:{ ...mine, isSettled:true },
+    prevTiers:[{ pot:U(3), tickets:3n, wallets:2n, drawn:true, refunded:false, winner:ME, prize:U(2.9), hitJackpot:true }, prevTiers[2], prevTiers[2]],
+    wall:[{ key:'w9', round:r+9, tier:0, winner:ME, idx:1, n:3, prize:U(2.9), jp:true, tx:'0x'+'e7'.repeat(32) }] });
+  T.liveCheck(); await sleep(2900);
+  const mineCol = ld.querySelector('.dcol[data-dcol="0"]');
+  ok(mineCol.querySelector('.dwin .you') && mineCol.querySelector('.dwin .you').textContent === 'YOU WON', 'a win for the connected wallet gets the YOU WON badge');
+  ok(mineCol.querySelector('.dwin .prize.jp') && /Mega Jackpot hit/.test(mineCol.textContent), 'a jackpot hit is called out in gold');
+  ok(!!ld.querySelector('.confetti'), 'and confetti falls');
+  T.liveDismiss();
+  }
+
+
+  console.log('\n=== header: readout not dashboard, and the tagline is real copy ===');
+  {
+  ok(!/\[ [a-z ·]+ \]/.test(html), 'no bracketed dev-style tagline anywhere');
+  ok(/id="heroTag">The whole chain, one screen\.</.test(html), 'the default tagline is the campaign line');
+  for (const line of ['The whole chain, one screen.', 'Born on Arclite. Live from the first trade.',
+                      'Every hour, on the hour. Winner takes the pot.', 'Points for trading. Points for posting.'])
+    ok(html.includes(line), `per-view tagline present: "${line}"`);
+  ok(/\.hero\{[^}]*padding:15px 34px 14px/.test(html) && /\.hero \.ttl b\{font:700 21px/.test(html), 'header is ~half the height: 21px wordmark, 15px padding');
+  ok(/\.hstat\{[^}]*border-left:1px solid var\(--hair2\)/.test(html) && !/\.hstat\{[^}]*border-radius/.test(html), 'stats are an inline readout with hairline dividers, not boxed cards');
+  ok(/\.hstat b\{[^}]*var\(--fm\)/.test(html) && /\.hstat span\{[^}]*order:2/.test(html), 'mono value first, dim label after');
+  ok(/\.ticker \.trackwrap\{[^}]*mask-image:linear-gradient\(90deg,transparent,#000 36px/.test(html), 'the marquee fades at both edges so a half-scrolled entry reads as motion, not a clip');
+  ok(/\.hero \.ttl span\{[^}]*text-transform:none/.test(html), 'tagline is sentence case, not tracked caps');
+  }
+
+  console.log('\n=== draw popup: nudges on a cadence, never a nag ===');
+  {
+  // The old rule was "last 20 minutes only". Most sessions never reached it.
+  const pw2 = boot('https://arclite.fun/app/terminal.html?net=mainnet');
+  await sleep(500);
+  const pd = pw2.d, pw = pw2.w;
+  const pop = pd.getElementById('drawPop');
+  ok(!!pop && pop.hidden, 'on load the popup is hidden — the page gets 25s to settle first');
+  ok(!!pd.getElementById('drawPopMute') && pd.getElementById('drawPopMute').textContent === 'Not today', 'there is a "Not today" mute');
+  ok(/POP = \{ arm: Date\.now\(\) \+ 25000/.test(html), 'the early nudge is armed 25s after load');
+  ok(/const early = c\.secs > 300 && Date\.now\(\) >= POP\.arm && !drawPopDismissed\(c\.round\)/.test(html), 'early: any time with >5 min left, once per round, quiet after ×');
+  ok(/const late\s*= c\.secs <= 300 && c\.secs > 60 && !drawPopLateDone\(c\.round\)/.test(html), 'late: the last 5 minutes, once, never inside the final minute');
+  ok(/&& !drawPopMuted\(\) && \(early \|\| late\)/.test(html), '"Not today" silences both');
+  // simulate: arm passed, sales open with 40 minutes left → early nudge shows
+  const PT = pw.__term, clock = (round, secs, label) => { PT.POP.clock = () => ({ round, endAt: 0, closeAt: 0, secs, closed: false, label }); };
+  PT.POP.arm = 0;
+  pw.localStorage.clear();
+  clock(777, 2400, '40:00'); PT.tickDraw(); await sleep(30);
+  ok(!pop.hidden, 'early nudge: 40 minutes left → the popup shows');
+  pd.getElementById('drawPopX').click(); await sleep(500);
+  PT.tickDraw(); await sleep(30);
+  ok(pop.hidden && pw.localStorage.getItem('ark_drawpop_dismissed') === '777', '× closes it and it stays closed for round 777');
+  // the last five minutes re-nudge once even after the × …
+  clock(777, 240, '04:00'); PT.tickDraw(); await sleep(30);
+  ok(!pop.hidden && pd.getElementById('popLab').textContent === 'Sales close in', 'late nudge: 4 minutes left → shows again, labelled "Sales close in"');
+  pd.getElementById('drawPopX').click(); await sleep(500);
+  PT.tickDraw(); await sleep(30);
+  ok(pop.hidden && pw.localStorage.getItem('ark_drawpop_late') === '777', '… and only once');
+  // … but never in the last minute
+  pw.localStorage.clear();
+  clock(777, 45, '00:45'); PT.tickDraw(); await sleep(30);
+  ok(pop.hidden, 'no nudge inside the final minute — too late to buy');
+  // a new round: the early nudge is back
+  clock(778, 3000, '50:00'); PT.tickDraw(); await sleep(30);
+  ok(!pop.hidden, 'next round: the early nudge returns');
+  // "Not today" mutes everything for the UTC day
+  pd.getElementById('drawPopMute').click(); await sleep(500);
+  clock(779, 240, '04:00'); PT.tickDraw(); await sleep(30);
+  ok(pop.hidden && pw.localStorage.getItem('ark_drawpop_mute') === new Date().toISOString().slice(0,10), '"Not today" mutes early AND late nudges until the next UTC day');
   }
 
   console.log('\n=== no leftovers ===');

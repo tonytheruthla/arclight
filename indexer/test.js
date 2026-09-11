@@ -499,8 +499,10 @@ function fakeLog(iface, eventName, args, overrides = {}) {
   await insertSwap(dbp, T1, { block: 6, blockTime: mnow, txHash: '0x' + 'd1'.repeat(32), logIndex: 0, trader: A(0xb0), side: 'buy', usdcAmount: '10', tokenAmount: '100000', price: '0.0001' });
   await insertSwap(dbp, T2, { block: 6, blockTime: mnow, txHash: '0x' + 'd2'.repeat(32), logIndex: 0, trader: A(0xb0), side: 'buy', usdcAmount: '10', tokenAmount: '20', price: '0.5' });
   const tollyRows = [
-    { address: T1, name: 'Kairo', symbol: 'KAIRO', image_uri: 'ipfs://bafyKAIRO', website: 'https://kairo.market', twitter: 'https://x.com/kairo', telegram: null, price: 0.00012 },
-    { address: T2, name: 'Wrong Decimals', symbol: 'WD', image_uri: 'https://api.tollylabs.com/token-image/x.png', website: null, twitter: null, telegram: null, price: 5000 },
+    // marketCap / price = supply. T1: 120000 / 0.00012 = 1e9. T2's ratio is
+    // absurd (a placeholder marketCap on a mispriced token) and must be refused.
+    { address: T1, name: 'Kairo', symbol: 'KAIRO', image_uri: 'ipfs://bafyKAIRO', website: 'https://kairo.market', twitter: 'https://x.com/kairo', telegram: null, price: 0.00012, marketCap: 120000 },
+    { address: T2, name: 'Wrong Decimals', symbol: 'WD', image_uri: 'https://api.tollylabs.com/token-image/x.png', website: null, twitter: null, telegram: null, price: 5000, marketCap: 1 },
     { address: A(0xd999), name: 'Not ours', symbol: 'NO', image_uri: 'ipfs://zzz', price: 1 },
   ];
   const sharcRows = [{ address: T3, name: 'Sharky', symbol: 'SHRK', metadata: { image: 'https://gateway.pinata.cloud/ipfs/bafySHARK', description: 'fin' }, priceE18: '1000000000000000' }];
@@ -519,6 +521,19 @@ function fakeLog(iface, eventName, args, overrides = {}) {
   let t2 = (await dbp.query('SELECT name, meta_ok FROM tokens WHERE address=$1', [T2.toLowerCase()])).rows[0];
   ok(t2.name === 'Wrong Decimals' && t2.meta_ok === false, 'T2 named but NOT confirmed: prices disagree 10000× → decimals stay unverified, price stays hidden');
   ok(pricesAgree(1, 2.9) && !pricesAgree(1, 3.1) && !pricesAgree(0, 1), 'pricesAgree: within 3× either way, never on zero');
+
+  // ---- total supply, derived from Tolly's marketCap / price, no eth_call
+  ok(res.supplied === 1, 'exactly one supply written this pass (T1); T2 refused, T3 has no Tolly row');
+  const s1 = (await dbp.query('SELECT total_supply FROM tokens WHERE address=$1', [T1.toLowerCase()])).rows[0];
+  ok(Math.abs(Number(s1.total_supply) - 1e9) < 1, 'T1 supply = 120000 / 0.00012 = 1,000,000,000');
+  const s2 = (await dbp.query('SELECT total_supply FROM tokens WHERE address=$1', [T2.toLowerCase()])).rows[0];
+  ok(s2.total_supply === null, 'T2 supply stays NULL: 1 / 5000 = 0.0002 tokens is a bad ratio, not a token');
+  // written once: a second pass with a different marketCap must not overwrite
+  tollyRows[0].marketCap = 999;
+  const resAgain = await resolveOnce(dbp, { fetchImpl: fakeFetch });
+  const s1b = (await dbp.query('SELECT total_supply FROM tokens WHERE address=$1', [T1.toLowerCase()])).rows[0];
+  ok(resAgain.supplied === 0 && Math.abs(Number(s1b.total_supply) - 1e9) < 1, 'supply is write-once; a later different ratio does not overwrite it');
+  tollyRows[0].marketCap = 120000;
   const t3 = (await dbp.query('SELECT name, symbol FROM tokens WHERE address=$1', [T3.toLowerCase()])).rows[0];
   ok(t3.name === 'Known' && t3.symbol === 'KNW', 'a token that already has a real name keeps it (launchpad never overwrites eth_call)');
   const profs = await getProfiles(dbp, [T1, T2, T3, A(0xd999)]);
@@ -534,6 +549,11 @@ function fakeLog(iface, eventName, args, overrides = {}) {
   const lst = await (await fetch(base + '/api/v1/tokens?sort=new&limit=50')).json();
   const l1 = lst.tokens.find(t => t.address === T1.toLowerCase());
   ok(l1 && l1.logo_url === 'db' && l1.website === 'https://team.example' && l1.name === 'Kairo' && l1.price !== null, '/tokens rows carry logo_url + socials, and T1 now has a price');
+  ok(Math.abs(Number(l1.total_supply) - 1e9) < 1, '/tokens rows carry total_supply, so the terminal can compute market cap from OUR price');
+  const one = await (await fetch(base + '/api/v1/tokens/' + T1)).json();
+  ok(Math.abs(Number(one.total_supply) - 1e9) < 1, '/tokens/:address carries it too');
+  const byMcap = await (await fetch(base + '/api/v1/tokens?sort=mcap&limit=50')).json();
+  ok(byMcap.tokens[0].address === T1.toLowerCase(), 'sort=mcap now ranks by price × supply — T1 (1e9 × 0.0001) leads, not just by price');
   const pf = await (await fetch(base + '/api/v1/profiles?addrs=' + [T1, T3, 'junk'].join(','))).json();
   ok(pf.profiles.length === 2 && pf.profiles[0].logo.startsWith('/api/v1/img/0x'), '/profiles resolves a list and points logos at /img');
 

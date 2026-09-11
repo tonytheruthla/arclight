@@ -168,6 +168,14 @@ async function getProfiles(db, addrs) {
 
 /** Fill name/symbol on a tokens row from a launchpad, without touching
  *  decimals/meta_ok unless the caller has verified them (confirmOk). */
+/** Total supply in whole tokens. Written once; a later different value is a
+ *  data problem upstream, not something to silently overwrite. */
+async function setTokenSupply(db, address, supply) {
+  await db.query(
+    `UPDATE tokens SET total_supply = $2 WHERE address = $1 AND total_supply IS NULL`,
+    [address.toLowerCase(), supply]);
+}
+
 async function setTokenNames(db, address, { name, symbol, source, confirmOk = false }) {
   if (confirmOk) {
     await db.query(
@@ -195,4 +203,4 @@ async function getImage(db, address) {
 }
 
 module.exports = { getState, setState, upsertToken, getKnownTokens, getTokensMissingMeta, updateTokenMeta, insertSwap, applyTransfer, takeSnapshot,
-  upsertLaunchToken, insertLaunchTrade, sharesToday, addSharePoint, upsertProfile, getProfiles, setTokenNames, putImage, getImage, ZERO, DEAD };
+  upsertLaunchToken, insertLaunchTrade, sharesToday, addSharePoint, upsertProfile, getProfiles, setTokenNames, setTokenSupply, putImage, getImage, ZERO, DEAD };

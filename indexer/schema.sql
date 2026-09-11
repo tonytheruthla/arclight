@@ -27,8 +27,18 @@ CREATE TABLE IF NOT EXISTS tokens (
   -- meta_ok can also be set by meta.js when a launchpad's quoted price agrees
   -- with ours under the 18-decimals assumption — that agreement IS the check.
   meta_source       TEXT,
-  meta_checked_at   TIMESTAMPTZ
+  meta_checked_at   TIMESTAMPTZ,
+  -- Total supply in whole tokens (decimal-adjusted). Constant for every token
+  -- we index — the launchpads mint a fixed 1B and nothing here has a mint
+  -- function. Derived from Tolly's marketCap / price in meta.js, so it costs
+  -- no eth_call; NULL until a source has reported it. Market cap in the API
+  -- is OUR price × this, never Tolly's number, so it agrees with the price
+  -- shown next to it.
+  total_supply      NUMERIC
 );
+
+-- Existing deployments: add the column without a reset.
+ALTER TABLE tokens ADD COLUMN IF NOT EXISTS total_supply NUMERIC;
 
 CREATE TABLE IF NOT EXISTS swaps (
   id            BIGSERIAL PRIMARY KEY,

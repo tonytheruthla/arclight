@@ -13,7 +13,7 @@ const { ZERO, DEAD } = require('./store');
 
 const SORT_COLUMNS = {
   volume: 'COALESCE(v.vol, 0)',
-  mcap: 'COALESCE(lp.price, 0)', // mcap = price * supply; supply is constant off-chain, so price sorts the same
+  mcap: 'COALESCE(lp.price, 0) * COALESCE(t.total_supply, 0)',   // real market cap now that supply is stored
   txns: 'COALESCE(v.txns, 0)',
   holders: 'COALESCE(h.holders, 0)',
   new: 't.first_seen_block',
@@ -67,6 +67,7 @@ async function listTokens(db, { sort = 'new', limit = 50, offset = 0 } = {}) {
     )
     SELECT
       t.address, t.name, t.symbol, t.decimals, t.dex, t.pool_ref, t.first_seen_block, t.first_seen_at,
+      t.total_supply,
       t.meta_ok, t.meta_source,
       p.logo_url, p.website, p.twitter, p.telegram, p.source AS profile_source,
       -- Every price is decimal-adjusted, so it is only meaningful once decimals
@@ -103,6 +104,7 @@ async function getToken(db, address) {
       WHERE balance > 0 AND holder NOT IN ('${ZERO}', '${DEAD}') GROUP BY token_address
     )
     SELECT t.address, t.name, t.symbol, t.decimals, t.dex, t.pool_ref, t.first_seen_block, t.first_seen_at,
+      t.total_supply,
       t.meta_ok, t.meta_source,
       p.logo_url, p.website, p.twitter, p.telegram, p.description, p.source AS profile_source,
       CASE WHEN t.meta_ok THEN COALESCE(lp.price,0) ELSE NULL END price,
