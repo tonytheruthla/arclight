@@ -35,7 +35,8 @@ const fakeFeed = { swaps: [ { token_address: TOK, symbol: 'ALPHA', meta_ok: true
 const fakeBoard = { rules: { season: 'pre', shareDailyCap: 10 }, traders: 2, leaderboard: [
   { wallet: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', volume: 120.5, trades: 3, shares: 2, points: 122 },
   { wallet: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', volume: 0, trades: 0, shares: 1, points: 1 } ] };
-const posted = [], profileCalls = [], metaPosts = [];
+const posted = [], profileCalls = [], metaPosts = [], quoterCalls = [];
+const QUOTE_OUT = 135644666987196334623n;   // a real Robinhood Chain quote: 0.0097 ETH → CASHCAT, 18dp
 const LT = '0x00000000000000000000000000000000000abc01';
 let metaReply = () => ({ ok: true, status: 200, json: async () => ({ ok: true, logo: '/api/v1/img/'+LT.toLowerCase() }) });
 
@@ -52,10 +53,13 @@ function boot(url, boptions) {
     const json = d => new Response(JSON.stringify(d), { status: 200, headers: { 'content-type': 'application/json' } });
     if (s.includes('api.geckoterminal.com')) {
       const net = s.includes('/networks/solana/') ? 'solana' : 'robinhood';
-      const pool = (id, name, vol, chg, liq, created, dex) => ({ id, attributes: { name, address: '0xp'+id, base_token_price_usd: '0.0135', volume_usd: { h24: String(vol) }, price_change_percentage: { h24: String(chg) }, transactions: { h24: { buys: 10, sells: 5, buyers: 7, sellers: 4 } }, reserve_in_usd: String(liq), fdv_usd: '13494420', pool_created_at: created },
-        relationships: { base_token: { data: { id: net + '_' + (net==='solana' ? 'So1anaMint'+id+'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' : '0x'+String(id).repeat(40).slice(0,40)) } }, dex: { data: { id: dex } } } });
-      if (s.includes('trending_pools')) return json({ included: [ { id: net+'_'+(net==='solana' ? 'So1anaMint1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' : '0x'+'1'.repeat(40)), type: 'token', attributes: { image_url: 'https://coin-images.coingecko.com/robin.png' } } ], data: [ pool(1, 'ROBIN / USDG', 2178736, -38.6, 302392, new Date(Date.now()-86400e3*2).toISOString(), 'pons-v2-dex'), pool(2, 'HOOD / USDC', 500000, 12.1, 90000, new Date(Date.now()-3600e3*5).toISOString(), 'uniswap-v3') ] });
-      if (s.includes('new_pools')) return json({ data: [ pool(3, 'FRESH / USDG', 1200, 4.2, 5000, new Date(Date.now()-600e3).toISOString(), 'pons-v2-dex'), pool(1, 'ROBIN / USDG', 2178736, -38.6, 302392, new Date(Date.now()-86400e3*2).toISOString(), 'pons-v2-dex') ] });
+      // quote side: what a buyer pays with. WETH and USDG are the two the
+      // Robinhood docs name; UNLISTED stands in for a bridged/unknown quote.
+      const WETH = '0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73', USDG = '0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168', UNLISTED = '0x'+'de'.repeat(20);
+      const pool = (id, name, vol, chg, liq, created, dex, quote, quoteUsd) => ({ id, attributes: { name, address: '0xp'+id, base_token_price_usd: '0.0135', quote_token_price_usd: String(quoteUsd==null ? 1 : quoteUsd), volume_usd: { h24: String(vol) }, price_change_percentage: { h24: String(chg) }, transactions: { h24: { buys: 10, sells: 5, buyers: 7, sellers: 4 } }, reserve_in_usd: String(liq), fdv_usd: '13494420', pool_created_at: created },
+        relationships: { base_token: { data: { id: net + '_' + (net==='solana' ? 'So1anaMint'+id+'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' : '0x'+String(id).repeat(40).slice(0,40)) } }, quote_token: { data: { id: net + '_' + (quote || USDG) } }, dex: { data: { id: dex } } } });
+      if (s.includes('trending_pools')) return json({ included: [ { id: net+'_'+(net==='solana' ? 'So1anaMint1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' : '0x'+'1'.repeat(40)), type: 'token', attributes: { image_url: 'https://coin-images.coingecko.com/robin.png' } } ], data: [ pool(1, 'ROBIN / USDG', 2178736, -38.6, 302392, new Date(Date.now()-86400e3*2).toISOString(), 'pons-v2-dex', USDG, 1), pool(2, 'HOOD / WETH', 500000, 12.1, 90000, new Date(Date.now()-3600e3*5).toISOString(), 'uniswap-v3-robinhood', WETH, 4000) ] });
+      if (s.includes('new_pools')) return json({ data: [ pool(3, 'FRESH / XYZ', 1200, 4.2, 5000, new Date(Date.now()-600e3).toISOString(), 'uniswap-v3-robinhood', UNLISTED, 1), pool(1, 'ROBIN / USDG', 2178736, -38.6, 302392, new Date(Date.now()-86400e3*2).toISOString(), 'pons-v2-dex', USDG, 1) ] });
     }
     if (s.includes('/api/v1/tokens')) return json(BOPT.tokens ? { tokens: BOPT.tokens } : fakeTokens);
     if (s.includes('/api/v1/stats')) return json(fakeStats);
@@ -71,11 +75,21 @@ function boot(url, boptions) {
     if (opts && opts.body) {
       let req = null; try { req = JSON.parse(opts.body); } catch {}
       const call = Array.isArray(req) ? req[0] : req;
+      if (call && call.method === 'eth_chainId') return json({ jsonrpc:'2.0', id:call.id, result: s.includes('robinhood') ? '0x1237' : '0x13b2' });
       if (call && call.method === 'eth_call') {
         const data = (call.params && call.params[0] && call.params[0].data) || '';
         const word = n => '0x' + BigInt(n).toString(16).padStart(64, '0');
         if (data.startsWith('0x8aefa191')) return json({ jsonrpc:'2.0', id:call.id, result: word(1500n * 10n**18n) });  // graduationUsdc
         if (data.startsWith('0x9f181b5e')) return json({ jsonrpc:'2.0', id:call.id, result: word(0) });                // tokenCount = 0
+        if (data.startsWith('0x313ce567')) return json({ jsonrpc:'2.0', id:call.id, result: word(18) });               // decimals()
+        // QuoterV2.quoteExactInputSingle: only the 1% tier fills, and it returns
+        // QUOTE_OUT regardless of amount — enough to drive the card's arithmetic.
+        if (data.startsWith('0xc6a5026a')) {
+          const fee = parseInt(data.slice(10 + 64*3, 10 + 64*4), 16);
+          quoterCalls.push({ tokenIn: '0x'+data.slice(10+24, 10+64), tokenOut: '0x'+data.slice(10+64+24, 10+128), amountIn: BigInt('0x'+data.slice(10+128, 10+192)), fee });
+          if (fee !== 10000) return json({ jsonrpc:'2.0', id:call.id, error: { code: -32000, message: 'execution reverted' } });
+          return json({ jsonrpc:'2.0', id:call.id, result: word(QUOTE_OUT) + word(0).slice(2) + word(1).slice(2) + word(85790).slice(2) });
+        }
       }
     }
     return new Response('', { status: 503 });
@@ -408,7 +422,8 @@ function boot(url, boptions) {
   ok(tradeLink.textContent === 'TRADE ↗' && tradeLink.getAttribute('href') === 'https://dexscreener.com/robinhood/0xp1', 'TRADE deep-links to the pool on DexScreener');
   ok(cd.getElementById('hs1k').textContent === 'Pools shown' && cd.getElementById('hs1').textContent === '3' && cd.getElementById('hs2').textContent === '$2.68M', 'hero recomputed from the loaded pools (3 · $2.68M)');
   ok(cd.getElementById('lastSync').textContent.includes('Robinhood Chain · GeckoTerminal'), 'sync line credits the source');
-  ok(!cd.querySelector('#rail .feed') && cd.getElementById('rail').textContent.includes('Read-only explorer via GeckoTerminal'), 'rail: no Arc live feed; explains read-only');
+  ok(!cd.querySelector('#rail .feed') && cd.getElementById('rail').textContent.includes('Uniswap V3 pools buy in-app, 3% Arclite fee'), 'rail: no Arc live feed; says what buys in-app and what opens on its DEX');
+  ok(cd.getElementById('heroTag').textContent === 'Everything. On Chain.' && !/GeckoTerminal/.test(cd.getElementById('heroTag').textContent), 'HOOD hero line is the three words, not "explorer via GeckoTerminal"');
   // Arc-only views gate off-chain
   cw.location.hash = '#draw'; await sleep(250);
   ok(cd.getElementById('panel').textContent.includes('Lucky Trencher lives on Arc') && cd.querySelector('#panel button.primary').textContent === 'Switch to ARC', 'Draw off-Arc: gate with Switch to ARC');
@@ -604,15 +619,207 @@ function boot(url, boptions) {
   ok(minOut(0) === q, 'zero slippage floors at the quote itself');
   // decimals safety: minOut is never scaled by a decimals figure
   const src = html.slice(html.indexOf('async function doSwapBuy'), html.indexOf('HERO STATS + TRENDING'));
-  ok(/amountOutMinimum: minOut/.test(src), 'amountOutMinimum is passed through untouched');
+  ok(/amountOutMinimum: minOut/.test(html.slice(html.indexOf('function buildSwapCalls'), html.indexOf('async function doSwapBuy'))), 'amountOutMinimum is passed through untouched');
   ok(!/formatUnits\([^)]*minOut|parseUnits\([^)]*minOut/.test(src), 'minOut is never run through parseUnits/formatUnits — an unverified decimals cannot corrupt it');
-  ok(/parseUnits\(String\(amt\), NET\.usdcDecimals\)/.test(src), 'amountIn is built from USDC 6dp, not 18');
-  ok(/approve\(NET\.router, amountIn\)/.test(src), 'approval is for the exact amount, never unlimited');
-  ok(/balanceOf\(me\)/.test(src) && /less than the/.test(src), 'checks the USDC balance first and says so in dollars');
+  ok(T.spendUnits(10, { usd: 1, dec: 6 }) === 10000000n, 'amountIn is built from USDC 6dp, not 18 ($10 → 10,000,000)');
+  ok(/approve\(cfg\.router, amountIn\)/.test(src) && !/MaxUint256|2\*\*256|ffffffff/.test(src), 'approval is for the exact amount, never unlimited');
+  ok(/balanceOf\(who\)/.test(src) && /less than the/.test(src), 'checks the balance first and says so in the buyer\'s units');
 
   // display safety: an unverified token prints no token amount
   const fmtSrc = html.slice(html.indexOf('function fmtTokenOut'), html.indexOf('async function refreshQuote'));
   ok(/if \(!c\.metaOk \|\| c\.decimals == null\) return null/.test(fmtSrc), 'no token amount is printed until decimals are verified');
+  }
+
+  // ---- in-app buy on Robinhood Chain, and the 3% fee on every V3 buy -----
+  console.log('\n=== Robinhood Chain: buy in-app, 3% Arclite fee in the same transaction ===');
+  {
+  // An EIP-1193 wallet that records everything and signs nothing. ethers'
+  // JsonRpcSigner runs against it for real: populate, estimateGas, send,
+  // poll the hash, wait for the receipt.
+  const word = n => '0x' + BigInt(n).toString(16).padStart(64, '0');
+  const ADDR = '0xCDF74d039A0c259524c0A64e5bd56FceF492b246';
+  const fakeWallet = (startChain, opts) => {
+    const st = { chain: startChain, calls: [], sent: [], switched: [], added: [], usdcBalance: 1_000_000_000n, allowance: 0n };
+    const receipt = h => ({ transactionHash: h, blockNumber: '0x10', blockHash: '0x'+'1'.repeat(64), status: '0x1', logs: [], gasUsed: '0x1', cumulativeGasUsed: '0x1', from: ADDR, to: st.sent[parseInt(h,16)-1].to, contractAddress: null, transactionIndex: '0x0', logsBloom: '0x'+'0'.repeat(512), type: '0x0', effectiveGasPrice: '0x1' });
+    st.request = async ({ method, params }) => {
+      st.calls.push(method);
+      switch (method) {
+        case 'eth_chainId': return '0x' + st.chain.toString(16);
+        case 'eth_accounts': case 'eth_requestAccounts': return [ADDR];
+        case 'wallet_switchEthereumChain':
+          st.switched.push(params[0].chainId);
+          if (opts && opts.unknownChains && opts.unknownChains.includes(params[0].chainId)) { const e = new Error('Unrecognized chain'); e.code = 4902; throw e; }
+          st.chain = parseInt(params[0].chainId, 16); return null;
+        case 'wallet_addEthereumChain': st.added.push(params[0]); st.chain = parseInt(params[0].chainId, 16); return null;
+        case 'eth_getBalance': return word(10n**18n);                       // 1 ETH
+        case 'eth_call': { const d = (params[0].data || '');
+          if (d.startsWith('0x70a08231')) return word(st.usdcBalance);      // balanceOf
+          if (d.startsWith('0xdd62ed3e')) return word(st.allowance);        // allowance
+          throw new Error('unstubbed eth_call ' + d.slice(0, 10)); }
+        case 'eth_estimateGas': return '0x30000';
+        case 'eth_blockNumber': return '0x10';
+        case 'eth_sendTransaction': { const tx = params[0]; st.sent.push({ ...tx, chain: st.chain }); if (tx.data && tx.data.startsWith('0x095ea7b3')) st.allowance = BigInt('0x' + tx.data.slice(74)); return word(st.sent.length); }
+        case 'eth_getTransactionByHash': { const i = parseInt(params[0], 16) - 1, t = st.sent[i];
+          return { hash: params[0], blockNumber: '0x10', blockHash: '0x'+'1'.repeat(64), transactionIndex: '0x0', from: ADDR, to: t.to, nonce: '0x'+i.toString(16), gas: '0x30000', gasPrice: '0x1', value: t.value || '0x0', input: t.data, chainId: '0x'+t.chain.toString(16), type: '0x0', r: '0x'+'1'.repeat(64), s: '0x'+'1'.repeat(64), v: '0x1b' }; }
+        case 'eth_getTransactionReceipt': return receipt(params[0]);
+        default: throw new Error('unstubbed ' + method);
+      }
+    };
+    return st;
+  };
+  const decodeMulticall = data => {
+    const T = ethers;
+    const iface = new T.Interface(['function multicall(uint256 deadline, bytes[] data)', 'function exactInputSingle((address tokenIn,address tokenOut,uint24 fee,address recipient,uint256 amountIn,uint256 amountOutMinimum,uint160 sqrtPriceLimitX96))', 'function pull(address,uint256)', 'function sweepToken(address,uint256,address)', 'function wrapETH(uint256)', 'function unwrapWETH9(uint256,address)', 'function refundETH()']);
+    const [deadline, calls] = iface.decodeFunctionData('multicall', data);
+    return { deadline: Number(deadline), calls: calls.map(c => { const f = iface.getFunction(c.slice(0, 10)); return { name: f.name, args: iface.decodeFunctionData(f, c) }; }) };
+  };
+
+  // ---- config: every address is the documented one, and nothing else ----
+  const hm = boot('https://arclite.fun/app/terminal.html?net=mainnet');
+  await sleep(500);
+  const hd = hm.d, hw = hm.w, T = hw.__term, HOOD = T.CHAINS.hood;
+  ok(HOOD.router === '0xcaf681a66d020601342297493863e78c959e5cb2' && HOOD.quoter === '0x33e885ed0ec9bf04ecfb19341582aadcb4c8a9e7' && HOOD.v3Factory === '0x1f7d7550b1b028f7571e69a784071f0205fd2efa',
+     'SwapRouter02 / QuoterV2 / factory are the addresses on developers.uniswap.org for Robinhood Chain');
+  ok(HOOD.weth === '0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73' && HOOD.spend['0x5fc5360d0400a0fd4f2af552add042d716f1d168'].sym === 'USDG',
+     'WETH and USDG are the addresses on docs.robinhood.com/chain/contracts');
+  ok(HOOD.explorer === 'https://robinhoodchain.blockscout.com' && HOOD.wallet.blockExplorerUrls[0] === HOOD.explorer, 'explorer is the one the chain docs name (blockscout), not explorer.robinhood.com');
+  ok(HOOD.wallet.chainId === '0x1237' && HOOD.chainId === 4663 && HOOD.wallet.nativeCurrency.symbol === 'ETH' && HOOD.wallet.nativeCurrency.decimals === 18 && HOOD.wallet.rpcUrls[0] === 'https://rpc.mainnet.chain.robinhood.com',
+     'wallet_addEthereumChain params: 4663, ETH gas, the documented public RPC');
+  ok(Object.keys(HOOD.spend).length === 2 && Object.values(HOOD.spend).every(x => x.sym === 'ETH' || x.sym === 'USDG'), 'only ETH and USDG can be spent — nothing the docs don\'t name');
+  ok(/include=base_token,quote_token/.test(html), 'GeckoTerminal is asked for the quote token too');
+
+  // ---- selectors: the ABI strings resolve to the selectors verified in both routers' bytecode ----
+  const sel = sig => ethers.id(sig).slice(0, 10);
+  ok(sel('pull(address,uint256)') === '0xf2d5d56b' && sel('sweepToken(address,uint256,address)') === '0xdf2ab5bb' && sel('wrapETH(uint256)') === '0x1c58db4f' && sel('unwrapWETH9(uint256,address)') === '0x49404b7c' && sel('refundETH()') === '0x12210e8a' && sel('multicall(uint256,bytes[])') === '0x5ae401dc' && sel('exactInputSingle((address,address,uint24,address,uint256,uint256,uint160))') === '0x04e45aaf',
+     'ABI selectors match the ones found in the Router02 bytecode on Arc and on Robinhood Chain');
+  ok(T.ROUTER_IFACE.fragments.filter(f => f.type === 'function' && f.name === 'multicall').length === 1 && T.ROUTER_IFACE.getFunction('multicall').inputs[0].name === 'deadline', 'one multicall in the ABI — the deadline one — so ethers never has to guess an overload');
+  ok(!/function (sweepToken|unwrapWETH9)WithFee/.test(html), 'the router\'s own *WithFee helpers are not in the ABI: they cap at 1% (require(feeBips <= 100))');
+
+  // ---- arithmetic ----
+  ok(T.PLATFORM_FEE_BPS === 300 && T.TREASURY === '0x81cfC1013620DC96f3b94A8147888983428B374d', 'fee is 3% (300 bps) to the treasury EOA');
+  ok(T.platformFee(10_000_000n) === 300_000n && T.platformFee(2_500_000_000_000_000n) === 75_000_000_000_000n, '3% in base units: $10 USDC → $0.30; 0.0025 ETH → 0.000075 ETH');
+  ok(T.spendUnits(10, { usd: 4000, dec: 18 }) === 2_500_000_000_000_000n, '$10 at ETH=$4000 → 0.0025 ETH, exact in wei');
+  ok(T.spendUnits(10, { usd: 1, dec: 6 }) === 10_000_000n && T.spendUnits(0.5, { usd: 1, dec: 6 }) === 500_000n, 'dollars → 6dp USDC/USDG');
+  {
+    const sp = { token: '0x3600000000000000000000000000000000000000', sym: 'USDC', dec: 6, native: false, usd: 1 };
+    const calls = T.buildSwapCalls(sp, TOK, 10000, ADDR, 10_000_000n, 12_000n);
+    const dec = decodeMulticall(T.ROUTER_IFACE.encodeFunctionData('multicall', [1, calls])).calls;
+    ok(dec.map(c => c.name).join(' → ') === 'pull → sweepToken → exactInputSingle', 'ERC-20 quote: pull the fee, sweep it to the treasury, then swap');
+    ok(dec[0].args[0].toLowerCase() === sp.token && dec[0].args[1] === 300_000n, 'pull(USDC, 3%)');
+    ok(dec[1].args[0].toLowerCase() === sp.token && dec[1].args[1] === 300_000n && dec[1].args[2] === T.TREASURY, 'sweepToken(USDC, ≥3%, TREASURY)');
+    const sw = dec[2].args[0];
+    ok(sw.tokenIn.toLowerCase() === sp.token && sw.tokenOut.toLowerCase() === TOK && sw.amountIn === 9_700_000n && sw.amountOutMinimum === 12_000n && sw.recipient === ADDR && Number(sw.fee) === 10000 && sw.sqrtPriceLimitX96 === 0n,
+       'exactInputSingle swaps the other 97% straight to the buyer, minOut untouched');
+    ok(dec[0].args[1] + sw.amountIn === 10_000_000n, 'fee + swapped = exactly what the buyer spends; nothing is lost to rounding');
+  }
+  {
+    const sp = { token: HOOD.weth, sym: 'ETH', dec: 18, native: true, usd: 4000 };
+    const calls = T.buildSwapCalls(sp, TOK, 3000, ADDR, 2_500_000_000_000_000n, 1n);
+    const dec = decodeMulticall(T.ROUTER_IFACE.encodeFunctionData('multicall', [1, calls])).calls;
+    ok(dec.map(c => c.name).join(' → ') === 'wrapETH → unwrapWETH9 → exactInputSingle → refundETH', 'native ETH: wrap the fee, unwrap it to the treasury as ETH, swap the rest, refund any dust');
+    ok(dec[0].args[0] === 75_000_000_000_000n && dec[1].args[0] === 75_000_000_000_000n && dec[1].args[1] === T.TREASURY, 'wrapETH(fee) then unwrapWETH9(≥fee, TREASURY) — the treasury receives ETH, not WETH');
+    ok(dec[2].args[0].tokenIn === HOOD.weth && dec[2].args[0].amountIn === 2_425_000_000_000_000n, 'the pool receives 0.002425 ETH — the 97%');
+  }
+  ok(/bestQuote\(sp, c\.addr, amountIn - platformFee\(amountIn\)\)/.test(html), 'the quote shown is for the amount that reaches the pool, not the gross');
+
+  // ---- the card, on HOOD ----
+  hd.querySelector('[data-chain="hood"]').dispatchEvent(new hw.MouseEvent('click', { bubbles: true }));
+  await sleep(500);
+  const hoodTok = '0x' + '2'.repeat(40), ponsTok = '0x' + '1'.repeat(40), unlistedTok = '0x' + '3'.repeat(40);
+  const clickCard = async addr => { const el = [...hd.querySelectorAll('#lanes .tcard')].find(x => x.dataset.addr === addr); el.dispatchEvent(new hw.MouseEvent('click', { bubbles: true })); await sleep(500); };
+  await clickCard(hoodTok);
+  const rail = hd.getElementById('rail');
+  ok(!!hd.getElementById('swapCard') && !!hd.querySelector('[data-swbuy]'), 'a Uniswap V3 pool on Robinhood Chain shows the in-app Buy card');
+  ok(rail.textContent.includes('Spend (USD, paid in ETH)'), 'the amount is in dollars and says it is paid in ETH');
+  ok([...rail.querySelectorAll('.stat')].some(s => s.textContent.includes('Pair') && s.textContent.includes('ETH')), 'Pair stat says ETH, not a hard-coded USDC');
+  ok(rail.textContent.includes('Your wallet switches to Robinhood Chain') && rail.textContent.includes('gas is paid in ETH'), 'hint: wallet switches chain, gas is ETH');
+  ok(rail.textContent.includes('3% Arclite fee') && rail.textContent.includes('0.0025 ETH in') && rail.textContent.includes('0.000075 ETH') && rail.textContent.includes('0.002425 ETH swapped'),
+     'the split is printed: 0.0025 ETH in · 3% fee 0.000075 ETH · 0.002425 ETH swapped');
+  ok(rail.textContent.includes('≈') && rail.textContent.includes('135.645') && rail.textContent.includes('HOOD'), 'the quote renders as a token amount, 135.645 HOOD (decimals read on the chain, not guessed)');
+  const qc = quoterCalls.filter(q => q.tokenOut === hoodTok);
+  ok(qc.length > 0 && qc.every(q => q.tokenIn === HOOD.weth.toLowerCase() && q.amountIn === 2_425_000_000_000_000n), 'the quoter was asked for WETH → token on 0.002425 ETH (post-fee), across the fee tiers');
+  ok(!hd.querySelector('#rail a.btn.primary'), 'Open pool is no longer the primary action when the buy is in-app');
+  ok(rail.textContent.includes('3% Arclite fee is taken in the same transaction'), 'trade hint says the fee rides in the same transaction');
+
+  await clickCard(ponsTok);
+  ok(!hd.getElementById('swapCard') && hd.getElementById('rail').textContent.includes('lives on pons-v2-dex, not Uniswap V3'), 'a Pons pool: no Buy button, and it says which DEX it lives on');
+  ok(!!hd.querySelector('#rail a.btn.primary'), '...so Open pool becomes the primary action again');
+  await clickCard(unlistedTok);
+  ok(!hd.getElementById('swapCard') && hd.getElementById('rail').textContent.includes('quoted in a token that isn\'t on the Robinhood Chain docs'), 'a V3 pool quoted in an unlisted token: no Buy button, and it says why');
+  ok([...hd.querySelectorAll('#rail .stat')].some(s => s.textContent.includes('Pair') && s.textContent.includes('0xdede')), 'its Pair stat shows the quote address rather than pretending');
+
+  // ---- the transaction, end to end through ethers, against the recording wallet ----
+  await clickCard(hoodTok);
+  const wal = fakeWallet(5042);           // connected on Arc, as every session starts
+  hw.ethereum = wal;
+  const bp = new ethers.BrowserProvider(wal, 'any');
+  T.setWallet(await bp.getSigner(), ADDR);
+  hd.getElementById('swAmt').value = '10';
+  await T.doSwapBuy(hoodTok);
+  ok(wal.switched.length === 1 && wal.switched[0] === '0x1237' && wal.added.length === 0, 'buying on HOOD switches the wallet to 4663 first (no add needed — the wallet knew the chain)');
+  ok(wal.sent.length === 1 && wal.sent[0].chain === 4663 && wal.sent[0].to.toLowerCase() === HOOD.router, 'exactly one transaction, sent on 4663, to Uniswap\'s router — no approval for native ETH');
+  ok(BigInt(wal.sent[0].value) === 2_500_000_000_000_000n, 'value = 0.0025 ETH, the gross amount');
+  {
+    const dec = decodeMulticall(wal.sent[0].data);
+    const names = dec.calls.map(c => c.name).join(' → ');
+    ok(names === 'wrapETH → unwrapWETH9 → exactInputSingle → refundETH', 'calldata is the four-step fee multicall');
+    ok(dec.calls[1].args[1] === T.TREASURY && dec.calls[1].args[0] === 75_000_000_000_000n, '0.000075 ETH (3%) goes to the treasury');
+    const sw = dec.calls[2].args[0];
+    ok(sw.amountIn === 2_425_000_000_000_000n && sw.recipient === ADDR && sw.tokenOut.toLowerCase() === hoodTok && Number(sw.fee) === 10000, '0.002425 ETH (97%) swaps to the buyer through the 1% tier that quoted');
+    ok(sw.amountOutMinimum === QUOTE_OUT * 9700n / 10000n, 'minOut = quote × (1 − 3% slippage), in the token\'s base units, untouched');
+    ok(dec.deadline > Math.floor(Date.now()/1000) + 800 && dec.deadline <= Math.floor(Date.now()/1000) + 900, '15-minute deadline');
+  }
+  ok(wal.chain === 4663, 'the wallet is left on Robinhood Chain after the buy…');
+  await T.ensureArc();
+  ok(wal.chain === 5042 && wal.switched[wal.switched.length-1] === '0x13b2', '…and ensureArc() brings it back before any Arc send');
+  await T.ensureArc();
+  ok(wal.switched.length === 2, 'ensureArc() on a wallet already on Arc asks for nothing');
+
+  // first time on a wallet that has never seen the chain: it gets added from the documented params
+  const wal2 = fakeWallet(5042, { unknownChains: ['0x1237'] });
+  hw.ethereum = wal2;
+  T.setWallet(await new ethers.BrowserProvider(wal2, 'any').getSigner(), ADDR);
+  await T.doSwapBuy(hoodTok);
+  ok(wal2.added.length === 1 && wal2.added[0].chainId === '0x1237' && wal2.added[0].rpcUrls[0] === HOOD.wallet.rpcUrls[0] && wal2.added[0].blockExplorerUrls[0] === HOOD.explorer, 'unknown chain → wallet_addEthereumChain with the documented params');
+  ok(wal2.sent.length === 1 && wal2.sent[0].chain === 4663, '…and the buy still goes out on 4663');
+
+  // ---- the same fee on Arc, ERC-20 path: approve exact, then pull → sweep → swap ----
+  hd.querySelector('[data-chain="arc"]').dispatchEvent(new hw.MouseEvent('click', { bubbles: true }));
+  await sleep(500);
+  const wal3 = fakeWallet(4663);          // a HOOD buy left the wallet there
+  hw.ethereum = wal3;
+  T.setWallet(await new ethers.BrowserProvider(wal3, 'any').getSigner(), ADDR);
+  await clickCard(TOK);
+  ok(!!hd.getElementById('swapCard') && hd.getElementById('rail').textContent.includes('$10.00 in · 3% Arclite fee $0.30 · $9.70 swapped'), 'Arc card prints the dollar split: $10.00 in · 3% fee $0.30 · $9.70 swapped');
+  hd.getElementById('swAmt').value = '10';
+  await T.doSwapBuy(TOK);
+  ok(wal3.switched[0] === '0x13b2' && wal3.sent.every(t => t.chain === 5042), 'an Arc buy from a wallet still on HOOD switches to 5042 before sending');
+  ok(wal3.sent.length === 2 && wal3.sent[0].to.toLowerCase() === T.NET.usdc && wal3.sent[0].data.startsWith('0x095ea7b3'), 'first transaction: USDC approve…');
+  ok(BigInt('0x' + wal3.sent[0].data.slice(74)) === 10_000_000n && ('0x' + wal3.sent[0].data.slice(34, 74)).toLowerCase() === T.NET.router.toLowerCase(), '…for exactly $10 to the router, never unlimited');
+  {
+    const dec = decodeMulticall(wal3.sent[1].data);
+    ok(wal3.sent[1].to.toLowerCase() === T.NET.router.toLowerCase() && (wal3.sent[1].value == null || BigInt(wal3.sent[1].value) === 0n), 'second transaction: the router multicall, no ETH value');
+    ok(dec.calls.map(c => c.name).join(' → ') === 'pull → sweepToken → exactInputSingle', 'pull → sweepToken → exactInputSingle');
+    ok(dec.calls[0].args[1] === 300_000n && dec.calls[1].args[2] === T.TREASURY && dec.calls[2].args[0].amountIn === 9_700_000n, '$0.30 to the treasury, $9.70 to the pool');
+  }
+  // insufficient balance: nothing is sent, and the message is in the buyer's units
+  const wal4 = fakeWallet(5042); wal4.usdcBalance = 5_000_000n;
+  hw.ethereum = wal4; T.setWallet(await new ethers.BrowserProvider(wal4, 'any').getSigner(), ADDR);
+  await sleep(600);                        // the previous buy re-quotes on success; let that land
+  await T.doSwapBuy(TOK);
+  ok(wal4.sent.length === 0, 'with $5 of USDC and a $10 order, nothing is sent');
+  ok(hd.getElementById('toast').textContent.includes('You have $5.00') && hd.getElementById('toast').textContent.includes('less than the $10.00'), 'and the toast says so in dollars');
+
+  // ---- every Arc send re-asserts the chain first ----
+  for (const fn of ['doLaunch', 'buyTickets', 'claimDraw', 'placeLimit', 'cancelLimit', 'doBuy', 'doBet', 'lockCreatorBuy']) {
+    const i = html.indexOf('async function ' + fn + '(');
+    const body = html.slice(i, html.indexOf('\n}\n', i));
+    const guard = body.indexOf('await ensureArc()'), send = body.search(/\.wait\(|sendTransaction\(|\.buy\(|\.bet\(|\.claim\(|\.cancel\(|\.createToken\(|\.transfer\(|lockMyTokens\(/);
+    ok(guard > 0 && send > guard, fn + '() calls ensureArc() before it sends');
+  }
+  ok(/const s = ch \? await walletOn\(ch\.chainId, ch\.wallet\) : \(await ensureArc\(\), signer\);/.test(html), 'sweepDust() sends on the chain the row came from, not wherever the wallet happens to be');
+  ok(/const s = await walletOn\(cfg\.chainId, cfg\.wallet\);/.test(html.slice(html.indexOf('async function doSwapBuy'))), 'doSwapBuy() gets its signer from walletOn(chain) — the transaction cannot leave for the wrong chain');
+  ok(/if\(now!==chainId\) throw new Error/.test(html), 'walletOn() re-reads eth_chainId after switching and refuses to continue if it disagrees');
   }
 
   // ---- wallet control: one topbar button, everything else in its menu -----
@@ -689,7 +896,7 @@ function boot(url, boptions) {
      'Portfolio is no longer gated behind "lives on Arc"');
   ok(/rpc:'https:\/\/rpc\.mainnet\.chain\.robinhood\.com'/.test(html),
      'Robinhood Chain has an RPC so balances are readable there');
-  ok(/const chProv = onArc\(\) \? provider/.test(html) && /balanceOf\(address\) view returns \(uint256\)'\],chProv\)/.test(html),
+  ok(/const chProv = chainProvider\(\)/.test(html) && /function chainProvider\(\)\{\s*if\(onArc\(\)\) return provider;/.test(html) && /balanceOf\(address\) view returns \(uint256\)'\],chProv\)/.test(html),
      'balanceOf runs against the current chain, not always Arc');
   ok(/money\(onArc\(\) \? cash\+tokenValue : tokenValue\)/.test(html),
      'off Arc the ETH balance is not added into a dollar total');
@@ -915,8 +1122,9 @@ function boot(url, boptions) {
   console.log('\n=== header: readout not dashboard, and the tagline is real copy ===');
   {
   ok(!/\[ [a-z ·]+ \]/.test(html), 'no bracketed dev-style tagline anywhere');
-  ok(/id="heroTag">The whole chain, one screen\.</.test(html), 'the default tagline is the campaign line');
-  for (const line of ['The whole chain, one screen.', 'Born on Arclite. Live from the first trade.',
+  ok(/id="heroTag">Everything\. On Chain\.</.test(html), 'the default tagline is "Everything. On Chain."');
+  ok(!/explorer via GeckoTerminal/.test(html), 'no "explorer via GeckoTerminal" anywhere — the source credit lives in the sync line only');
+  for (const line of ['Everything. On Chain.', 'Born on Arclite. Live from the first trade.',
                       'Every hour, on the hour. Winner takes the pot.', 'Points for trading. Points for posting.'])
     ok(html.includes(line), `per-view tagline present: "${line}"`);
   ok(/\.hero\{[^}]*padding:15px 34px 14px/.test(html) && /\.hero \.ttl b\{font:700 21px/.test(html), 'header is ~half the height: 21px wordmark, 15px padding');

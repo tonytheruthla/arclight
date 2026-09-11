@@ -1014,7 +1014,7 @@ tbody tr.new{animation:newrow 6s ease-out}
 
   <!-- ================= hero strip ================= -->
   <div class="hero" id="hero">
-    <div class="ttl"><b id="heroTitle">ARCLITE</b><span id="heroTag">The whole chain, one screen.</span></div>
+    <div class="ttl"><b id="heroTitle">ARCLITE</b><span id="heroTag">Everything. On Chain.</span></div>
     <div class="hstats" id="hstats">
       <div class="hstat"><span id="hs1k">Tokens</span><b id="hs1" class="dim">—</b></div>
       <div class="hstat"><span id="hs2k">24h volume</span><b id="hs2" class="dim">—</b></div>
@@ -1281,22 +1281,57 @@ let PRED     = NET.pred;
 /* ==================================================================
    CHAINS — dexscreener-style chain switcher.
    ARC  : our own indexer + launchpad + draw + points (everything).
-   HOOD : Robinhood Chain (4663). Explorer via GeckoTerminal's free API.
-   SOL  : Solana. Explorer via GeckoTerminal's free API.
-   Non-Arc chains are read-only here: trading deep-links to the DEX.
+   HOOD : Robinhood Chain (4663). Listed via GeckoTerminal's free API;
+          Uniswap V3 pools are bought in-app through Uniswap's own router,
+          with the Arclite fee taken in the same transaction.
+   SOL  : Solana. Listed via GeckoTerminal's free API, read-only.
    GeckoTerminal is keyless (30 req/min); we make 2 calls per refresh.
 ================================================================== */
 const CHAINS = {
   arc:  { key:'arc',  label:'ARC',  name:'Arc',             gecko:null,        color:'var(--info)',  glyph:'◠' },
   hood: { key:'hood', label:'HOOD', name:'Robinhood Chain', gecko:'robinhood', color:'#7cff8a',      glyph:'🪶', chainId:4663,
-          explorer:'https://explorer.robinhood.com', screener:'https://dexscreener.com/robinhood/',
-          /* Robinhood's own public endpoint: keyless, rate-limited, no SLA.
-             Good enough for reading a wallet's balances, which is all we do
-             here — we never send a transaction on this chain. Gas is ETH. */
-          rpc:'https://rpc.mainnet.chain.robinhood.com', native:'ETH' },
+          /* Every address and URL here comes from the chain's own docs
+             (docs.robinhood.com/chain) or Uniswap's (developers.uniswap.org),
+             never from a search result — lookalike explorers for this chain
+             rank above the real one. Then checked on chain, 12 Sept 2026:
+             router.factory() and quoter.factory() both return v3Factory,
+             router.WETH9() returns weth, and the router's runtime bytecode
+             is byte-identical to Arc's Router02 once the four immutables
+             are masked (same keccak). */
+          explorer:'https://robinhoodchain.blockscout.com', screener:'https://dexscreener.com/robinhood/',
+          /* Robinhood's public endpoint: keyless, rate-limited, no SLA. Used
+             for balances and quotes; transactions go through the user's own
+             wallet, which has its own RPC. Gas is ETH. */
+          rpc:'https://rpc.mainnet.chain.robinhood.com', native:'ETH',
+          v3Factory:'0x1f7d7550b1b028f7571e69a784071f0205fd2efa',
+          quoter:'0x33e885ed0ec9bf04ecfb19341582aadcb4c8a9e7',      // QuoterV2
+          router:'0xcaf681a66d020601342297493863e78c959e5cb2',      // SwapRouter02
+          weth:'0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73',
+          /* What a buyer can spend, keyed by the pool's quote token. WETH
+             means the user pays native ETH and the router wraps it. USDG is
+             Robinhood's own dollar (docs.robinhood.com/chain/contracts), 6dp.
+             A pool quoted in anything else — including the bridged "USDC"
+             a few pools use, which Circle does not list for this chain —
+             gets the pool link instead of a Buy button. Nobody is ever asked
+             to approve or spend a token we couldn't name from the docs. */
+          spend:{ '0x0bd7d308f8e1639fab988df18a8011f41eacad73':{ sym:'ETH',  dec:18, native:true  },
+                  '0x5fc5360d0400a0fd4f2af552add042d716f1d168':{ sym:'USDG', dec:6,  native:false } },
+          dexV3:'uniswap-v3-robinhood',
+          // wallet_addEthereumChain, verbatim from docs.robinhood.com/chain/connecting
+          wallet:{ chainId:'0x1237', chainName:'Robinhood Chain', nativeCurrency:{ name:'Ether', symbol:'ETH', decimals:18 },
+                   rpcUrls:['https://rpc.mainnet.chain.robinhood.com'], blockExplorerUrls:['https://robinhoodchain.blockscout.com'] } },
   sol:  { key:'sol',  label:'SOL',  name:'Solana',          gecko:'solana',    color:'#c4b5fd',      glyph:'◎',
           explorer:'https://solscan.io', screener:'https://dexscreener.com/solana/' },
 };
+/* One provider per chain for reads (quotes, balances, decimals). Arc uses
+   the app's own; the rest are built lazily from CHAINS[…].rpc. */
+function chainProvider(){
+  if(onArc()) return provider;
+  const ch=CHAINS[CHAIN];
+  // The chain id is known, so the provider is told rather than left to
+  // detect it — one fewer round trip on a rate-limited public endpoint.
+  return ch.rpc ? (ch._prov || (ch._prov = new ethers.JsonRpcProvider(ch.rpc, ch.chainId ? ethers.Network.from(ch.chainId) : undefined, { staticNetwork:true, batchMaxCount:1 }))) : null;
+}
 let CHAIN = (function(){ try{ const q=new URLSearchParams(location.search).get('chain'); if(q && CHAINS[q]) return q; const s=localStorage.getItem('ark_chain'); return (s && CHAINS[s]) ? s : 'arc'; }catch(e){ return 'arc'; } })();
 const onArc = () => CHAIN==='arc';
 function setChain(k){
@@ -1318,6 +1353,10 @@ function geckoCoin(p, chainKey){
   const a=p.attributes, ch=CHAINS[chainKey];
   const base=(p.relationships && p.relationships.base_token && p.relationships.base_token.data.id) || '';
   const addr=base.includes('_') ? base.slice(base.indexOf('_')+1) : base;
+  // The quote side is what a buyer pays with; its USD price turns a dollar
+  // amount into ETH/USDG units. Both come from the same pool record.
+  const qid=(p.relationships && p.relationships.quote_token && p.relationships.quote_token.data.id) || '';
+  const quote=qid.includes('_') ? qid.slice(qid.indexOf('_')+1) : qid;
   const sym=(a.name||'').split('/')[0].trim() || '—';
   const tx=a.transactions && a.transactions.h24 || {};
   const created=a.pool_created_at ? Math.floor(new Date(a.pool_created_at).getTime()/1000) : null;
@@ -1329,6 +1368,7 @@ function geckoCoin(p, chainKey){
     txns24h:(Number(tx.buys)||0)+(Number(tx.sells)||0), traders24h:(Number(tx.buyers)||0)+(Number(tx.sellers)||0),
     holders:null, liq:Number(a.reserve_in_usd)||0, mcap:Number(a.fdv_usd)||0, firstSeenAt:created, block:created,
     pool:a.address, dex:(p.relationships && p.relationships.dex && p.relationships.dex.data.id)||'dex',
+    quote, quoteUsd:Number(a.quote_token_price_usd)||0,
     poolUrl: ch.screener + a.address,
     tokenUrl: chainKey==='sol' ? ch.explorer+'/token/'+addr : ch.explorer+'/token/'+addr,
     tradeUrl: chainKey==='sol' ? 'https://jup.ag/swap/USDC-'+addr : ch.screener + a.address,
@@ -1339,7 +1379,7 @@ async function loadFromGecko(){
   const g=CHAINS[CHAIN].gecko; if(!g) return null;
   const imgs = {};
   const get = async path => { const r=await deadline(fetch('https://api.geckoterminal.com/api/v2'+path,{headers:{accept:'application/json'},cache:'no-store'}), 8000, 'gecko'); if(!r.ok) throw new Error('gecko '+r.status); const j=await r.json(); (j.included||[]).forEach(t=>{ if(t.type==='token' && t.attributes && t.attributes.image_url && t.attributes.image_url!=='missing.png') imgs[t.id]=t.attributes.image_url; }); return j.data||[]; };
-  const [trending, fresh] = await Promise.all([get('/networks/'+g+'/trending_pools?page=1&include=base_token'), get('/networks/'+g+'/new_pools?page=1&include=base_token')]);
+  const [trending, fresh] = await Promise.all([get('/networks/'+g+'/trending_pools?page=1&include=base_token,quote_token'), get('/networks/'+g+'/new_pools?page=1&include=base_token,quote_token')]);
   const seen=new Map();
   for(const p of [...trending, ...fresh]){ const c=geckoCoin(p, CHAIN); if(!c.addr) continue; if(!seen.has(c.addr)){ c.trending = trending.includes(p); const bid=p.relationships&&p.relationships.base_token&&p.relationships.base_token.data.id; if(bid && imgs[bid]) c.logo=imgs[bid]; seen.set(c.addr,c); } }
   return [...seen.values()];
@@ -2136,9 +2176,7 @@ async function renderPortfolio(){
      Solana is the exception and is handled above: an EVM connection gives us
      no Solana address, so there is nothing we could honestly show. */
   const ch = CHAINS[CHAIN];
-  const chProv = onArc() ? provider
-    : (ch.rpc ? (ch._prov || (ch._prov = new ethers.JsonRpcProvider(ch.rpc, undefined,
-        { staticNetwork:true, batchMaxCount:1 }))) : null);
+  const chProv = chainProvider();
 
   if(!onArc() && !chProv){
     cell('<div class="pf"><div class="pfhead"><div class="pfval mono">—</div>'+
@@ -2389,7 +2427,7 @@ function rail(){
     railScan(c, el);
     // Quote as soon as the coin is opened, so the buy button is live on arrival
     // rather than after the user pokes it. Skipped if we already have this one.
-    if(canSwap(c) && SWAP.key !== c.addr+':'+SWAP.usd) refreshQuote(c);
+    if(canSwap(c) && SWAP.key !== c.addr+':'+SWAP.usd+':'+CHAIN) refreshQuote(c);
     else paintSwap(c);
     return;
   }
@@ -2500,7 +2538,7 @@ function railScan(c, el){
        stat('Traders 24h', (c.traders24h||0)>0 ? c.traders24h : '—')+
        stat('Holders', (c.holders||0)>0 ? Number(c.holders).toLocaleString() : '—', 'Non-zero balances, burn and zero address excluded')+
        stat('Age', c.firstSeenAt ? age(c.firstSeenAt) : '—')+
-       stat('Pair', 'USDC')+
+       stat('Pair', pairSym(c))+
      '</div>'+
    '</div>'+
    swapCardHtml(c)+
@@ -2509,44 +2547,130 @@ function railScan(c, el){
      '<a class="btn" style="display:block;text-align:center;text-decoration:none;margin-top:7px" href="'+(c.tokenUrl || EXPLORER+'/token/'+c.addr)+'" target="_blank" rel="noopener">Token on explorer ↗</a>'+
      (c.chain ? '<a class="btn" style="display:block;text-align:center;text-decoration:none;margin-top:7px" href="'+c.poolUrl+'" target="_blank" rel="noopener">Pool on DexScreener ↗</a>' : '')+
      (c.chain==='sol' ? '' : '<button class="btn" data-share="'+c.addr+'" data-sym="'+(named?c.symbol:'')+'" style="margin-top:7px">Share on X · +1 pt</button>')+
-     (c.chain ? '<div class="hint">'+CHAINS[c.chain].name+' pool via GeckoTerminal — liquidity '+fmtUsd(c.liq||0)+', FDV '+fmtUsd(c.mcap||0)+'. Trade opens the DEX; nothing here is custodial.</div>' : (canSwap(c)
-        ? '<div class="hint">Buying happens above, in-app, through Uniswap\'s router on Arc. This pool is not an Arclite curve — no creator fee share and no graduation market.</div>'
-        : '<div class="hint">This is a Uniswap V4 pool. V4 routes through a different contract, so in-app buying isn\'t wired for it yet — the pool link opens the pair.</div>'))+
+     '<div class="hint">'+tradeHint(c)+'</div>'+
    '</div>';
 }
 
+/* The pool's quote symbol — what a buyer pays with. Arc pools are indexed
+   against USDC by construction; elsewhere it's whatever the pool says. */
+function pairSym(c){
+  if(!c.chain) return 'USDC';
+  const ch=CHAINS[c.chain], s=ch && ch.spend && c.quote && ch.spend[c.quote.toLowerCase()];
+  if(s) return s.sym;
+  return (c.chain==='sol') ? 'SOL' : (c.quote ? short(c.quote) : '—');
+}
+
+/* One honest sentence under the trade links: where the buy happens, and
+   when it can't, exactly why — never a button that would fail. */
+function tradeHint(c){
+  const liq = 'liquidity '+fmtUsd(c.liq||0)+', FDV '+fmtUsd(c.mcap||0);
+  if(canSwap(c)){
+    return c.chain
+      ? 'Buying happens above, in-app: your wallet pays '+pairSym(c)+' on '+CHAINS[c.chain].name+' through Uniswap\'s own router, and the '+(PLATFORM_FEE_BPS/100)+'% Arclite fee is taken in the same transaction. '+liq+'. Nothing here is custodial.'
+      : 'Buying happens above, in-app, through Uniswap\'s router on Arc with the '+(PLATFORM_FEE_BPS/100)+'% Arclite fee. This pool is not an Arclite curve — no creator fee share and no graduation market.';
+  }
+  if(c.chain==='sol') return 'Solana pool via GeckoTerminal — '+liq+'. Trade opens the DEX; nothing here is custodial.';
+  if(c.chain){
+    const ch=CHAINS[c.chain];
+    if(ch.dexV3 && c.dex!==ch.dexV3) return 'This pool lives on '+esc(c.dex)+', not Uniswap V3, so it routes through a different contract than the one wired here — the pool link opens the pair. '+liq+'.';
+    return 'This pool is quoted in a token that isn\'t on the '+ch.name+' docs, so it isn\'t bought in-app — the pool link opens the pair. '+liq+'.';
+  }
+  return 'This is a Uniswap V4 pool. V4 routes through a different contract, so in-app buying isn\'t wired for it yet — the pool link opens the pair.';
+}
+
 /* ==================================================================
-   IN-APP BUY — Uniswap V3 swaps, USDC -> token, straight from the rail.
-   Before this, clicking a token only offered "Open pool ↗" to a block
-   explorer, which is a dead end for anyone who actually wants the coin.
+   IN-APP BUY — Uniswap V3 swaps straight from the rail, on Arc and on
+   Robinhood Chain, with the Arclite fee taken in the same transaction.
+
+   THE FEE. SwapRouter02 is a multicall: one transaction can pull the
+   fee, hand it to the treasury, and swap the rest, and if any step
+   reverts none of it happened. Its own sweepTokenWithFee caps at 1%
+   (require(feeBips <= 100) in PeripheryPaymentsWithFee.sol), so the fee
+   is taken explicitly:
+     ERC-20 quote (USDC on Arc, USDG on HOOD):
+       pull(quote, fee) · sweepToken(quote, fee, TREASURY) · exactInputSingle(rest)
+     native ETH (HOOD pools quoted in WETH), value = whole amount:
+       wrapETH(fee) · unwrapWETH9(fee, TREASURY) · exactInputSingle(rest) · refundETH()
+   The second call in each list moves the router's entire balance of the
+   quote token to the treasury, and the router never holds one between
+   transactions, so what arrives is exactly the fee. Simulated end to end
+   on Robinhood Chain from a funded address before shipping: amountOut
+   matched the quoter to the wei, and unwrapWETH9(fee + 1) reverted with
+   "Insufficient WETH9" — the balance at that step is the fee and nothing
+   else. The quote the user sees is for the amount that reaches the pool.
 
    THE DECIMALS RULE (AUDIT.md §2.1 is about exactly this): amountIn is
-   ERC-20 USDC, always 6dp. amountOutMinimum comes back from the quoter in
-   the TOKEN's own base units and is passed through untouched — we never
-   multiply or divide it by a decimals figure. So a token whose decimals we
-   failed to read cannot produce a wrong minOut; the worst case is that we
-   can't pretty-print the amount, which is a display problem, not a money one.
+   built in the QUOTE token's own units (6dp USDC/USDG, 18dp ETH).
+   amountOutMinimum comes back from the quoter in the bought token's base
+   units and is passed through untouched — never multiplied or divided by
+   a decimals figure. A token whose decimals we failed to read cannot
+   produce a wrong minOut; the worst case is we can't pretty-print it.
 
-   V4 pools are not routed here. V4 needs the Universal Router with a
-   different encoding, so those tokens keep the explorer link rather than a
-   button that would look identical and fail.
+   THE CHAIN RULE. A HOOD buy switches the wallet to 4663 and leaves it
+   there. Every Arc send therefore calls ensureArc() first: an Arc
+   transaction fired from a wallet still on Robinhood Chain would carry
+   real ETH to an address that only means something on Arc.
+
+   V4 and non-Uniswap pools are not routed here. They need a different
+   contract and encoding, so those tokens keep the pool link rather than
+   a button that would look identical and fail.
 ================================================================== */
+const PLATFORM_FEE_BPS = 300;                     // 3% of what the buyer spends
+const TREASURY = '0x81cfC1013620DC96f3b94A8147888983428B374d';   // same EOA on every EVM chain
 const FEE_TIERS = [10000, 3000, 500, 100];        // 1% first: memecoin pools live there
 const QUOTER_ABI = ['function quoteExactInputSingle((address tokenIn,address tokenOut,uint256 amountIn,uint24 fee,uint160 sqrtPriceLimitX96)) returns (uint256 amountOut,uint160 sqrtPriceX96After,uint32 initializedTicksCrossed,uint256 gasEstimate)'];
-const ROUTER_ABI = ['function exactInputSingle((address tokenIn,address tokenOut,uint24 fee,address recipient,uint256 amountIn,uint256 amountOutMinimum,uint160 sqrtPriceLimitX96)) payable returns (uint256 amountOut)'];
+const ROUTER_ABI = [
+  'function exactInputSingle((address tokenIn,address tokenOut,uint24 fee,address recipient,uint256 amountIn,uint256 amountOutMinimum,uint160 sqrtPriceLimitX96)) payable returns (uint256 amountOut)',
+  'function multicall(uint256 deadline, bytes[] data) payable returns (bytes[] results)',
+  'function pull(address token, uint256 value) payable',
+  'function sweepToken(address token, uint256 amountMinimum, address recipient) payable',
+  'function wrapETH(uint256 value) payable',
+  'function unwrapWETH9(uint256 amountMinimum, address recipient) payable',
+  'function refundETH() payable',
+];
 const ERC20_ABI  = ['function allowance(address,address) view returns (uint256)','function approve(address,uint256) returns (bool)','function balanceOf(address) view returns (uint256)','function decimals() view returns (uint8)'];
+const ROUTER_IFACE = new ethers.Interface(ROUTER_ABI);
 
-const canSwap = c => !!(NET.router && NET.quoter && onArc() && c && c.scanner && c.dex !== 'v4' && !c.chain);
+/** Router + quoter for the selected chain, or null where there is none. */
+function swapCfg(){
+  if(onArc()) return (NET.router && NET.quoter) ? { chainId:NET.chainId, router:NET.router, quoter:NET.quoter, wallet:arcWalletParams() } : null;
+  const ch=CHAINS[CHAIN];
+  return (ch.router && ch.quoter && ch.chainId) ? { chainId:ch.chainId, router:ch.router, quoter:ch.quoter, wallet:ch.wallet } : null;
+}
+/** What the buyer pays with for this pool, or null when it can't be bought
+ *  in-app. Arc: ERC-20 USDC on every V3 pool. Robinhood Chain: the pool's
+ *  own quote token, and only one the chain's docs name. `usd` is the quote
+ *  token's dollar price — how a "$10" preset becomes ETH. */
+function spendFor(c){
+  if(!c || !c.scanner || !swapCfg()) return null;
+  if(onArc()) return (c.dex !== 'v4' && !c.chain) ? { token:NET.usdc, sym:'USDC', dec:NET.usdcDecimals, native:false, usd:1 } : null;
+  const ch=CHAINS[CHAIN];
+  if(c.chain!==CHAIN || c.dex!==ch.dexV3 || !c.quote) return null;
+  const s = ch.spend && ch.spend[c.quote.toLowerCase()];
+  if(!s || !(c.quoteUsd > 0)) return null;
+  return { token:c.quote, sym:s.sym, dec:s.dec, native:s.native, usd:c.quoteUsd };
+}
+const canSwap = c => !!spendFor(c);
+/** Dollars → quote-token base units. Eight decimals of precision on the
+ *  human side is plenty; the base-unit figure is exact from there. */
+function spendUnits(usd, sp){ return ethers.parseUnits((Number(usd)/sp.usd).toFixed(Math.min(8, sp.dec)), sp.dec); }
+const platformFee = amountIn => amountIn * BigInt(PLATFORM_FEE_BPS) / 10000n;
+function fmtSpend(base, sp){
+  const n = Number(ethers.formatUnits(base, sp.dec));
+  return sp.native ? n.toLocaleString(undefined,{maximumFractionDigits:6})+' '+sp.sym : '$'+n.toFixed(2)+(sp.sym==='USDC'?'':' '+sp.sym);
+}
 const SWAP = { usd: 10, slipBps: 300, quote: null, quoting: false, key: '' };
 const SLIPS = [[100,'1%'],[300,'3%'],[500,'5%'],[1000,'10%']];
 
-/** Best quote across the fee tiers. Returns null when no pool can fill it. */
-async function bestQuote(tokenAddr, amountIn){
-  const q = new ethers.Contract(NET.quoter, QUOTER_ABI, provider);
+/** Best quote across the fee tiers for `amountIn` of the quote token.
+ *  Returns null when no pool can fill it. */
+async function bestQuote(sp, tokenAddr, amountIn){
+  const cfg = swapCfg(), prov = chainProvider(); if(!cfg || !prov) return null;
+  const q = new ethers.Contract(cfg.quoter, QUOTER_ABI, prov);
   let best = null;
   for (const fee of FEE_TIERS){
     try{
-      const r = await q.quoteExactInputSingle.staticCall({ tokenIn: NET.usdc, tokenOut: tokenAddr, amountIn, fee, sqrtPriceLimitX96: 0 });
+      const r = await q.quoteExactInputSingle.staticCall({ tokenIn: sp.token, tokenOut: tokenAddr, amountIn, fee, sqrtPriceLimitX96: 0 });
       const out = r[0] ?? r.amountOut;
       if (out > 0n && (!best || out > best.out)) best = { fee, out };
     }catch(e){ /* no pool at this tier, or it can't fill — try the next */ }
@@ -2562,11 +2686,18 @@ function fmtTokenOut(c, base){
 }
 
 async function refreshQuote(c){
-  const key = c.addr + ':' + SWAP.usd;
+  const sp = spendFor(c); if(!sp) return;
+  const key = c.addr + ':' + SWAP.usd + ':' + CHAIN;
   SWAP.key = key; SWAP.quote = null; SWAP.quoting = true; paintSwap(c);
+  // Off-Arc tokens arrive without decimals (GeckoTerminal doesn't send them).
+  // One read, kept on the coin, so the buyer sees a token amount and not
+  // "amount pending". The trade itself never depends on this figure.
+  if (c.decimals == null && !onArc()){
+    try{ const d = Number(await new ethers.Contract(c.addr, ERC20_ABI, chainProvider()).decimals()); if(d>=0 && d<=36) c.decimals = d; }catch(e){}
+  }
   try{
-    const amountIn = ethers.parseUnits(String(SWAP.usd), NET.usdcDecimals);
-    const b = await bestQuote(c.addr, amountIn);
+    const amountIn = spendUnits(SWAP.usd, sp);
+    const b = await bestQuote(sp, c.addr, amountIn - platformFee(amountIn));
     if (SWAP.key !== key) return;                 // a newer amount won the race
     SWAP.quote = b;
   }catch(e){ SWAP.quote = null; }
@@ -2574,62 +2705,99 @@ async function refreshQuote(c){
 }
 
 function swapCardHtml(c){
-  if (!canSwap(c)) return '';
+  const sp = spendFor(c); if (!sp) return '';
   const amounts = [5,10,25,50,100];
+  const ch = c.chain ? CHAINS[c.chain] : null;
   return '<div class="card swapcard" id="swapCard"><h3>Buy '+(c.symbol && c.symbol!=='—' ? esc(c.symbol) : 'this token')+'</h3>'+
     '<div class="presets" style="gap:5px;flex-wrap:wrap;margin-bottom:8px">'+
       amounts.map(a=>'<div class="chip '+(SWAP.usd===a?'on':'')+'" data-swusd="'+a+'">$'+a+'</div>').join('')+
     '</div>'+
-    '<label class="fld"><span>Spend (USDC)</span><input id="swAmt" class="mono" inputmode="decimal" value="'+SWAP.usd+'"></label>'+
+    '<label class="fld"><span>Spend (USD'+(sp.sym==='USDC' ? '' : ', paid in '+sp.sym)+')</span><input id="swAmt" class="mono" inputmode="decimal" value="'+SWAP.usd+'"></label>'+
     '<div class="fld"><span>Max slippage</span><div class="presets" style="gap:4px">'+
       SLIPS.map(([b,l])=>'<div class="chip '+(SWAP.slipBps===b?'on':'')+'" data-swslip="'+b+'">'+l+'</div>').join('')+
     '</div></div>'+
     '<div id="swQuote" class="ro mono" style="margin:8px 0">—</div>'+
     '<button class="btn primary" style="width:100%" data-swbuy="'+c.addr+'">'+(me?'Buy':'Connect to buy')+'</button>'+
-    '<div class="hint" id="swHint">Swaps USDC for '+(c.symbol||'the token')+' through Uniswap on Arc. Gas is paid in native USDC, which is a separate balance from the USDC being spent.</div>'+
+    '<div class="hint" id="swHint">'+(ch
+      ? 'Swaps '+sp.sym+' for '+esc(c.symbol||'the token')+' through Uniswap on '+esc(ch.name)+'. Your wallet switches to '+esc(ch.name)+' for this; gas is paid in ETH.'
+      : 'Swaps USDC for '+esc(c.symbol||'the token')+' through Uniswap on Arc. Gas is paid in native USDC, which is a separate balance from the USDC being spent.')+
+    '</div>'+
   '</div>';
 }
 
 function paintSwap(c){
   const el = document.getElementById('swQuote'); if (!el) return;
+  const sp = spendFor(c); if (!sp) return;
   if (SWAP.quoting){ el.innerHTML = '<span class="dim">quoting…</span>'; return; }
-  if (!SWAP.quote){ el.innerHTML = '<span class="pend">no Uniswap pool can fill $'+SWAP.usd+'</span>'; return; }
+  const amountIn = spendUnits(SWAP.usd, sp), fee = platformFee(amountIn);
+  const split = '<div class="dim" style="font-size:10.5px;margin-top:3px">'+fmtSpend(amountIn, sp)+' in · '+(PLATFORM_FEE_BPS/100)+'% Arclite fee '+fmtSpend(fee, sp)+' · '+fmtSpend(amountIn-fee, sp)+' swapped</div>';
+  if (!SWAP.quote){ el.innerHTML = '<span class="pend">no Uniswap pool can fill $'+SWAP.usd+'</span>'+split; return; }
   const pretty = fmtTokenOut(c, SWAP.quote.out);
   const minOut = SWAP.quote.out * BigInt(10000 - SWAP.slipBps) / 10000n;
   const minPretty = fmtTokenOut(c, minOut);
-  el.innerHTML = '≈ <b>'+(pretty ?? 'amount pending')+'</b> '+(pretty ? (c.symbol||'') : '')+
+  el.innerHTML = '≈ <b>'+(pretty ?? 'amount pending')+'</b> '+(pretty ? esc(c.symbol||'') : '')+
     '<div class="dim" style="font-size:10.5px;margin-top:3px">min '+(minPretty ?? '—')+
-    ' after '+(SWAP.slipBps/100)+'% slippage · '+(SWAP.quote.fee/10000)+'% pool fee</div>'+
+    ' after '+(SWAP.slipBps/100)+'% slippage · '+(SWAP.quote.fee/10000)+'% pool fee</div>'+split+
     (pretty ? '' : '<div class="dim" style="font-size:10.5px;margin-top:3px">This token\'s decimals aren\'t verified yet, so we won\'t print a token amount — the trade itself still uses the exact on-chain quote.</div>');
+}
+
+/** The multicall that is the whole trade: fee to the treasury, rest to the
+ *  pool, one transaction. Pure — no wallet, no network — so it's testable. */
+function buildSwapCalls(sp, tokenOut, poolFee, recipient, amountIn, minOut){
+  const fee = platformFee(amountIn);
+  const swap = ROUTER_IFACE.encodeFunctionData('exactInputSingle', [{ tokenIn: sp.token, tokenOut, fee: poolFee,
+    recipient, amountIn: amountIn - fee, amountOutMinimum: minOut, sqrtPriceLimitX96: 0 }]);
+  return sp.native
+    ? [ ROUTER_IFACE.encodeFunctionData('wrapETH', [fee]),
+        ROUTER_IFACE.encodeFunctionData('unwrapWETH9', [fee, TREASURY]),
+        swap,
+        ROUTER_IFACE.encodeFunctionData('refundETH', []) ]
+    : [ ROUTER_IFACE.encodeFunctionData('pull', [sp.token, fee]),
+        ROUTER_IFACE.encodeFunctionData('sweepToken', [sp.token, fee, TREASURY]),
+        swap ];
 }
 
 async function doSwapBuy(addr){
   if (!signer) return connect();
   const c = view().find(x => x.addr.toLowerCase() === addr.toLowerCase()); if (!c) return;
+  const sp = spendFor(c), cfg = swapCfg(); if (!sp || !cfg) return;
   const btn = document.querySelector('[data-swbuy]');
-  const amt = Number((document.getElementById('swAmt')||{}).value || 0);
-  if (!(amt > 0)) return toast('Enter an amount', 1);
+  const usd = Number((document.getElementById('swAmt')||{}).value || 0);
+  if (!(usd > 0)) return toast('Enter an amount', 1);
   if (!SWAP.quote) return toast('No pool could quote that amount', 1);
-  const amountIn = ethers.parseUnits(String(amt), NET.usdcDecimals);
+  const amountIn = spendUnits(usd, sp);
   const minOut = SWAP.quote.out * BigInt(10000 - SWAP.slipBps) / 10000n;
   if (btn){ btn.disabled = true; btn.textContent = 'Working…'; }
   try{
-    const usdc = new ethers.Contract(NET.usdc, ERC20_ABI, signer);
-    const bal = await usdc.balanceOf(me);
-    if (bal < amountIn) throw new Error('You have $'+Number(ethers.formatUnits(bal, NET.usdcDecimals)).toFixed(2)+' ERC-20 USDC — less than the $'+amt+' this trade needs.');
-    const allow = await usdc.allowance(me, NET.router);
-    if (allow < amountIn){
-      toast('Approving USDC…');
-      if (btn) btn.textContent = 'Approving…';
-      // Exact-amount approval, not unlimited: a launchpad is the last place to
-      // hand a router an infinite allowance on the user's behalf.
-      await (await usdc.approve(NET.router, amountIn)).wait();
+    // The wallet must be on this pool's chain. On Arc that's a no-op unless
+    // a HOOD buy left it elsewhere; on HOOD it switches, adding the chain
+    // from the documented parameters the first time.
+    const s = await walletOn(cfg.chainId, cfg.wallet);
+    const who = await s.getAddress();
+    const router = new ethers.Contract(cfg.router, ROUTER_ABI, s);
+    const calls = buildSwapCalls(sp, c.addr, SWAP.quote.fee, who, amountIn, minOut);
+    let value = 0n;
+    if (sp.native){
+      const bal = await s.provider.getBalance(who);
+      if (bal < amountIn) throw new Error('You have '+fmtSpend(bal, sp)+' — less than the '+fmtSpend(amountIn, sp)+' this trade needs, before gas.');
+      value = amountIn;
+    } else {
+      const erc = new ethers.Contract(sp.token, ERC20_ABI, s);
+      const bal = await erc.balanceOf(who);
+      if (bal < amountIn) throw new Error('You have '+fmtSpend(bal, sp)+' '+sp.sym+' — less than the '+fmtSpend(amountIn, sp)+' this trade needs.');
+      const allow = await erc.allowance(who, cfg.router);
+      if (allow < amountIn){
+        toast('Approving '+sp.sym+'…');
+        if (btn) btn.textContent = 'Approving…';
+        // Exact-amount approval, not unlimited: a launchpad is the last place to
+        // hand a router an infinite allowance on the user's behalf.
+        await (await erc.approve(cfg.router, amountIn)).wait();
+      }
     }
-    toast('Swapping $'+amt+' for '+(c.symbol||'tokens')+'…');
+    toast('Swapping '+fmtSpend(amountIn, sp)+' for '+(c.symbol||'tokens')+'…');
     if (btn) btn.textContent = 'Swapping…';
-    const router = new ethers.Contract(NET.router, ROUTER_ABI, signer);
-    const tx = await router.exactInputSingle({ tokenIn: NET.usdc, tokenOut: c.addr, fee: SWAP.quote.fee,
-      recipient: me, amountIn, amountOutMinimum: minOut, sqrtPriceLimitX96: 0 });
+    const deadline = Math.floor(Date.now()/1000) + 900;   // 15 min; minOut bounds the price either way
+    const tx = await router.multicall(deadline, calls, { value });
     const rc = await tx.wait();
     toast('Bought '+(c.symbol||'tokens')+' ✓ block '+rc.blockNumber);
     refreshBalance(); refreshQuote(c);
@@ -2676,17 +2844,16 @@ function paintHero(){
     set('hs4', has? '#'+DW.round:'—', 'Round');
     return;
   }
-  // One line per view, all lifted from the launch copy so the site says what
-  // the film and the posts say. Sentence case; the bracketed caps read as a
-  // dev placeholder that never got replaced.
+  // One line per view. The tokens view carries the same three words on
+  // every chain — that's the point of them — and the data source lives in
+  // the sync line at the bottom, not under the wordmark.
   if(tag) tag.textContent = VIEW==='points'
     ? 'Points for trading. Points for posting.'
-    : 'The whole chain, one screen.';
+    : 'Everything. On Chain.';
   if(!onArc()){
     const cs=chainStats(); const has=coins.length>0;
     set('hs1', has? String(cs.tokens):'—', 'Pools shown'); set('hs2', has? fmtUsd(cs.volume24h):'—', '24h volume');
     set('hs3', has? kfmt(cs.txns24h):'—', '24h txns'); set('hs4', has? kfmt(cs.traders24h):'—', '24h traders');
-    if(tag) tag.textContent=CHAINS[CHAIN].name+' · explorer via GeckoTerminal';
     return;
   }
   set('hs1', STATS? Number(STATS.tokens).toLocaleString():'—', 'Tokens');
@@ -2775,7 +2942,9 @@ function railDefault(el){
         : '<div class="empty" style="padding:14px 4px">'+(isScan?'Indexing…':'No coins launched yet')+'</div>')+
     '</div>'+
     (onArc() ? '<div class="card"><div class="hdrow"><h3><span class="livedot"></span>Live feed</h3><span class="dim" style="font-size:10px">arc mainnet · uniswap</span></div>'+feedRows()+'</div>'
-             : '<div class="card"><h3>'+CHAINS[CHAIN].name+'</h3><div class="hint" style="margin-top:0">Read-only explorer via GeckoTerminal. Trade on the pool\'s own DEX — links on every card. Launchpad, draw and points are Arc-only.</div></div>')+
+             : '<div class="card"><h3>'+CHAINS[CHAIN].name+'</h3><div class="hint" style="margin-top:0">'+(CHAINS[CHAIN].router
+                  ? 'Uniswap V3 pools buy in-app, '+(PLATFORM_FEE_BPS/100)+'% Arclite fee, one transaction. Everything else opens on its own DEX — links on every card. Launchpad, draw and points live on Arc.'
+                  : 'Trade on the pool\'s own DEX — links on every card. Launchpad, draw and points live on Arc.')+'</div></div>')+
     '<div class="empty" style="padding:10px 4px"><span style="font-size:11px">↑ ↓ to move · Enter to open · ★ to watch</span></div>';
 }
 
@@ -2865,6 +3034,7 @@ async function publishLaunchMeta(token, m){
 }
 async function doLaunch(){
   if(!signer) return connect();
+  await ensureArc();
   const name=(document.getElementById('lpName').value||'').trim();
   const sym=(document.getElementById('lpSym').value||'').trim().toUpperCase();
   if(name.length<2) return toast('Give it a name (2–32 chars)',1);
@@ -3530,6 +3700,7 @@ document.addEventListener('click', e => {
 });
 async function buyTickets(t){
   if(!signer) return connect();
+  await ensureArc();
   drawContracts();
   const q=Math.min(DW.qty[t], Math.max(1,10-DW.mine[t]));
   const value=ethers.parseEther(String(TIER_META[t].price*q));
@@ -3546,6 +3717,7 @@ async function buyTickets(t){
 }
 async function claimDraw(){
   if(!signer) return connect();
+  await ensureArc();
   drawContracts();
   try{ const tx=await drawW.claim(); toast('Claiming…'); await tx.wait(); toast('Claimed ✓'); await drawRead(); renderDraw(); refreshBalance(); }
   catch(e){ toast('Claim failed: '+String(e.shortMessage||e.message||e).slice(0,90),1); }
@@ -3632,6 +3804,7 @@ function limitFormHtml(c){
 }
 async function placeLimit(tokenAddr){
   if(!signer) return connect();
+  await ensureArc();
   limitContracts();
   const c=coins.find(x=>x.addr.toLowerCase()===tokenAddr.toLowerCase()); if(!c) return;
   const amt=Number((document.getElementById('limAmt')||{}).value||0);
@@ -3684,6 +3857,7 @@ function ordersHtml(){
 }
 async function cancelLimit(id){
   if(!signer) return connect();
+  await ensureArc();
   limitContracts();
   try{ toast('Cancelling…'); await (await limitW.cancel(id)).wait(); toast('Order cancelled — escrow returned'); LO.loaded=false; await loadOrders(); if(VIEW==='portfolio') renderPortfolio(); else rail(); }
   catch(e){ toast('Cancel failed: '+String(e.shortMessage||e.message||e).slice(0,90),1); }
@@ -3862,25 +4036,45 @@ async function fillCreatorCard(c){
 /* ==================================================================
    WALLET + ACTIONS
 ================================================================== */
+/* wallet_addEthereumChain parameters for Arc, the shape the wallet wants. */
+function arcWalletParams(){
+  return { chainId:'0x'+CHAIN_ID.toString(16), chainName:NET.chainId===5042?'Arc':'Arc Testnet',
+           nativeCurrency:{name:'USDC',symbol:'USDC',decimals:18}, rpcUrls:[RPC], blockExplorerUrls:[EXPLORER] };
+}
+/* Put the wallet on `chainId` and return a signer there. Switches if it
+   can, adds the chain from `add` (documented parameters only) if the wallet
+   has never seen it, and refuses to hand back a signer until eth_chainId
+   agrees — a transaction built for one chain must never leave for another. */
+async function walletOn(chainId, add){
+  const inj = window.ethereum;
+  if(!inj) throw new Error('No EVM wallet detected');
+  const hex = '0x'+chainId.toString(16);
+  const cid = parseInt(await inj.request({method:'eth_chainId'}),16);
+  if(cid!==chainId){
+    try{ await inj.request({method:'wallet_switchEthereumChain',params:[{chainId:hex}]}); }
+    catch(sw){
+      if(!add) throw sw;
+      await inj.request({method:'wallet_addEthereumChain',params:[add]});
+    }
+    const now = parseInt(await inj.request({method:'eth_chainId'}),16);
+    if(now!==chainId) throw new Error('Wallet is on chain '+now+', not '+chainId);
+  }
+  return await new ethers.BrowserProvider(inj, 'any').getSigner();
+}
+/* Called before every Arc send. The HOOD buy leaves the wallet on 4663;
+   an Arc transaction from there would carry real ETH to an address that
+   only means something on Arc. No-op when the wallet is already on Arc. */
+async function ensureArc(){
+  if(!signer || !window.ethereum) return;
+  const cid = parseInt(await window.ethereum.request({method:'eth_chainId'}),16);
+  if(cid!==CHAIN_ID) await walletOn(CHAIN_ID, arcWalletParams());
+}
 async function connect(){
   const inj = window.ethereum;
   if(!inj){ toast('No EVM wallet detected. Install MetaMask or Rabby.',1); return; }
   try{
-    const bp=new ethers.BrowserProvider(inj, 'any');
-    await bp.send('eth_requestAccounts',[]);
-    const cid = await inj.request({method:'eth_chainId'});
-    if(parseInt(cid,16)!==CHAIN_ID){
-      try{
-        await inj.request({method:'wallet_switchEthereumChain',params:[{chainId:'0x'+CHAIN_ID.toString(16)}]});
-      }catch(sw){
-        await inj.request({method:'wallet_addEthereumChain',params:[{
-          chainId:'0x'+CHAIN_ID.toString(16), chainName:NET.chainId===5042?'Arc':'Arc Testnet',
-          nativeCurrency:{name:'USDC',symbol:'USDC',decimals:18},
-          rpcUrls:[RPC], blockExplorerUrls:[EXPLORER]
-        }]});
-      }
-    }
-    signer = await bp.getSigner();
+    await new ethers.BrowserProvider(inj, 'any').send('eth_requestAccounts',[]);
+    signer = await walletOn(CHAIN_ID, arcWalletParams());
     me = await signer.getAddress();
     // Launchpad contracts only exist on testnet; guard like the read-only pair.
     pumpW = PUMP ? new ethers.Contract(PUMP, PUMP_ABI, signer) : null;
@@ -3896,6 +4090,7 @@ async function connect(){
 
 async function doBuy(c){
   if(!signer) return connect();
+  await ensureArc();
   if(c.phase!==1) return toast('Curve closed — this coin graduated.',1);
   try{
     toast('Buying '+c.symbol+' for $'+buyAmt+'…');
@@ -3916,6 +4111,7 @@ async function doBuy(c){
 
 async function doBet(c, yes){
   if(!signer) return connect();
+  await ensureArc();
   if(!c.market || c.market.resolved) return toast('No open market on this coin.',1);
   try{
     toast('Betting '+(yes?'YES':'NO')+' $'+betAmt+' on '+c.symbol+'…');
@@ -4221,7 +4417,7 @@ async function tape(){
   const el=document.getElementById('tape');
   // No launchpad on mainnet — without an address, getLogs would sweep the whole
   // chain. Uniswap swap events need the indexer; say so rather than fake it.
-  if(!onArc()){ el.innerHTML='<span class="ev">'+CHAINS[CHAIN].name+' · explorer via GeckoTerminal · trading opens on the pool\'s DEX</span>'; return; }
+  if(!onArc()){ el.innerHTML='<span class="ev">'+CHAINS[CHAIN].name+(coins.length?' · '+coins.length+' pools live':'')+(CHAINS[CHAIN].router?' · Uniswap V3 pools buy in-app, '+(PLATFORM_FEE_BPS/100)+'% Arclite fee':' · trading opens on the pool\'s DEX')+'</span>'; return; }
   // Paint the indexer feed immediately — the launchpad sweep below is a slow
   // getLogs that can retry for a while, and an empty ticker for that whole time
   // is worse than a correct one that gets upgraded a moment later.
@@ -4392,7 +4588,11 @@ async function sweepDust(row, btn){
   const orig=btn.textContent;
   btn.disabled=true; btn.textContent='…';
   try{
-    const t=new ethers.Contract(row.addr,['function transfer(address,uint256) returns (bool)'],signer);
+    // The row came from the chain the portfolio is showing; the transfer
+    // has to go there too, not to wherever the wallet happens to be.
+    const ch = row.chain ? CHAINS[row.chain] : null;
+    const s = ch ? await walletOn(ch.chainId, ch.wallet) : (await ensureArc(), signer);
+    const t=new ethers.Contract(row.addr,['function transfer(address,uint256) returns (bool)'],s);
     const tx=await t.transfer(DEAD_ADDR, row.raw);
     toast('Sweeping '+short(row.addr)+'…');
     await retry(()=>tx.wait(),3,15000);
@@ -4409,6 +4609,7 @@ async function sweepDust(row, btn){
  *  sell() and even redeem() for that address until it expires. */
 async function lockCreatorBuy(tokenAddr, days){
   if(!signer){ toast('Connect your wallet first'); return; }
+  await ensureArc();
   if(!confirm('Lock your own '+days+'-day balance of this token?\n\n'+
     'You will NOT be able to transfer, sell, or redeem it for '+days+' days, no exceptions. '+
     'This cannot be undone or shortened once confirmed — only extended by locking again.')) return;
@@ -4455,6 +4656,9 @@ window.__term = { get VIEW(){ return VIEW; }, get coins(){ return coins; }, get 
   setDrawContracts(r, w){ drawR=r; drawW=w; },
   get LO(){ return LO; }, setLimit(addr, r, w){ NET.limit=addr; limitR=r; limitW=w; LO.loaded=false; },
   get CHAIN(){ return CHAIN; }, setChain, geckoCoin,
+  // in-app buy + fee (pure pieces, so the arithmetic is testable without a wallet)
+  CHAINS, spendFor, spendUnits, platformFee, buildSwapCalls, swapCfg, TREASURY, PLATFORM_FEE_BPS, ROUTER_IFACE, walletOn, ensureArc, doSwapBuy,
+  get SWAP(){ return SWAP; },
   loadProfiles, logoUrl, publishLaunchMeta, get PROFILES(){ return PROFILES; },
   esc, safeUrl, avImg, refreshBalance,
   drawClock, tickDraw,
