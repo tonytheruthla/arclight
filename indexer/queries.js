@@ -13,7 +13,11 @@ const { ZERO, DEAD } = require('./store');
 
 const SORT_COLUMNS = {
   volume: 'COALESCE(v.vol, 0)',
-  mcap: 'COALESCE(lp.price, 0) * COALESCE(t.total_supply, 0)',   // real market cap now that supply is stored
+  // Gated on meta_ok, exactly like the price the API publishes. Without the
+  // gate this sorted on the RAW price while the SELECT withheld it, so
+  // sort=mcap returned tokens whose price is null — 16 of the first 17 on
+  // mainnet, all rendering as "—". Rank on the number we are willing to show.
+  mcap: 'CASE WHEN t.meta_ok THEN COALESCE(lp.price, 0) * COALESCE(t.total_supply, 0) ELSE 0 END',
   txns: 'COALESCE(v.txns, 0)',
   holders: 'COALESCE(h.holders, 0)',
   new: 't.first_seen_block',

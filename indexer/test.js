@@ -554,6 +554,14 @@ function fakeLog(iface, eventName, args, overrides = {}) {
   ok(Math.abs(Number(one.total_supply) - 1e9) < 1, '/tokens/:address carries it too');
   const byMcap = await (await fetch(base + '/api/v1/tokens?sort=mcap&limit=50')).json();
   ok(byMcap.tokens[0].address === T1.toLowerCase(), 'sort=mcap now ranks by price × supply — T1 (1e9 × 0.0001) leads, not just by price');
+  // T2 has a supply-shaped number but meta_ok false, so its price is withheld.
+  // It must not outrank a token whose market cap we can actually show.
+  await dbp.query('UPDATE tokens SET total_supply = 1000000000000 WHERE address = $1', [T2.toLowerCase()]);
+  const gated = await (await fetch(base + '/api/v1/tokens?sort=mcap&limit=50')).json();
+  const iT1 = gated.tokens.findIndex(t => t.address === T1.toLowerCase());
+  const iT2 = gated.tokens.findIndex(t => t.address === T2.toLowerCase());
+  ok(iT1 < iT2 && gated.tokens[iT2].price === null,
+     'sort=mcap is gated on meta_ok: an unpriced token cannot outrank a priced one, however big its supply');
   const pf = await (await fetch(base + '/api/v1/profiles?addrs=' + [T1, T3, 'junk'].join(','))).json();
   ok(pf.profiles.length === 2 && pf.profiles[0].logo.startsWith('/api/v1/img/0x'), '/profiles resolves a list and points logos at /img');
 
