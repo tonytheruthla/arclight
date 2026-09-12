@@ -856,6 +856,10 @@ function boot(url, boptions) {
   ok(ww.__term.VIEW === 'portfolio' && ww.location.hash === '#portfolio', 'clicking the wallet button opens the Portfolio view');
   ok(wd.getElementById('lanes').hidden && wd.getElementById('tbl').style.display !== 'none',
      'Portfolio claims the table slot: lanes hidden, table shown (it shares that slot with lanes mode)');
+  // jsdom has no layout, so the specificity bug that made `hidden` a no-op can
+  // only be pinned as text: .lanes sets display, so [hidden] needs its own rule.
+  ok(/\.lanes\[hidden\]\{display:none\}/.test(html),
+     '.lanes[hidden] is declared — without it `hidden` loses to .lanes{display:grid} and the lanes stay on screen');
   const pg = wd.getElementById('rows');
   // now force lanes back on, re-enter Portfolio, and check the slot again
   wd.getElementById('lanes').hidden = false; wd.getElementById('tbl').style.display = 'none';

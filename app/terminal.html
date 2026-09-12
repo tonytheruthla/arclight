@@ -754,6 +754,12 @@ tbody tr.new{animation:newrow 6s ease-out}
 
 /* ---- lanes (gmgn-style) ---- */
 .lanes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));height:100%;min-height:0}
+/* A class rule that sets `display` beats the browser's own [hidden]{display:none},
+   so `lanesEl.hidden = true` was setting the attribute and changing nothing: the
+   Table toggle and the Portfolio view both drew UNDER a still-visible lane grid.
+   Found on the live site — jsdom reports hidden=true and has no layout to
+   contradict it, so only a real browser could catch this. */
+.lanes[hidden]{display:none}
 .lane{display:flex;flex-direction:column;min-width:0;border-right:1px solid var(--hair)}
 .lane:last-child{border-right:0}
 .laneh{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--hair);
