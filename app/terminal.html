@@ -2553,6 +2553,15 @@ function launchesHtml(){
 
 /* ---------- the page ---------- */
 async function renderPortfolio(){
+  /* Portfolio draws into the table slot — and so does lanes mode, which is
+     toggled at the BOTTOM of render(), past the early return this branch
+     takes. Switching to Portfolio with lanes on therefore left the coin lanes
+     on screen with the portfolio invisible behind them (caught on the live
+     site, not in jsdom: lanes is a layout, and jsdom has no layout). Claim the
+     slot first, every time. */
+  const lanesEl=document.getElementById('lanes'), tblEl=document.getElementById('tbl');
+  if(lanesEl) lanesEl.hidden=true;
+  if(tblEl) tblEl.style.display='';
   const tb=document.getElementById('rows');
   const cell = html => tb.innerHTML='<tr><td colspan="9" style="padding:0">'+html+'</td></tr>';
   if(!me){

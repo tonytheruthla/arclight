@@ -854,7 +854,14 @@ function boot(url, boptions) {
   wd.getElementById('walletBtn').dispatchEvent(new ww.MouseEvent('click', { bubbles: true }));
   await sleep(300);
   ok(ww.__term.VIEW === 'portfolio' && ww.location.hash === '#portfolio', 'clicking the wallet button opens the Portfolio view');
+  ok(wd.getElementById('lanes').hidden && wd.getElementById('tbl').style.display !== 'none',
+     'Portfolio claims the table slot: lanes hidden, table shown (it shares that slot with lanes mode)');
   const pg = wd.getElementById('rows');
+  // now force lanes back on, re-enter Portfolio, and check the slot again
+  wd.getElementById('lanes').hidden = false; wd.getElementById('tbl').style.display = 'none';
+  await ww.__term.renderPortfolio(); await sleep(60);
+  ok(wd.getElementById('lanes').hidden && wd.getElementById('tbl').style.display !== 'none',
+     'entering Portfolio while lanes were on hides the lanes again');
   ok(pg.querySelector('.pfid') && pg.textContent.includes('0xaaaa…aaaa') && /Your portfolio/i.test(pg.textContent), 'the page opens on an identity card with the address');
   ok(!!pg.querySelector('[data-pfcopy]') && !!pg.querySelector('[data-pffund]') && !!pg.querySelector('[data-pfdisc]'), 'Copy, Fund and Disconnect live on the page');
   ok(/Arclite points/i.test(pg.textContent) && /From trading/i.test(pg.textContent) && /From sharing/i.test(pg.textContent), 'points card splits trading and sharing');
