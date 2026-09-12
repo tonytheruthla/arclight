@@ -10,7 +10,8 @@ require('dotenv').config();
 const express = require('express');
 const { ethers } = require('ethers');
 const { makePool, migrate } = require('./db');
-const { listTokens, getToken, getStats, recentSwaps, pointsLeaderboard, pointsForWallet } = require('./queries');
+const { listTokens, getToken, getStats, recentSwaps, pointsLeaderboard, pointsForWallet, walletHoldings, walletTrades, walletLaunches } = require('./queries');
+const { solHoldings } = require('./sol');
 const { sharesToday, addSharePoint, getProfiles, upsertProfile, putImage, getImage } = require('./store');
 const { pumpAddress } = require('./chain');
 const { startResolver } = require('./meta');
@@ -59,8 +60,9 @@ function shareMessage(wallet, token, day) {
 const utcDay = (d = new Date()) => d.toISOString().slice(0, 10);
 const isAddr = a => typeof a === 'string' && /^0x[0-9a-fA-F]{40}$/.test(a);
 
-function makeApp(db) {
+function makeApp(db, opts = {}) {
   const app = express();
+  const solOpts = { fetchImpl: opts.fetchImpl || fetch, rpcUrl: opts.solRpc || process.env.SOL_RPC || undefined };
   // token-meta carries a base64 image (≤512 KB); everything else is tiny.
   app.use('/api/v1/token-meta', express.json({ limit: '800kb' }));
   app.use(express.json({ limit: '4kb' }));
@@ -236,6 +238,35 @@ function makeApp(db) {
         source: 'creator', updatedBy: wallet });
       res.json({ ok: true, logo: logoUrl ? `/api/v1/img/${token.toLowerCase()}` : null });
     } catch (e) { fail(res, e); }
+  });
+
+  // ---- portfolio ------------------------------------------------------------
+  /** One Arc wallet: holdings (DEX ledger + launchpad positions), trades on
+   *  both venues, coins launched. Read-only; the page adds live balanceOf
+   *  checks for the launchpad positions before offering a Sell. */
+  app.get('/api/v1/wallet/:wallet', async (req, res) => {
+    try {
+      if (!isAddr(req.params.wallet)) return res.status(400).json({ error: 'bad wallet' });
+      const wl = req.params.wallet.toLowerCase();
+      const [holdings, trades, launches] = await Promise.all([
+        walletHoldings(db, wl), walletTrades(db, wl, Number(req.query.trades) || 100), walletLaunches(db, wl)]);
+      res.set('Cache-Control', 'public, max-age=20');
+      res.json({ wallet: wl, holdings, trades, launches, at: new Date().toISOString() });
+    } catch (e) { fail(res, e); }
+  });
+
+  /** Solana holdings for a public key, proxied through SOL_RPC (see sol.js). */
+  app.get('/api/v1/sol/:owner', async (req, res) => {
+    try {
+      const data = await solHoldings(req.params.owner, solOpts);
+      res.set('Cache-Control', 'public, max-age=30');
+      res.json(data);
+    } catch (e) {
+      if (e.status === 400) return res.status(400).json({ error: e.message });
+      console.error('[sol]', e.message);
+      res.status(502).json({ error: 'solana read failed', detail: String(e.message || e).slice(0, 160),
+        hint: process.env.SOL_RPC ? undefined : 'SOL_RPC is not set on this service; the public endpoint is rate-limited and blocks some hosts' });
+    }
   });
 
   app.get('/health', (req, res) => res.json({ ok: true }));

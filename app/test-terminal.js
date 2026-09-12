@@ -35,7 +35,7 @@ const fakeFeed = { swaps: [ { token_address: TOK, symbol: 'ALPHA', meta_ok: true
 const fakeBoard = { rules: { season: 'pre', shareDailyCap: 10 }, traders: 2, leaderboard: [
   { wallet: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', volume: 120.5, trades: 3, shares: 2, points: 122 },
   { wallet: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', volume: 0, trades: 0, shares: 1, points: 1 } ] };
-const posted = [], profileCalls = [], metaPosts = [], quoterCalls = [];
+const posted = [], profileCalls = [], metaPosts = [], quoterCalls = [], walletCalls = [], solCalls = [], hoodCalls = [];
 const QUOTE_OUT = 135644666987196334623n;   // a real Robinhood Chain quote: 0.0097 ETH → CASHCAT, 18dp
 const LT = '0x00000000000000000000000000000000000abc01';
 let metaReply = () => ({ ok: true, status: 200, json: async () => ({ ok: true, logo: '/api/v1/img/'+LT.toLowerCase() }) });
@@ -68,7 +68,12 @@ function boot(url, boptions) {
     if (s.includes('/api/v1/profiles')) { const q = decodeURIComponent(s.split('addrs=')[1]||'').split(','); profileCalls.push(q); return json({ profiles: q.filter(a => a === LT.toLowerCase()).map(a => ({ address: a, name: 'Launched', symbol: 'LNCH', logo: '/api/v1/img/'+a, website: null, twitter: 'https://x.com/lnch', telegram: 'https://t.me/lnch', source: 'creator' })) }); }
     if (s.includes('/api/v1/token-meta')) { metaPosts.push(JSON.parse(opts.body)); return metaReply(); }
     if (s.includes('/api/v1/points/share')) { posted.push(JSON.parse(opts.body)); return json({ ok: true, awarded: true, sharesToday: 1, cap: 10 }); }
-    if (s.match(/\/api\/v1\/points\/0x/)) return json({ wallet: '0x', volume: 0, trades: 0, shares: 0, points: 0, rank: null, sharesToday: 0, shareDailyCap: 10 });
+    if (s.match(/\/api\/v1\/points\/0x/)) return json(BOPT.points || { wallet: '0x', volume: 0, trades: 0, shares: 0, points: 0, rank: null, sharesToday: 0, shareDailyCap: 10 });
+    // Portfolio reads (v14): the indexer's ledger, its Solana proxy, and Robinhood Chain's explorer
+    if (s.match(/\/api\/v1\/wallet\/0x/)) { walletCalls.push(s); return BOPT.wallet ? json(BOPT.wallet) : new Response('', { status: 503 }); }
+    if (s.match(/\/api\/v1\/sol\//)) { solCalls.push(s); return BOPT.sol ? json(BOPT.sol) : new Response(JSON.stringify({ error: 'solana read failed', hint: 'SOL_RPC is not set' }), { status: 502, headers: { 'content-type': 'application/json' } }); }
+    if (s.includes('robinhoodchain.blockscout.com/api/v2/addresses/')) { hoodCalls.push(s); return BOPT.hood ? json(BOPT.hood) : new Response('', { status: 404 }); }
+    if (s.includes('robinhoodchain.blockscout.com/api/v2/stats')) return json({ coin_price: '2500' });
     // RPC calls arrive here through ethers' FetchRequest. Answer the two reads
     // the terminal makes against the deployed pump — graduationUsdc() for the
     // Launch page, tokenCount() for the Launchpad tab — and fail the rest.
@@ -76,9 +81,16 @@ function boot(url, boptions) {
       let req = null; try { req = JSON.parse(opts.body); } catch {}
       const call = Array.isArray(req) ? req[0] : req;
       if (call && call.method === 'eth_chainId') return json({ jsonrpc:'2.0', id:call.id, result: s.includes('robinhood') ? '0x1237' : '0x13b2' });
+      if (call && call.method === 'eth_getBalance' && BOPT.balances) return json({ jsonrpc:'2.0', id:call.id, result: '0x' + BigInt(s.includes('robinhood') ? BOPT.balances.hoodEth : BOPT.balances.arcNative).toString(16) });
       if (call && call.method === 'eth_call') {
         const data = (call.params && call.params[0] && call.params[0].data) || '';
         const word = n => '0x' + BigInt(n).toString(16).padStart(64, '0');
+        if (data.startsWith('0x70a08231') && BOPT.balances) {   // balanceOf(who) on token `to`
+          const to = (call.params[0].to || '').toLowerCase();
+          const b = BOPT.balances.tokens && BOPT.balances.tokens[to];
+          return json({ jsonrpc:'2.0', id:call.id, result: word(b == null ? 0n : b) });
+        }
+        if (data.startsWith('0xdd62ed3e') && BOPT.balances) return json({ jsonrpc:'2.0', id:call.id, result: word(0) });   // allowance = 0
         if (data.startsWith('0x8aefa191')) return json({ jsonrpc:'2.0', id:call.id, result: word(1500n * 10n**18n) });  // graduationUsdc
         if (data.startsWith('0x9f181b5e')) return json({ jsonrpc:'2.0', id:call.id, result: word(0) });                // tokenCount = 0
         if (data.startsWith('0x313ce567')) return json({ jsonrpc:'2.0', id:call.id, result: word(18) });               // decimals()
@@ -394,8 +406,9 @@ function boot(url, boptions) {
   ld.querySelector('[data-lside="sell"]').dispatchEvent(new lw.MouseEvent('click', { bubbles: true })); await sleep(20);
   ok(ld.querySelector('[data-lplace]').textContent.includes('Approve + place sell'), 'sell side: button explains the approve step');
   lw.location.hash = '#portfolio';
-  for(let i=0;i<40 && !ld.getElementById('pfOrders');i++) await sleep(250);   // portfolio reads balances through the (dead) RPC first
-  ok(ld.getElementById('pfOrders') && ld.getElementById('pfOrders').textContent.includes('$10.00 of C1') && ld.getElementById('pfOrders').textContent.includes('expires in'), 'Portfolio lists the open buy order from ordersOf()');
+  for(let i=0;i<40 && !ld.querySelector('[data-pftab="orders"]');i++) await sleep(250);
+  ld.querySelector('[data-pftab="orders"]').dispatchEvent(new lw.MouseEvent('click', { bubbles: true })); await sleep(100);
+  ok(ld.getElementById('pfOrders') && ld.getElementById('pfOrders').textContent.includes('$10.00 of C1') && ld.getElementById('pfOrders').textContent.includes('expires in'), 'Portfolio → Orders tab lists the open buy order from ordersOf()');
   ld.querySelector('[data-lcancel]').dispatchEvent(new lw.MouseEvent('click', { bubbles: true })); await sleep(100);
   ok(cancelled.length === 1 && cancelled[0] === 0, 'Cancel calls cancel(0)');
 
@@ -822,47 +835,151 @@ function boot(url, boptions) {
   ok(/if\(now!==chainId\) throw new Error/.test(html), 'walletOn() re-reads eth_chainId after switching and refuses to continue if it disagrees');
   }
 
-  // ---- wallet control: one topbar button, everything else in its menu -----
-  console.log('\n=== wallet control + dropdown ===');
+  // ---- wallet control: the button opens Portfolio ------------------------
+  console.log('\n=== wallet button → Portfolio ===');
   {
   const wm = boot('https://arclite.fun/app/terminal.html?net=mainnet');
   await sleep(400);
   const wd = wm.d, ww = wm.w;
-  ok(!wd.getElementById('balPill') && !wd.getElementById('fundBtn'),
-     'the loose balance pill and Fund button are gone from the topbar');
+  ok(!wd.getElementById('balPill') && !wd.getElementById('fundBtn') && !wd.getElementById('wMenu'),
+     'no loose balance pill, no Fund button, no dropdown menu in the topbar');
   ok(wd.getElementById('walletBtn').hidden && !wd.getElementById('connectBtn').hidden,
      'disconnected: Connect shown, wallet button hidden');
-
   ww.__term.setWallet({}, '0x' + 'a'.repeat(40));
   await ww.__term.refreshBalance();
   await sleep(150);
   ok(!wd.getElementById('walletBtn').hidden && wd.getElementById('connectBtn').hidden,
-     'connected: Connect is replaced by the wallet button, not shown alongside it');
+     'connected: Connect is replaced by the wallet button');
   ok(wd.getElementById('wAddr').textContent === '0xaaaa…aaaa', 'wallet button shows the short address');
-
-  ok(wd.getElementById('wMenu').hidden, 'menu starts closed');
   wd.getElementById('walletBtn').dispatchEvent(new ww.MouseEvent('click', { bubbles: true }));
-  await sleep(250);
-  const menu = wd.getElementById('wMenu');
-  ok(!menu.hidden && wd.getElementById('walletBtn').getAttribute('aria-expanded') === 'true',
-     'clicking opens the menu and marks the button expanded');
-  ok(/Arclite points/i.test(menu.textContent), 'menu shows Arclite points');
-  ok(/Holdings/i.test(menu.textContent), 'menu shows holdings');
-  ok(!!menu.querySelector('#wFund') && !!menu.querySelector('#wDisc') && !!menu.querySelector('#wCopy'),
-     'menu carries Fund, Disconnect and Copy');
+  await sleep(300);
+  ok(ww.__term.VIEW === 'portfolio' && ww.location.hash === '#portfolio', 'clicking the wallet button opens the Portfolio view');
+  const pg = wd.getElementById('rows');
+  ok(pg.querySelector('.pfid') && pg.textContent.includes('0xaaaa…aaaa') && /Your portfolio/i.test(pg.textContent), 'the page opens on an identity card with the address');
+  ok(!!pg.querySelector('[data-pfcopy]') && !!pg.querySelector('[data-pffund]') && !!pg.querySelector('[data-pfdisc]'), 'Copy, Fund and Disconnect live on the page');
+  ok(/Arclite points/i.test(pg.textContent) && /From trading/i.test(pg.textContent) && /From sharing/i.test(pg.textContent), 'points card splits trading and sharing');
+  ok(pg.querySelectorAll('.pftab').length === 4 && [...pg.querySelectorAll('.pftab')].map(t=>t.dataset.pftab).join(',') === 'holdings,trades,launches,orders', 'tabs: Holdings · Trades · Launches · Orders');
+  ok(/Robinhood Chain/.test(pg.textContent) && /Solana/.test(pg.textContent) && !!pg.querySelector('[data-pfsol]'), 'holdings are grouped by chain, with a Connect Phantom prompt for Solana');
+  ww.confirm = () => false;
+  pg.querySelector('[data-pfdisc]').dispatchEvent(new ww.MouseEvent('click', { bubbles: true })); await sleep(100);
+  ok(!wd.getElementById('walletBtn').hidden, 'Disconnect asks first — cancelling keeps the wallet');
+  ww.confirm = () => true;
+  pg.querySelector('[data-pfdisc]').dispatchEvent(new ww.MouseEvent('click', { bubbles: true })); await sleep(150);
+  ok(wd.getElementById('walletBtn').hidden && !wd.getElementById('connectBtn').hidden && pg.textContent.includes('Connect a wallet'),
+     'confirmed Disconnect returns the topbar to Connect and the page to its prompt');
+  }
 
-  // click-away closes it
-  wd.body.dispatchEvent(new ww.MouseEvent('click', { bubbles: true }));
-  await sleep(80);
-  ok(menu.hidden, 'clicking outside closes the menu');
-
-  // disconnect clears our own state
-  wd.getElementById('walletBtn').dispatchEvent(new ww.MouseEvent('click', { bubbles: true }));
+  // ---- portfolio: holdings across three chains, priced, with Buy / Sell ----
+  console.log('\n=== portfolio: ARC ledger + HOOD explorer + SOL proxy ===');
+  {
+  const ME = '0x' + 'a'.repeat(40);
+  const ARC_TOK = '0x' + '1'.repeat(40), LNCH = '0x00000000000000000000000000000000000abc01';
+  const HOOD_TOK = '0x' + '2'.repeat(40), HOOD_SPAM = '0x' + '3'.repeat(40), WETH = '0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73';
+  const opts = {
+    wallet: { wallet: ME, holdings: {
+        dex: [ { address: ARC_TOK, name: 'Alpha', symbol: 'ALPHA', decimals: 18, dex: 'v3', meta_ok: true, logo_url: 'ipfs://x', balance: '2000000000000000000000', price: 0.5 } ],
+        launch: [ { address: LNCH, name: 'Launched', symbol: 'LNCH', creator: ME, position: 1000, trades: 2 } ] },
+      trades: [ { venue: 'launchpad', token_address: LNCH, symbol: 'LNCH', side: 'buy', usdc_amount: 12.5, token_amount: 1000, block_time: new Date().toISOString(), tx_hash: '0x'+'ab'.repeat(32) },
+                { venue: 'dex', token_address: ARC_TOK, symbol: 'ALPHA', side: 'sell', usdc_amount: 3, token_amount: 6, block_time: new Date(Date.now()-3600e3).toISOString(), tx_hash: '0x'+'cd'.repeat(32) } ],
+      launches: [ { address: LNCH, name: 'Launched', symbol: 'LNCH', created_at: new Date().toISOString(), volume: 12.5, trades: 2 } ] },
+    hood: [
+      { token: { address_hash: HOOD_TOK, name: 'Cash Cat', symbol: 'CASHCAT', decimals: '18', exchange_rate: '0.002', icon_url: 'https://x/cat.png', type: 'ERC-20', holders_count: '100' }, value: '5000000000000000000000' },
+      { token: { address_hash: WETH, name: 'WETH', symbol: 'WETH', decimals: '18', exchange_rate: '2500', type: 'ERC-20' }, value: '0' },
+      { token: { address_hash: HOOD_SPAM, name: 'rh-ofac.xyz | OFAC COMPLIANCE NOTICE: assets FROZEN, visit rh-ofac.xyz', symbol: 'FROZEN', decimals: '18', exchange_rate: null, type: 'ERC-20' }, value: '1000000000000000000' },
+      { token: { address_hash: '0x'+'4'.repeat(40), name: 'Uniswap v4 Positions NFT', symbol: 'UNI-V4-POSM', decimals: null, type: 'ERC-721' }, value: '2' } ],
+    sol: { owner: 'So1anaOwner1111111111111111111111111111111', sol: { amount: 2, price: 100, value: 200 }, total: 200.5,
+      tokens: [ { mint: 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263', amount: 25000, raw: '2500000000', decimals: 5, symbol: 'BONK', name: 'Bonk', price: 0.00002, value: 0.5, logo: null } ] },
+    points: { wallet: ME, volume: 152.7, trades: 4, shares: 3, points: 155, rank: 7, sharesToday: 1, shareDailyCap: 10 },
+    balances: { arcNative: 5n * 10n**18n, hoodEth: 10n**16n, tokens: { [LNCH.toLowerCase()]: 1000n * 10n**18n, '0x3600000000000000000000000000000000000000': 2500000n } },
+  };
+  const pm = boot('https://arclite.fun/app/terminal.html?net=mainnet', opts);
+  const pw = pm.w, pd = pm.d;
+  pw.localStorage.setItem('ark_sol', 'So1anaOwner1111111111111111111111111111111');
+  pw.__term.PF.solAddr = pw.localStorage.getItem('ark_sol');
+  await sleep(300);
+  pw.__term.setWallet({}, ME);
+  await pw.__term.refreshBalance();
+  pw.location.hash = '#portfolio';
+  for (let i = 0; i < 60 && !(pw.__term.PF.arc && pw.__term.PF.hood && pw.__term.PF.sol); i++) await sleep(250);
   await sleep(200);
-  wd.getElementById('wDisc').dispatchEvent(new ww.MouseEvent('click', { bubbles: true }));
-  await sleep(150);
-  ok(wd.getElementById('walletBtn').hidden && !wd.getElementById('connectBtn').hidden,
-     'Disconnect returns the topbar to the Connect state');
+  const pg = pd.getElementById('rows');
+  const PF = pw.__term.PF;
+  ok(walletCalls.length >= 1 && hoodCalls.length >= 1 && solCalls.length >= 1, 'reads the ledger API, the HOOD explorer and the SOL proxy — one call each');
+  ok(PF.arc && PF.arc.source === 'api' && PF.arc.tokens.length === 2, 'ARC: DEX holding from the ledger + launchpad position confirmed by balanceOf (' + (PF.arc && PF.arc.tokens.length) + ')');
+  const alpha = PF.arc.tokens.find(t => t.symbol === 'ALPHA'), lnch = PF.arc.tokens.find(t => t.symbol === 'LNCH');
+  ok(alpha && alpha.amt === 2000 && alpha.value === 1000 && alpha.logo && alpha.logo.endsWith('/api/v1/img/' + ARC_TOK), 'ARC DEX row: 2000 ALPHA × $0.50 = $1,000, logo through the API');
+  ok(lnch && lnch.amt === 1000 && lnch.kind === 'launch', 'ARC launchpad row: balanceOf says 1000 LNCH');
+  ok(Math.abs(PF.arc.cashNative - 5) < 1e-9 && Math.abs(PF.arc.cashUsdc - 2.5) < 1e-9, 'ARC cash: 5 native USDC (gas) + 2.5 ERC-20 USDC (6dp)');
+  ok(PF.hood && PF.hood.tokens.length === 1 && PF.hood.tokens[0].symbol === 'CASHCAT' && PF.hood.tokens[0].value === 10 && PF.hood.tokens[0].logo === 'https://x/cat.png',
+     'HOOD: one priced ERC-20 from the explorer (5000 × $0.002 = $10), zero balances and NFTs dropped');
+  ok(PF.hood.unpriced.length === 1 && PF.hood.unpriced[0].spam === true && PF.hood.nativePrice === 2500 && Math.abs(PF.hood.native - 0.01) < 1e-12,
+     'HOOD: the OFAC-phishing airdrop is flagged as spam and folded; ETH priced from the WETH rate');
+  ok(PF.sol && PF.sol.tokens[0].symbol === 'BONK', 'SOL: proxy result kept');
+  const total = pw.__term.pfTotal();
+  ok(Math.abs(total - (7.5 + 1000 + 10 + 25 + 200 + 0.5)) < 1e-6, 'portfolio value sums every priced asset across chains: $' + total.toFixed(2) + ' (LNCH unpriced, spam excluded)');
+  ok(pg.querySelector('.pftotal .v').textContent === '$1,243.00', 'the big number on the page agrees');
+  ok(pg.querySelectorAll('.hrow').length >= 7, 'rows for USDC, ALPHA, LNCH, ETH, CASHCAT, SOL, BONK (' + pg.querySelectorAll('.hrow').length + ')');
+  ok(/Arclite points/.test(pg.textContent) && pg.querySelector('.pts .big .n').textContent === '155' && /#7/.test(pg.textContent) && pg.querySelectorAll('.pts .p .n')[1].textContent === '152' && pg.querySelectorAll('.pts .p .n')[2].textContent === '3',
+     'points card: 155 total, rank #7, 152 from trading (floor of volume), 3 from sharing');
+  ok(pg.querySelector('.aring').style.background.includes('conic-gradient') && pg.querySelectorAll('.legend div').length >= 5 && /ALPHA/.test(pg.querySelector('.legend').textContent), 'allocation ring + legend from the same numbers');
+  ok(!!pg.querySelector('[data-pfbuy="arc:'+ARC_TOK+'"]') && !!pg.querySelector('[data-pfsell="arc:'+ARC_TOK+'"]'), 'ALPHA (Arc DEX) has Buy and Sell');
+  ok(!!pg.querySelector('[data-pfsell="arc:'+LNCH+'"]'), 'LNCH (curve) has Sell');
+  ok(!!pg.querySelector('[data-pfbuy="hood:'+HOOD_TOK+'"]') && !!pg.querySelector('[data-pfsell="hood:'+HOOD_TOK+'"]'), 'CASHCAT (HOOD) has Buy and Sell');
+  const jup = pg.querySelector('a[href^="https://jup.ag/swap/SOL-"]');
+  ok(!!jup && jup.getAttribute('target') === '_blank' && jup.getAttribute('rel') === 'noopener', 'BONK (SOL) trades out to Jupiter, labelled as such');
+  const spamRow = [...pg.querySelectorAll('.folded .hrow')][0];
+  ok(spamRow && spamRow.classList.contains('dim') && spamRow.querySelector('.flag') && spamRow.querySelector('.nm b').textContent.includes('rh-ofac.xyz') && !spamRow.querySelector('.nm a[href*="rh-ofac"]'),
+     'the spam token sits folded, dimmed, flagged — name shown as text, never as a link');
+  // search filters rows
+  const q = pd.getElementById('pfq'); q.value = 'cashcat'; q.dispatchEvent(new pw.Event('input', { bubbles: true })); await sleep(50);
+  ok([...pd.querySelectorAll('#rows .hrow')].filter(r => !r.closest('.folded')).length === 1 && pd.querySelector('#rows .hrow').textContent.includes('CASHCAT'), 'search narrows holdings by name');
+  pd.getElementById('pfq').value = ''; pd.getElementById('pfq').dispatchEvent(new pw.Event('input', { bubbles: true })); await sleep(50);
+  // tabs
+  pd.querySelector('[data-pftab="trades"]').dispatchEvent(new pw.MouseEvent('click', { bubbles: true })); await sleep(50);
+  ok(pd.querySelectorAll('#rows .trow:not(.head)').length === 2 && /BUY/.test(pd.getElementById('rows').textContent) && /curve/.test(pd.getElementById('rows').textContent), 'Trades tab: both venues, side + venue labelled');
+  pd.querySelector('[data-pftab="launches"]').dispatchEvent(new pw.MouseEvent('click', { bubbles: true })); await sleep(50);
+  ok(/Launched/.test(pd.getElementById('rows').textContent) && /\$12\.50/.test(pd.getElementById('rows').textContent), 'Launches tab: the coin this wallet created, with its volume');
+  pd.querySelector('[data-pftab="holdings"]').dispatchEvent(new pw.MouseEvent('click', { bubbles: true })); await sleep(50);
+
+  // Sell sheet: HOOD token, quoted through the stubbed quoter (1% tier fills)
+  pd.querySelector('[data-pfsell="hood:'+HOOD_TOK+'"]').dispatchEvent(new pw.MouseEvent('click', { bubbles: true }));
+  for (let i = 0; i < 60 && !/≈|no Uniswap|failed/.test(pd.getElementById('ssQuote').textContent); i++) await sleep(100);
+  ok(pd.getElementById('sellSheet').classList.contains('on') && pd.getElementById('ssTitle').textContent === 'Sell CASHCAT', 'Sell opens the sheet for the row');
+  ok(Number(pd.getElementById('ssAmt').value) === 5000, 'amount defaults to Max (the whole balance)');
+  const SELL = pw.__term.SELL;
+  ok(SELL.quote && SELL.quote.kind === 'dex' && SELL.quote.fee === 10000 && SELL.quote.out === QUOTE_OUT, 'quoted on the 1% tier via the quoter, amount = balance minus the 3% fee (' + pd.getElementById('ssQuote').textContent.slice(0, 60) + ')');
+  const lastQ = quoterCalls.filter(c => c.tokenIn === HOOD_TOK).pop();
+  ok(lastQ && lastQ.amountIn === 5000n * 10n**18n * 9700n / 10000n, 'the quoter is asked for 97% of the tokens (the fee comes off the input)');
+  ok(/3% Arclite fee = 150 CASHCAT/.test(pd.getElementById('ssQuote').textContent), 'the sheet prints the fee in tokens: 150 CASHCAT');
+  pd.querySelector('#ssPct [data-pct="50"]').dispatchEvent(new pw.MouseEvent('click', { bubbles: true }));
+  await sleep(50);
+  ok(pd.getElementById('ssAmt').value === '2500.0' && SELL.amt === '2500.0', '50% chip halves the amount exactly (formatUnits, no float)');
+  pd.getElementById('ssCancel').dispatchEvent(new pw.MouseEvent('click', { bubbles: true }));
+  ok(!pd.getElementById('sellSheet').classList.contains('on'), 'Cancel closes the sheet');
+
+  // the sell multicall, decoded
+  const IF = pw.__term.ROUTER_IFACE, T = pw.__term.TREASURY, who = ME, router = pw.__term.CHAINS.hood.router;
+  const amt = 1000n * 10n**18n, fee = amt * 300n / 10000n;
+  const ethCalls = pw.__term.buildSellCalls(HOOD_TOK, { token: WETH, sym: 'ETH', dec: 18, native: true }, 10000, router, who, amt, 123n);
+  ok(ethCalls.length === 4, 'sell for ETH: four calls');
+  let d0 = IF.parseTransaction({ data: ethCalls[0] }), d1 = IF.parseTransaction({ data: ethCalls[1] }), d2 = IF.parseTransaction({ data: ethCalls[2] }), d3 = IF.parseTransaction({ data: ethCalls[3] });
+  ok(d0.name === 'pull' && d0.args[0].toLowerCase() === HOOD_TOK && d0.args[1] === fee, '1. pull(token, 3% fee) from the seller');
+  ok(d1.name === 'sweepToken' && d1.args[0].toLowerCase() === HOOD_TOK && d1.args[1] === fee && d1.args[2] === T, '2. sweepToken(token → treasury): the fee leaves before the swap');
+  ok(d2.name === 'exactInputSingle' && d2.args[0].tokenIn.toLowerCase() === HOOD_TOK && d2.args[0].tokenOut.toLowerCase() === WETH.toLowerCase() && d2.args[0].amountIn === amt - fee && d2.args[0].recipient.toLowerCase() === router.toLowerCase() && d2.args[0].amountOutMinimum === 123n,
+     '3. swap 97% token → WETH, output held by the router');
+  ok(d3.name === 'unwrapWETH9' && d3.args[0] === 123n && d3.args[1].toLowerCase() === who, '4. unwrapWETH9(minOut, seller): the ETH lands with the seller');
+  const usdgCalls = pw.__term.buildSellCalls(HOOD_TOK, { token: '0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168', sym: 'USDG', dec: 6, native: false }, 3000, router, who, amt, 7n);
+  const u2 = IF.parseTransaction({ data: usdgCalls[2] });
+  ok(usdgCalls.length === 3 && u2.args[0].recipient.toLowerCase() === who && u2.args[0].fee === 3000n, 'sell for USDG: three calls, output straight to the seller');
+  ok(/'function quoteSell\(address,uint256\) view returns \(uint256\)'/.test(html) && /'function sell\(address,uint256,uint256\) returns \(uint256\)'/.test(html), 'pump ABI carries sell + quoteSell (verified against ArclitePumpV4.sol)');
+  ok(/await pumpW\.connect\(s\)\.sell\(r\.addr, amountIn, minOut\)/.test(html) && /tok\.approve\(PUMP, amountIn\)/.test(html), 'curve sell: exact-amount approve to the pump, then pump.sell(token, amount, minOut)');
+  ok(/const s = await walletOn\(q\.cfg\.chainId, q\.cfg\.wallet\);/.test(html), 'DEX sell gets its signer from walletOn(chain) like the buy does');
+  // the ledger down → chain fallback, still bounded
+  const fm = boot('https://arclite.fun/app/terminal.html?net=mainnet', { balances: opts.balances });
+  await sleep(300); fm.w.__term.setWallet({}, ME); await fm.w.__term.refreshBalance(); fm.w.location.hash = '#portfolio';
+  for (let i = 0; i < 60 && !fm.w.__term.PF.arc; i++) await sleep(250);
+  ok(fm.w.__term.PF.arc && fm.w.__term.PF.arc.source === 'chain' && /Ledger API unreachable/.test(fm.d.getElementById('rows').textContent), 'ledger API down: balanceOf fallback over the coins on screen, said plainly on the page');
+  ok(fm.w.__term.PF.sol === null, 'no Solana address → no Solana read');
   }
 
   // ---- topbar width budget ----------------------------------------------
@@ -896,10 +1013,10 @@ function boot(url, boptions) {
      'Portfolio is no longer gated behind "lives on Arc"');
   ok(/rpc:'https:\/\/rpc\.mainnet\.chain\.robinhood\.com'/.test(html),
      'Robinhood Chain has an RPC so balances are readable there');
-  ok(/const chProv = chainProvider\(\)/.test(html) && /function chainProvider\(\)\{\s*if\(onArc\(\)\) return provider;/.test(html) && /balanceOf\(address\) view returns \(uint256\)'\],chProv\)/.test(html),
-     'balanceOf runs against the current chain, not always Arc');
-  ok(/money\(onArc\(\) \? cash\+tokenValue : tokenValue\)/.test(html),
-     'off Arc the ETH balance is not added into a dollar total');
+  ok(/function providerFor\(key\)\{\s*if\(key==='arc'\) return provider;/.test(html) && /const prov = providerFor\('hood'\);/.test(html) && /loadArcHoldings\(\)\.catch[\s\S]{0,120}loadHoodHoldings\(\)\.catch[\s\S]{0,80}loadSolHoldings\(\)/.test(html),
+     'Portfolio reads every chain at once — Arc, Robinhood Chain and Solana — whatever chain the scanner is on');
+  ok(/value: PF\.hood\.nativePrice!=null \? PF\.hood\.native\*PF\.hood\.nativePrice : null/.test(html) && /reduce\(\(s,x\)=>s\+\(x\.value\|\|0\),0\)/.test(html),
+     'ETH only enters the dollar total when the explorer gave it a price; unpriced assets add nothing');
 
   // ---- XSS: token names and profile URLs are attacker-controlled ----------
   // Anyone can deploy a token and choose its name, and anyone can submit a

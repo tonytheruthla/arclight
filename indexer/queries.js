@@ -208,4 +208,83 @@ async function pointsForWallet(db, wallet) {
   return me;
 }
 
-module.exports = { listTokens, getToken, getStats, recentSwaps, pointsLeaderboard, pointsForWallet };
+/** Everything the Portfolio view needs for one Arc wallet, from the tables the
+ *  worker already keeps: DEX-token balances from the Transfer ledger (exact),
+ *  launchpad positions from the trade log (buys minus sells — a transfer of a
+ *  curve token between wallets isn't seen here, so the app confirms these few
+ *  with balanceOf before showing a Sell button), the wallet's trades on both,
+ *  and the coins it launched. One query per section, all indexed columns. */
+/** Postgres returns NUMERIC as an exact decimal string; pg-mem (tests) may
+ *  hand back a float like 1e+21. Both become the exact integer string. */
+const exactStr = v => { const s = String(v); return /e/i.test(s) ? BigInt(Math.round(Number(s))).toString() : s; };
+
+async function walletHoldings(db, wallet) {
+  const wl = wallet.toLowerCase();
+  const dex = await db.query(`
+    WITH ${LATEST_PRICE_CTE}
+    SELECT t.address, t.name, t.symbol, t.decimals, t.dex, t.pool_ref, t.meta_ok, t.total_supply,
+           p.logo_url,
+           b.balance,
+           CASE WHEN t.meta_ok THEN COALESCE(lp.price, 0) ELSE NULL END AS price
+    FROM balances b
+    JOIN tokens t ON t.address = b.token_address
+    LEFT JOIN latest_price lp ON lp.token_address = t.address
+    LEFT JOIN token_profiles p ON p.address = t.address
+    WHERE b.holder = $1 AND b.balance > 0
+    ORDER BY b.balance DESC
+  `, [wl]);
+  const launch = await db.query(`
+    SELECT * FROM (
+      SELECT lt.address, lt.name, lt.symbol, lt.creator, lt.created_at,
+             SUM(CASE WHEN tr.side = 'buy' THEN tr.token_amount ELSE 0 END)
+               - SUM(CASE WHEN tr.side = 'sell' THEN tr.token_amount ELSE 0 END) AS position,
+             COUNT(tr.id) AS trades
+      FROM launch_trades tr JOIN launch_tokens lt ON lt.address = tr.token_address
+      WHERE tr.trader = $1
+      GROUP BY lt.address, lt.name, lt.symbol, lt.creator, lt.created_at
+    ) p WHERE p.position > 0
+  `, [wl]);
+  return {
+    dex: dex.rows.map(r => ({
+      address: r.address, name: r.name, symbol: r.symbol, decimals: Number(r.decimals), dex: r.dex, pool_ref: r.pool_ref,
+      meta_ok: !!r.meta_ok, logo_url: r.logo_url || null, balance: exactStr(r.balance),
+      price: r.price == null ? null : Number(r.price), total_supply: r.total_supply == null ? null : Number(r.total_supply),
+    })),
+    launch: launch.rows.map(r => ({
+      address: r.address, name: r.name, symbol: r.symbol, creator: r.creator, created_at: r.created_at,
+      position: Number(r.position), trades: Number(r.trades),
+    })),
+  };
+}
+
+async function walletTrades(db, wallet, limit = 100) {
+  const wl = wallet.toLowerCase();
+  const r = await db.query(`
+    SELECT * FROM (
+      SELECT 'dex' AS venue, s.token_address, t.symbol, t.name, s.block_time, s.tx_hash, s.side, s.usdc_amount, s.token_amount, s.price
+      FROM swaps s JOIN tokens t ON t.address = s.token_address WHERE s.trader = $1
+      UNION ALL
+      SELECT 'launchpad' AS venue, l.token_address, lt.symbol, lt.name, l.block_time, l.tx_hash, l.side, l.usdc_amount, l.token_amount,
+             CASE WHEN l.token_amount > 0 THEN l.usdc_amount / l.token_amount ELSE NULL END AS price
+      FROM launch_trades l JOIN launch_tokens lt ON lt.address = l.token_address WHERE l.trader = $1
+    ) x ORDER BY block_time DESC LIMIT $2
+  `, [wl, Math.min(Number(limit) || 100, 500)]);
+  return r.rows.map(x => ({ venue: x.venue, token_address: x.token_address, symbol: x.symbol, name: x.name, block_time: x.block_time,
+    tx_hash: x.tx_hash, side: x.side, usdc_amount: Number(x.usdc_amount), token_amount: Number(x.token_amount),
+    price: x.price == null ? null : Number(x.price) }));
+}
+
+async function walletLaunches(db, wallet) {
+  const r = await db.query(`
+    SELECT lt.address, lt.name, lt.symbol, lt.created_at, lt.created_block,
+           COALESCE(SUM(tr.usdc_amount), 0) AS volume, COUNT(tr.id) AS trades
+    FROM launch_tokens lt LEFT JOIN launch_trades tr ON tr.token_address = lt.address
+    WHERE lt.creator = $1
+    GROUP BY lt.address, lt.name, lt.symbol, lt.created_at, lt.created_block
+    ORDER BY lt.created_block DESC
+  `, [wallet.toLowerCase()]);
+  return r.rows.map(x => ({ address: x.address, name: x.name, symbol: x.symbol, created_at: x.created_at,
+    volume: Number(x.volume), trades: Number(x.trades) }));
+}
+
+module.exports = { listTokens, getToken, getStats, recentSwaps, pointsLeaderboard, pointsForWallet, walletHoldings, walletTrades, walletLaunches };

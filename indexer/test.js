@@ -612,6 +612,79 @@ function fakeLog(iface, eventName, args, overrides = {}) {
   mr = await postMeta({ wallet: creatorW.address, token: LT2, day: today, signature: msig, image: 'data:text/html;base64,PGI+' });
   ok(mr.status === 400, 'non-image data URL rejected');
   }
+  { // ---- portfolio endpoints (scoped)
+  console.log('\n=== api: GET /wallet/:addr and GET /sol/:owner — the Portfolio view\'s two reads ===');
+  const st_ = require('./store');
+  const PW = A(0xc0de), PT = A(0xc0d1), PL = A(0xc0d2);
+  const pnow = new Date();
+  await st_.upsertToken(dbp, { address: PT, name: 'Port', symbol: 'PORT', decimals: 18, dex: 'v3', poolRef: A(0xe111), fee: 3000, usdcIsToken0: true, block: 7, metaOk: true });
+  await st_.insertSwap(dbp, PT, { block: 8, blockTime: pnow, txHash: '0x' + 'c1'.repeat(32), logIndex: 0, trader: PW, side: 'buy', usdcAmount: '25', tokenAmount: '1000', price: '0.025' });
+  await st_.applyTransfer(dbp, PT, { from: st_.ZERO, to: PW, amount: '1000000000000000000000' });   // 1000 PORT, 18dp
+  await st_.upsertLaunchToken(dbp, { address: PL, creator: PW, name: 'Launched', symbol: 'LNCH', block: 9, blockTime: pnow });
+  await st_.insertLaunchTrade(dbp, { token: PL, block: 10, blockTime: pnow, txHash: '0x' + 'c2'.repeat(32), logIndex: 7, trader: PW, side: 'buy', usdcAmount: '40', tokenAmount: '5000' });
+  await st_.insertLaunchTrade(dbp, { token: PL, block: 11, blockTime: pnow, txHash: '0x' + 'c3'.repeat(32), logIndex: 7, trader: PW, side: 'sell', usdcAmount: '10', tokenAmount: '1000' });
+  const pf = await (await fetch(base + '/api/v1/wallet/' + PW)).json();
+  ok(pf.wallet === PW.toLowerCase() && pf.holdings.dex.length === 1 && pf.holdings.dex[0].symbol === 'PORT'
+     && pf.holdings.dex[0].balance === '1000000000000000000000' && pf.holdings.dex[0].price === 0.025,
+     '/wallet: DEX holding comes from the Transfer ledger with the latest price (' + JSON.stringify(pf.holdings.dex[0] || null).slice(0, 80) + ')');
+  ok(pf.holdings.launch.length === 1 && pf.holdings.launch[0].position === 4000 && pf.holdings.launch[0].symbol === 'LNCH',
+     '/wallet: launchpad position = buys − sells (4000)');
+  ok(pf.trades.length === 3 && pf.trades.every(t => ['dex','launchpad'].includes(t.venue)) && pf.trades[0].block_time,
+     '/wallet: trades merge both venues, newest first (' + pf.trades.length + ')');
+  ok(pf.launches.length === 1 && pf.launches[0].address === PL.toLowerCase() && pf.launches[0].volume === 50 && pf.launches[0].trades === 2,
+     '/wallet: launches lists the coin this wallet created with its volume');
+  const pnone = await (await fetch(base + '/api/v1/wallet/' + A(0xdead1))).json();
+  ok(pnone.holdings.dex.length === 0 && pnone.holdings.launch.length === 0 && pnone.trades.length === 0, '/wallet: empty wallet → empty sections, not an error');
+  ok((await fetch(base + '/api/v1/wallet/nope')).status === 400, '/wallet: malformed address → 400');
+
+  // Solana: the API proxies two RPC calls and one GeckoTerminal call. Stub all three.
+  const { solHoldings } = require('./sol');
+  const OWNER = '5Q544fKrFoe6tsEbD7S8EmxGTJYAKtTVhAW5Q5pge4j1';
+  const MINT = 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263';
+  const calls = [];
+  const fakeFetch = async (u, o) => {
+    calls.push(String(u));
+    const json = d => new Response(JSON.stringify(d), { status: 200, headers: { 'content-type': 'application/json' } });
+    if (o && o.method === 'POST') {
+      const b = JSON.parse(o.body);
+      if (b.method === 'getBalance') return json({ jsonrpc: '2.0', id: 1, result: { context: { slot: 1 }, value: 2500000000 } });
+      if (b.method === 'getTokenAccountsByOwner') {
+        if (b.params[1].programId === 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA')
+          return json({ jsonrpc: '2.0', id: 1, result: { context: { slot: 1 }, value: [
+            { pubkey: 'acc1', account: { data: { parsed: { info: { mint: MINT, tokenAmount: { amount: '1500000', decimals: 5, uiAmount: 15 } } } } } },
+            { pubkey: 'acc2', account: { data: { parsed: { info: { mint: MINT, tokenAmount: { amount: '500000', decimals: 5, uiAmount: 5 } } } } } },
+            { pubkey: 'acc3', account: { data: { parsed: { info: { mint: 'Empty11111111111111111111111111111111111111', tokenAmount: { amount: '0', decimals: 6, uiAmount: 0 } } } } } },
+          ] } });
+        return json({ jsonrpc: '2.0', id: 1, result: { context: { slot: 1 }, value: [] } });
+      }
+    }
+    if (String(u).includes('geckoterminal.com')) return json({ data: [
+      { attributes: { address: 'So11111111111111111111111111111111111111112', name: 'Wrapped SOL', symbol: 'SOL', decimals: 9, price_usd: '100', image_url: 'https://x/sol.png' } },
+      { attributes: { address: MINT, name: 'Bonk', symbol: 'BONK', decimals: 5, price_usd: '0.00002', image_url: 'missing.png' } } ] });
+    return new Response('nope', { status: 404 });
+  };
+  const sh = await solHoldings(OWNER, { fetchImpl: fakeFetch, rpcUrl: 'https://rpc.example' });
+  ok(sh.sol.amount === 2.5 && sh.sol.price === 100 && sh.sol.value === 250, 'sol: lamports → SOL, priced from the wrapped-SOL mint');
+  ok(sh.tokens.length === 1 && sh.tokens[0].symbol === 'BONK' && sh.tokens[0].amount === 20 && sh.tokens[0].raw === '2000000' && sh.tokens[0].logo === null,
+     'sol: two token accounts of one mint merge into one row; zero balances dropped; missing.png → no logo');
+  ok(Math.abs(sh.total - 250.0004) < 1e-9, 'sol: total = SOL value + priced tokens');
+  const before = calls.length;
+  await solHoldings(OWNER, { fetchImpl: fakeFetch, rpcUrl: 'https://rpc.example' });
+  ok(calls.length === before, 'sol: second read within 45s is served from cache (no RPC calls)');
+  let badOwner = null; try { await solHoldings('not-a-key', { fetchImpl: fakeFetch }); } catch (e) { badOwner = e.status; }
+  ok(badOwner === 400, 'sol: malformed owner → 400');
+  const app2 = makeApp(dbp, { fetchImpl: fakeFetch, solRpc: 'https://rpc.example' });
+  const srv2 = await new Promise(r => { const h = app2.listen(0, () => r(h)); });
+  const base2 = 'http://127.0.0.1:' + srv2.address().port;
+  const viaApi = await (await fetch(base2 + '/api/v1/sol/' + OWNER)).json();
+  ok(viaApi.owner === OWNER && viaApi.tokens[0].symbol === 'BONK', 'GET /sol/:owner serves the same shape over HTTP');
+  ok((await fetch(base2 + '/api/v1/sol/nope')).status === 400, 'GET /sol/:owner rejects a malformed key (400)');
+  const failing = makeApp(dbp, { fetchImpl: async () => new Response('x', { status: 403 }), solRpc: 'https://rpc.example' });
+  const srv3 = await new Promise(r => { const h = failing.listen(0, () => r(h)); });
+  const r3 = await fetch('http://127.0.0.1:' + srv3.address().port + '/api/v1/sol/' + OWNER.replace('5Q', '5R'));
+  ok(r3.status === 502 && (await r3.json()).error === 'solana read failed', 'an RPC that refuses → 502 with a reason, never a crash');
+  srv2.close(); srv3.close();
+  }
   srv.close();
 
   console.log('\n' + '='.repeat(52));

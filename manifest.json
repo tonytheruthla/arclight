@@ -1,13 +1,21 @@
 {
   "name": "Arclite",
   "short_name": "Arclite",
-  "description": "The memecoin launchpad + prediction market on Arc. Coins priced in real dollars.",
+  "description": "Launch, trade and track memecoins across Arc, Solana and Robinhood Chain — from one screen.",
   "start_url": "/app/terminal.html",
   "display": "standalone",
   "background_color": "#05070f",
-  "theme_color": "#0a84ff",
+  "theme_color": "#07080c",
   "icons": [
-    { "src": "/brand/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/brand/icon-512.png", "sizes": "512x512", "type": "image/png" }
+    {
+      "src": "/brand/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/brand/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
   ]
 }

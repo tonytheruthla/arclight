@@ -1,0 +1,65 @@
+ARCLITE v14 — what to upload, and how to tell it worked
+=======================================================
+
+WHY NOTHING CHANGED
+Your last two commits (12 Sept, 14:28 and 14:29 UTC) are EMPTY — GitHub recorded
+0 files changed, 0 additions, 0 deletions on both. That happens when the files
+you drag are byte-identical to the ones already in the repo, i.e. an old copy
+got dragged. The repo still has:
+
+    app/terminal.html      294,421 bytes   ← v13, the one without Portfolio
+    app/index.html         113,721 bytes   ← the old testnet landing page
+    brand/                 no og-card-v2 files
+    indexer/               no sol.js
+
+So the site is serving exactly what it served yesterday. Nothing is broken —
+the new files simply never reached GitHub.
+
+WHAT TO DO
+1. Open this folder (Downloads/PUSH-ME-v14). Do NOT use any other copy —
+   ignore Desktop/arclite-upload and Downloads/arclite-v14.
+2. github.com/tonytheruthla/arclight  →  Add file  →  Upload files
+   (make sure the breadcrumb says just "arclight", not a subfolder)
+3. Select ALL SEVEN items here — app, brand, indexer, home.html, index.html,
+   manifest.json, test-home.js — and drag them in together. Folders keep their
+   paths, so app/ lands in app/ and so on.
+4. Commit.
+
+HOW TO TELL IT WORKED
+Open github.com/tonytheruthla/arclight/tree/main/app and read the size of
+terminal.html:
+
+    294,421  →  still the old one, the upload didn't take
+    324,210  →  v14 is in
+
+Then hard-reload arclite.fun/app/terminal.html (Cmd+Shift+R) and click the
+wallet button in the top bar. It should open the Portfolio page, not a dropdown.
+
+EVERY FILE AND ITS NEW SIZE
+    app/terminal.html          324,210   (was 294,421)
+    app/test-terminal.js       118,365   (was 103,116)
+    app/index.html               3,642   (was 113,721 — now a redirect)
+    app/points.html              2,918   (was   1,307)
+    app/rpc.html                14,517   (was  13,593)
+    home.html                   76,811   (was  74,230)
+    index.html                   2,943   (was   1,617)
+    manifest.json                  509   (was     452)
+    test-home.js                 8,678   (unchanged)
+    indexer/api.js              16,293   (was  14,518)
+    indexer/queries.js          13,957   (was   9,615)
+    indexer/test.js             54,347   (was  47,741)
+    indexer/sol.js               5,833   (new file)
+    indexer/.env.example         1,547
+    indexer/meta.js              7,094   (unchanged)
+    indexer/schema.sql           8,299   (unchanged)
+    indexer/store.js            10,107   (unchanged)
+    brand/og-card-v2-1200x630.jpg  107,448   (new file)
+    brand/og-card-v2-1200x630.png  726,902   (new file)
+
+TWO TIDY-UPS WHILE YOU'RE THERE
+· The repo root has a stray terminal.html (294,421) and test-terminal.js
+  (103,116) — duplicates of app/, from an upload that landed one level too
+  high. They're live at arclite.fun/terminal.html. Delete both.
+· After the indexer redeploys, set SOL_RPC on the Railway API service (a
+  Helius free-tier URL is fine). Until then the Solana section of Portfolio
+  says so instead of showing balances.
