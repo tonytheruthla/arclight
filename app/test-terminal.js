@@ -140,9 +140,9 @@ function boot(url, boptions) {
   ok(d.getElementById('hs1').textContent === '7,552' && d.getElementById('hs2').textContent === '$1.31M', 'hero stats filled from /stats (tokens, 24h volume)');
   ok(d.getElementById('hs3').textContent === '11.3K' && d.getElementById('hs4').textContent === '1.6K', 'hero txns/traders formatted like RadarDEX (K)');
   console.log('\n--- design: fonts, lanes, cards, toggles ---');
-  ok(/family=Unbounded/.test(html) && /family=Geist:/.test(html) && /family=Geist\+Mono/.test(html), 'loads Unbounded + Geist + Geist Mono (OFL, on fontesk + Google Fonts)');
+  ok(!/family=Unbounded/.test(html) && /family=Geist:/.test(html) && /family=Geist\+Mono/.test(html), 'loads Geist + Geist Mono only — no display face (v15 black terminal)');
   ok(!/Space\+Grotesk|JetBrains|family=Inter/.test(html), 'old font families are gone');
-  ok(/--fd:'Unbounded'/.test(html) && /--fm:'Geist Mono'/.test(html), 'type tokens --fd/--fs/--fm defined');
+  ok(/--fd:var\(--fs\)/.test(html) && /--fm:'Geist Mono'/.test(html), 'type tokens: --fd aliases the UI face, --fm is Geist Mono');
   ok(/--pos:var\(--green\)/.test(html) && /--neg:var\(--red\)/.test(html) && /--warn:var\(--amber\)/.test(html), 'semantic colour tokens (pos/neg/warn/info/hot)');
   ok(!d.getElementById('lanes').hidden && d.getElementById('tbl').style.display === 'none', 'default layout is Lanes: card grid shown, table hidden');
   const lanes = [...d.querySelectorAll('#lanes .lane')];
@@ -1011,10 +1011,40 @@ function boot(url, boptions) {
   ok(/\.topbar\{[\s\S]{0,160}overflow-x:auto/.test(html),
      'topbar still scrolls on phones rather than widening the page');
 
+
+  // ---- v15 black terminal: the effects that read as "vibe-coded" stay out ----
+  console.log('\n=== v15 design guard ===');
+  const css15 = html.slice(html.indexOf('<style>'), html.indexOf('</style>'));
+  ok(!/background-clip:text/.test(css15), 'no gradient text anywhere');
+  ok(!/text-shadow:/.test(css15), 'no text-shadow');
+  ok(!/radial-gradient\(/.test(css15.replace(/\.aring\{[^}]*\}/,'')), 'no radial "orb" backgrounds');
+  ok(!/conic-gradient\(from 140deg/.test(css15), 'the wallet avatar is a flat disc, not a conic blob');
+  ok(!/filter:drop-shadow/.test(css15), 'no drop-shadow glows');
+  ok(!/backdrop-filter/.test(css15), 'no frosted glass');
+  ok((css15.match(/0 0 \d+px rgba\((?!0,\s*0,\s*0)/g)||[]).length===0, 'no coloured glow box-shadows');
+  ok(!/feTurbulence/.test(css15), 'no noise texture overlay');
+  ok(!/border-radius:(?:999|100|20|1[3-9])px/.test(css15), 'radii are 4 / 6 / 8px — no pills, nothing above 8px');
+  ok(!/font(?:-weight)?:\s*[78]00\b/.test(css15), 'no weight above 600');
+  ok(!/--violet:#|--cyan:#/.test(css15) && /--accent:#5aa2ff/.test(css15), 'one accent; cyan and violet are aliases of it');
+  ok((css15.match(/text-transform:uppercase/g)||[]).length<=1, 'tracked caps limited to table heads and section labels');
+  ok(!/[\u{1F300}-\u{1FAFF}]/u.test(html.replace(/<!--[\s\S]*?-->/g,'')), 'no emoji in the UI');
+  // Circled on a screenshot of the live launchpad, 14 Sept. Each of these was
+  // measured in a browser before it was fixed, so each gets pinned here.
+  ok(/\.livedot\{display:none\}/.test(css15), 'no green blinking dot — .livedot is off everywhere, including the strings the draw builds');
+  ok(/\.pill\.live::before\{content:none\}/.test(css15) && !/\.pill\.live\{[^}]*var\(--green\)/.test(css15), 'the ARC network pill is a neutral chip, not a pulsing green orb');
+  ok(!/\.phasepill\.(?:last|drawing)\{[^}]*animation:blip/.test(css15) && /\.dstage \.dhead \.st i\{display:none\}/.test(css15), 'the draw phase pill and the reveal-stage dot no longer blink');
+  ok(/@keyframes skelpulse/.test(css15) && /\.skel,\.skelcard\{animation:skelpulse/.test(css15), 'skeletons still pulse — a dead grey box reads as broken');
+  ok(/\.btn\{white-space:nowrap\}/.test(css15) && /\.toolbar \.btn\{flex:0 0 auto\}/.test(css15), '"Launch a token" cannot wrap or be squeezed by the toolbar');
+  ok(/id="tickTrack" style="animation:none"/.test(html), 'the ticker placeholder does not slide under the marquee mask');
+  ok(!/waiting for data|waiting for chain events/.test(html), 'load-time placeholders read as a state, not a hang');
+  // #ededf0 on #5aa2ff is 2.23:1. Dark-on-accent is 7.58:1, and it is what
+  // home.html uses — the primary button must read the same on both surfaces.
+  ok(!/\.btn\.primary\{[^}]*color:var\(--ink\)/.test(css15) && (css15.match(/\.btn\.primary\{[^}]*color:#0a0a0b/g)||[]).length>=2,
+     'the primary button is dark text on the accent (7.58:1), not white on it (2.23:1)');
   // ---- the buy card should read as raised, not as another flat panel ------
   console.log('\n=== buy card popout ===');
-  ok(/\.swapcard\{[^}]*box-shadow/.test(html) && /\.swapcard::after\{[^}]*radial-gradient/.test(html),
-     'buy card has its own shadow and a vignette layer');
+  ok(/\.swapcard\{[^}]*background:var\(--panel3\)/.test(html) && /\.swapcard\{[^}]*border:1px solid var\(--accent\)/.test(html) && !/\.swapcard\{[^}]*box-shadow/.test(html),
+     'buy card is raised by a tonal step + accent hairline, not by shadow or glow');
   ok(/swapCardHtml[\s\S]{0,400}class="card swapcard"/.test(html),
      'the buy card actually carries the .swapcard class');
 
@@ -1131,7 +1161,7 @@ function boot(url, boptions) {
   ok(cardA && cardA.querySelector('.side').firstElementChild.classList.contains('mcap'), 'MCAP is the FIRST stat on the card, above V / P / TX');
   ok(cardB && cardB.querySelector('.side .mcap.none') && cardB.querySelector('.side .mcap.none b').textContent === '—',
      'Beta\'s card shows MCAP — (dim, no pill) rather than a number it cannot stand behind');
-  ok(/\.tcard \.side \.mcap\{[^}]*rgba\(255,214,10/.test(html), 'the MCAP pill is amber — the highlight the user asked for');
+  ok(/\.tcard \.side \.mcap b\{font:600 15px var\(--fm\);color:var\(--ink\)/.test(html) && !/\.tcard \.side \.mcap\{[^}]*rgba\(255,214,10/.test(html), 'MCAP leads the side column by size and weight (15px/600), not by an amber pill');
   ok(/\.tcard\{[^}]*padding:13px 14px[^}]*margin-bottom:10px/.test(html), 'cards got more room: 13×14 padding, 10px between');
   }
 
@@ -1140,10 +1170,8 @@ function boot(url, boptions) {
   // Picking a ticker re-renders the swap card; that restart is what makes it
   // bloom. jsdom does not run CSS animations, so this pins the rules that
   // produce it and proves the card is rebuilt (not patched) on selection.
-  ok(/@keyframes swlum\{/.test(html) && /\.swapcard\{[^}]*animation:[^}]*swlum/.test(html), 'the swap card animates swlum on every (re)render');
-  ok(/@keyframes swbeam\{/.test(html) && /\.swapcard::before\{[^}]*animation:[^}]*swbeam/.test(html), 'a beam of light sweeps the top edge on the same trigger');
-  ok(/18%\s*\{[^}]*0 0 70px rgba\(34,211,238,\.55\)/.test(html), 'the bloom peaks at a 70px cyan ring');
-  ok(/prefers-reduced-motion:reduce\)\{[^}]*\.swapcard\{animation:none\}[^}]*\.swapcard::before\{animation:none/.test(html), 'reduced-motion users get neither the bloom nor the beam');
+  ok(/\.swapcard\{[^}]*animation:swpop \.2s ease-out/.test(html) && !/swlum/.test(html) && !/swbeam/.test(html), 'the swap card pops in (200ms) and nothing blooms, beams or glows');
+  ok(/\.swapcard::before\{display:none\}/.test(html) && /\.swapcard::after\{display:none\}/.test(html), 'the beam and vignette pseudo-elements are switched off');
   const sw = boot('https://arclite.fun/app/terminal.html?net=mainnet');
   await sleep(700);
   const sd = sw.d;
@@ -1255,7 +1283,7 @@ function boot(url, boptions) {
   for (const line of ['Everything. On Chain.', 'Born on Arclite. Live from the first trade.',
                       'Every hour, on the hour. Winner takes the pot.', 'Points for trading. Points for posting.'])
     ok(html.includes(line), `per-view tagline present: "${line}"`);
-  ok(/\.hero\{[^}]*padding:15px 34px 14px/.test(html) && /\.hero \.ttl b\{font:700 21px/.test(html), 'header is ~half the height: 21px wordmark, 15px padding');
+  ok(/\.hero\{[^}]*padding:15px 34px 14px/.test(html) && /\.hero \.ttl b\{font:600 20px\/1 var\(--fs\)/.test(html), 'header is ~half the height: 20px/600 wordmark in the UI face, 15px padding');
   ok(/\.hstat\{[^}]*border-left:1px solid var\(--hair2\)/.test(html) && !/\.hstat\{[^}]*border-radius/.test(html), 'stats are an inline readout with hairline dividers, not boxed cards');
   ok(/\.hstat b\{[^}]*var\(--fm\)/.test(html) && /\.hstat span\{[^}]*order:2/.test(html), 'mono value first, dim label after');
   ok(/\.ticker \.trackwrap\{[^}]*mask-image:linear-gradient\(90deg,transparent,#000 36px/.test(html), 'the marquee fades at both edges so a half-scrolled entry reads as motion, not a clip');
