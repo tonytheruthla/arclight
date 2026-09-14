@@ -40,8 +40,7 @@ const TESTNET_LEFTOVERS = [
   // ---- 1. network identity ------------------------------------------------
   console.log('\n=== network ===');
   ok('chain id is 5042 (Arc mainnet)', /const CHAIN_ID = 5042;/.test(html));
-  ok('chain hex matches the decimal id', /const CHAIN_HEX = '0x13b2';/.test(html));
-  ok('  ...and 0x13b2 really is 5042', parseInt('0x13b2', 16) === 5042);
+  ok('no wallet chain-switch code at all (v3 never asks for a signer)', !/wallet_switchEthereumChain|CHAIN_HEX|eth_requestAccounts/.test(html));
   ok('RPC goes through our proxy', /const RPC = 'https:\/\/rpc\.arclite\.fun';/.test(html));
   ok('explorer is the mainnet one', /const EXPLORER = 'https:\/\/arcscan\.app';/.test(html));
   ok('ethers Network is not named "arc-testnet"', !/arc-testnet/.test(html));
@@ -81,9 +80,10 @@ const TESTNET_LEFTOVERS = [
   ok('  ...every entry in it is a view function',
      (html.match(/'function [^']+'/g) || []).every(e => /\bview\b/.test(e)),
      (html.match(/'function [^']+'/g) || []).filter(e => !/\bview\b/.test(e)).join(' | '));
-  ok('every CTA leaves for the terminal', /location\.href = '\/app\/terminal\.html#'/.test(html));
+  ok('every CTA is a plain link into the terminal (no onclick handlers, no hidden panels)',
+     (html.match(/class="btn[^"]*" href="\/app\/terminal\.html#[a-z]+"/g) || []).length >= 3 && !/onclick=/.test(html));
   ok('the nav button is a link to the app, not a connect handler',
-     /<a class="btn btn-primary" id="connectBtn" href="\/app\/terminal\.html#tokens">/.test(html));
+     /<a class="btn primary" href="\/app\/terminal\.html#tokens">Open app/.test(html) && !/connectBtn|connectWallet/.test(html));
   ok('nothing untrusted is rendered, so no escaper is needed',
      !/\$\{d\.name\}|\$\{d\.symbol\}|innerHTML *= *`/.test(html));
 
@@ -94,20 +94,37 @@ const TESTNET_LEFTOVERS = [
   console.log('\n=== headline figures ===');
   ok('no hardcoded $8K anywhere', !/\$8K/.test(html));
   ok('no hardcoded "$1</b><span>to deploy" either', !/<b>\$1<\/b><span>to deploy/.test(html));
-  ok('graduation figure has an id to fill from chain', /id="statGrad"/.test(html));
-  ok('deploy fee has one too', /id="statFee"/.test(html));
+  ok('graduation figure has an id to fill from chain', /id="sGrad"/.test(html) && /id="fGrad"/.test(html));
+  ok('deploy fee has one too', /id="sFee"/.test(html));
   ok('both are read from the pump contract',
-     /pumpR\.graduationUsdc\(\)/.test(html) && /pumpR\.deploymentFee\(\)/.test(html));
-  ok('a zero fee is shown as "free", not "$0"', /f === 0 \? 'free'/.test(html));
-  ok('the fee read is in its own try, so it cannot blank the counters',
-     /Separate try: a failure reading the fees/.test(html));
+     /pump\.graduationUsdc\(\)/.test(html) && /pump\.deploymentFee\(\)/.test(html));
+  ok('a zero fee is shown as "free", not "$0"', /fee === 0 \? 'free'/.test(html));
+  ok('the fee read is in its own try, so it cannot blank the indexer counters',
+     /catch\(e\)\{ console\.warn\('stats:'[\s\S]*?try\{[\s\S]*?graduationUsdc[\s\S]*?catch\(e\)\{ console\.warn\('fees:'/.test(html));
+  ok('tokens indexed + 24h volume come from the indexer, not typed in', /\/api\/v1\/stats/.test(html) && /id="sTokens"/.test(html) && /id="sVol"/.test(html));
+
+  // ---- 3c. v3 design guard: the effects that read as vibe-coded stay out --
+  console.log('\n=== v3 design guard ===');
+  const css3 = html.slice(html.indexOf('<style>'), html.indexOf('</style>'));
+  ok('no gradient text', !/background-clip/.test(css3));
+  ok('no italic serif accent', !/Instrument Serif|accent-serif|font-style: ?italic/.test(html));
+  ok('no orbs, spotlight, motes or intro overlay', !/\.orb\b|#spotlight|#motes|#intro\b|id="intro"/.test(html.replace(/\/\*[\s\S]*?\*\//g, '')));
+  ok('no blur reveals', !/filter: ?blur/.test(css3));
+  ok('no glass', !/backdrop-filter/.test(css3));
+  ok('no glow shadows', !/0 0 \d+px rgba\((?!0,0,0)/.test(css3) && !/box-shadow:[^;]*rgba\((?:10,132,255|34,211,238|255,180,60)/.test(css3));
+  ok('no pill radii', !/border-radius: ?(?:980|999|20)px/.test(css3));
+  ok('no emoji', !/[\u{1F300}-\u{1FAFF}]/u.test(html));
+  ok('two fonts, Geist + Geist Mono', /family=Geist:/.test(html) && /Geist\+Mono/.test(html) && !/Space\+Grotesk|Inter:|Unbounded/.test(html));
+  ok('no fabricated odds bar', !/tug-yes|62%|the crowd is bullish/.test(html));
+  ok('one accent', /--accent:#5aa2ff/.test(css3) && !/--accent-2/.test(css3));
+  ok('the Telegram group is linked in the nav and the footer',
+     (html.match(/t\.me\/ArcliteFun/g)||[]).length >= 2);
 
   // ---- 4. no testnet remnants in anything a visitor sees ------------------
   console.log('\n=== no testnet remnants ===');
   for (const bad of TESTNET_LEFTOVERS) {
-    // one mention of 5042002 survives, in the comment explaining the migration
     const count = html.split(bad).length - 1;
-    const allowed = bad === '5042002' ? 1 : 0;
+    const allowed = 0;
     ok(`"${bad}" appears ${allowed} time(s)`, count === allowed, `found ${count}`);
   }
 
@@ -152,8 +169,7 @@ const TESTNET_LEFTOVERS = [
 
   ok('the page defines no token-rendering helpers at all',
      typeof w.rowHtml === 'undefined' && typeof w.loadTokens === 'undefined');
-  ok('enterApp routes rather than revealing a hidden panel',
-     typeof w.enterApp === 'function' && !/showPanel/.test(html));
+  ok('no hidden panels, no view router — the page is static', !/showPanel|enterApp|section\.panel/.test(html));
 
   ok('no uncaught page errors while offline', errors.length === 0, errors.slice(0, 2).join(' | '));
 

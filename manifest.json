@@ -5,7 +5,7 @@
   "start_url": "/app/terminal.html",
   "display": "standalone",
   "background_color": "#05070f",
-  "theme_color": "#07080c",
+  "theme_color": "#0a0a0b",
   "icons": [
     {
       "src": "/brand/icon-192.png",
