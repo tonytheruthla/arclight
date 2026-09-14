@@ -1117,6 +1117,26 @@ function boot(url, boptions) {
   ok(/#libFail\{position:fixed;top:0/.test(css16), 'the ethers-failure banner is styled (v15 shipped it as a bare div)');
   ok(/@media \(max-width:1190px\)\{ \.tglink\{display:none\} \}/.test(css16), 'the Telegram fold rule is actually in the build');
 
+
+  // ---- v17: the token notice ----
+  console.log('\n=== v17: the token notice ===');
+  {
+    const n = m.d.getElementById('tokenNotice');
+    ok(!!n && n.classList.contains('notice') && n.parentElement === m.d.getElementById('hero') && n.previousElementSibling === m.d.querySelector('.hero .ttl'),
+       'the notice sits in the hero, directly after the wordmark');
+    ok(n && n.innerHTML === '<b>No Arclite token exists yet.</b> Launching soon.<br>Anyone selling one is a scam.',
+       'the notice says exactly: "No Arclite token exists yet. Launching soon. / Anyone selling one is a scam."');
+    ok(n && n.querySelector('b') && n.querySelector('b').textContent === 'No Arclite token exists yet.', 'the first sentence is the one in ink');
+    ok(/family=Martian\+Mono:wdth,wght@87\.5,400;87\.5,500/.test(rawHtml), 'Martian Mono is requested as two instanced faces at width 87.5 — not the whole variable file');
+    ok(/\.hero \.notice\{[^}]*'Martian Mono'/.test(css16) && /\.hero \.notice\{[^}]*font-stretch:87\.5%/.test(css16), 'the notice is set in Martian Mono, semi-condensed');
+    ok((css16.match(/Martian Mono/g)||[]).length === 1, 'Martian Mono appears in exactly one rule — it is the notice face, not a third UI font');
+    ok(/\.hero \.notice\{[^}]*border-left:2px solid var\(--amber\)/.test(css16) && !/\.hero \.notice\{[^}]*(?:background|box-shadow|animation)/.test(css16),
+       'the warning is an amber hairline on the left — no fill, no glow, nothing moves');
+    ok(/\.hero \.notice\{[^}]*color:var\(--ink2\)/.test(css16) && /\.hero \.notice b\{[^}]*color:var\(--ink\)/.test(css16) && !/\.hero \.notice[^{]*\{[^}]*text-transform/.test(css16),
+       'ink2 body, ink lead, sentence case — hierarchy by weight, not by colour or caps');
+    ok(/\.hero \.notice\{[^}]*white-space:nowrap/.test(css16) && n && n.querySelector('br'), 'two fixed lines, so the break never lands mid-sentence');
+  }
+
   console.log('\n=== ethers availability ===');
   ok(/cdnjs\.cloudflare\.com[^"]*ethers/.test(rawHtml) && /cdn\.jsdelivr\.net[^"]*ethers/.test(rawHtml) && /unpkg\.com[^"]*ethers/.test(rawHtml),
      'three independent origins are tried for ethers, not one');

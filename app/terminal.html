@@ -53,7 +53,7 @@
        Geist       — UI text. Built for dashboards, stays legible at 12px.
        Geist Mono  — every number. Tabular figures so columns line up. -->
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600;700&family=Martian+Mono:wdth,wght@87.5,400;87.5,500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.2/ethers.umd.min.js"></script>
 <!-- cdnjs is blocked by a fair number of DNS filters, privacy blockers and
      corporate networks. Two more origins, then say so out loud: a terminal
@@ -1094,6 +1094,11 @@ thead th,.lb th,.rail h3,.laneh .n,.hstat span{text-transform:uppercase;letter-s
 @media (max-width:1150px){ .socials{display:none} }
 
 .topbar [hidden]{display:none!important}
+
+/* The token notice. One element, one extra face, one warning colour. */
+.hero .notice{flex:0 0 auto;margin:0 0 0 6px;padding:2px 0 2px 12px;border-left:2px solid var(--amber);
+  font:400 11.5px/1.45 'Martian Mono',var(--fm);font-stretch:87.5%;color:var(--ink2);letter-spacing:0;white-space:nowrap}
+.hero .notice b{font-weight:500;color:var(--ink)}
 </style>
 </head>
 <body>
@@ -1189,6 +1194,7 @@ thead th,.lb th,.rail h3,.laneh .n,.hstat span{text-transform:uppercase;letter-s
   <!-- ================= hero strip ================= -->
   <div class="hero" id="hero">
     <div class="ttl"><b id="heroTitle">ARCLITE</b><span id="heroTag">Everything. On Chain.</span></div>
+    <p class="notice" id="tokenNotice"><b>No Arclite token exists yet.</b> Launching soon.<br>Anyone selling one is a scam.</p>
     <div class="hstats" id="hstats">
       <div class="hstat"><span id="hs1k">Tokens</span><b id="hs1" class="dim">—</b></div>
       <div class="hstat"><span id="hs2k">24h volume</span><b id="hs2" class="dim">—</b></div>
