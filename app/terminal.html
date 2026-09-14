@@ -55,6 +55,21 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.2/ethers.umd.min.js"></script>
+<!-- cdnjs is blocked by a fair number of DNS filters, privacy blockers and
+     corporate networks. Two more origins, then say so out loud: a terminal
+     that lies about loading is worse than one that admits it is stuck. -->
+<script>window.ethers||document.write('<scr'+'ipt src="https://cdn.jsdelivr.net/npm/ethers@6.13.2/dist/ethers.umd.min.js"><\/scr'+'ipt>')</script>
+<script>window.ethers||document.write('<scr'+'ipt src="https://unpkg.com/ethers@6.13.2/dist/ethers.umd.min.js"><\/scr'+'ipt>')</script>
+<script>
+if(!window.ethers){addEventListener('DOMContentLoaded',function(){
+  var b=document.createElement('div');b.id='libFail';
+  b.innerHTML='<b>Arclite can\u2019t load its Ethereum library.</b>'+
+    '<span>cdnjs, jsDelivr and unpkg were all unreachable from this network \u2014 usually an ad blocker, '+
+    'a DNS filter or a corporate proxy. Allow one of them, or try another network. '+
+    'Nothing is wrong with your wallet and no funds are affected.</span>';
+  document.body.prepend(b);
+});}
+</script>
 <style>
 :root{
   /* type — one family for UI, one for numbers. No display face: hierarchy
@@ -609,13 +624,9 @@ td.l{text-align:left}
   .chsw button{padding:6px 9px}
   .chsw button span.lbl{display:none}          /* icons carry the meaning */
 }
-@media (max-width:1420px){
-  .navi.draw .full{display:none}               /* "Lucky Trencher" -> "Trencher" */
+@media (max-width:1340px){ .navi.draw .full{display:none}               /* "Lucky Trencher" -> "Trencher" */
 }
-@media (max-width:1300px){
-  .navi.draw .cd{font:500 10.5px var(--fm);margin-left:6px;padding:1px 5px;border-radius:var(--r1);background:var(--panel2);color:var(--ink2);vertical-align:1px;font-variant-numeric:tabular-nums}                 /* drop the timer, keep the glow */
-  .search{display:none}
-}
+@media (max-width:1300px){ .search{display:none} }
 @media (max-width:1200px){ .hstats{display:none} }
 /* Measured, not guessed. The previous pass fixed document overflow and the test
    agreed — but the TOPBAR still overflowed itself, and overflow-x:auto quietly
@@ -625,7 +636,6 @@ td.l{text-align:left}
    1920 / 1500 / 1440 / 1360 / 1280 / 1180 / 1100 / 1000. Order of sacrifice:
    the decorative chain pill, the "site ↗" chip, the X link, Refresh, and last
    the wordmark — the wallet is never the thing that gives way. */
-@media (max-width:1440px){ #netPill{display:none} }
 @media (max-width:1200px){ .logo .sitechip{display:none} }
 @media (max-width:1150px){ .xlink{display:none} }
 @media (max-width:1080px){ #refreshBtn{display:none} }
@@ -984,6 +994,106 @@ thead th,.lb th,.rail h3,.laneh .n,.hstat span{text-transform:uppercase;letter-s
    while data is in flight. */
 @keyframes skelpulse{0%,100%{opacity:1}50%{opacity:.45}}
 .skel,.skelcard{animation:skelpulse 1.6s ease-in-out infinite}
+
+/* Pin the wallet to the right edge of the scrollport so it survives any
+   overflow. Measured after: x=758 (off screen) becomes x=218-380 at 390px. */
+.topbar .wallet{position:sticky;right:0;z-index:4;background:var(--bg2);
+  padding-left:10px;box-shadow:-10px 0 10px -6px var(--bg2)}
+
+/* Shown only when every ethers origin failed. Without it the page lies:
+   the shell renders and the ticker says "loading…" for ever. */
+#libFail{position:fixed;top:0;left:0;right:0;z-index:400;display:flex;flex-direction:column;gap:4px;
+  padding:14px 18px;background:var(--panel2);border-bottom:1px solid var(--hair2);font:400 13px/1.5 var(--fs)}
+#libFail b{font-weight:600;color:var(--ink)}
+#libFail span{color:var(--ink2);max-width:70ch}
+
+/* The Telegram mark folds one step before the X mark, so the wallet is still
+   never the thing that gives way. */
+@media (max-width:1190px){ .tglink{display:none} }
+
+/* ───────────── 5c · the top bar, 14 Sept (second screenshot) ─────────────
+   Every control in the bar is 32px tall and sits on the same centre line.
+   Measured in Chrome at 1470px before this pass: nav 32 at y=10, chain
+   switch 35 at y=8, Connect 32 at y=16 (six pixels low), and a 40px wallet
+   pill rendering next to it while disconnected. Causes below, one per block.
+   Measured after: every control [y=10, h=32]. */
+
+/* Rhythm: one gap, one height. */
+.topbar{gap:12px}
+.topbar .btn{height:32px;display:inline-flex;align-items:center;padding:0 13px}
+
+/* Nav items share the control height. */
+.navi{display:inline-flex;align-items:center;height:32px;padding:0 11px}
+
+/* Lucky Trencher is the one live thing in the bar, so it is the one nav item
+   that carries the accent — as a tint and a hairline, one step below the
+   solid Connect button. Accent text on the tint measures 6.49:1; the
+   countdown is ink on the same tint, 14.5:1. No dot, nothing moves.
+   The label sits in one span (.lbl) so the flex row never splits "Lucky "
+   from "Trencher". */
+.navi.draw{margin-left:6px;padding:0 10px;gap:0;color:var(--accent);
+  background:var(--accent-bg);border:1px solid rgba(var(--accent-rgb),.38)}
+.navi.draw .lbl{white-space:pre}
+.navi.draw:hover{color:var(--accent);background:rgba(var(--accent-rgb),.15);border-color:rgba(var(--accent-rgb),.55)}
+.navi.draw.on{color:var(--ink);background:rgba(var(--accent-rgb),.18);border-color:var(--accent)}
+.navi.draw .cd{font:600 11.5px var(--fm);color:var(--ink);background:none;padding:0 0 0 8px;margin:0 0 0 8px;
+  border-left:1px solid rgba(var(--accent-rgb),.38);border-radius:0;vertical-align:0;
+  font-variant-numeric:tabular-nums;letter-spacing:0;line-height:1}
+.navi.draw.on .cd{background:none;color:var(--ink);border-left-color:rgba(var(--accent-rgb),.6)}
+
+/* Chain switch: 2px frame around 26px buttons = 32. */
+.chsw{padding:2px;margin-left:0}
+.chsw button{height:26px;padding:0 10px}
+
+/* Search: a fixed preferred width that yields before the spacer does. It was
+   flex:1 against a flex:1 spacer, so at 1441–1560px it got half of nothing
+   and the placeholder read "S". A real magnifier instead of the ⌕ glyph,
+   which renders at a different size in every fallback font. */
+.search{flex:0 1 340px;min-width:170px;height:32px;padding:0 10px;box-sizing:border-box}
+.search svg{width:14px;height:14px;flex:0 0 14px;color:var(--ink3)}
+
+/* Socials: X and Telegram as one group, built the same way as the chain
+   switch, so they read as a control rather than a stray grey square. White
+   glyphs (16.9:1) rather than the ink3 they had (3.75:1); accent on hover
+   because they are links. */
+.socials{display:flex;gap:2px;padding:2px;background:var(--panel2);border:1px solid var(--hair);
+  border-radius:var(--r3);flex:0 0 auto;box-sizing:border-box}
+.socials .xlink{width:28px;height:26px;margin:0;border:0;background:none;color:var(--ink);border-radius:var(--r1)}
+.socials .xlink:hover{color:var(--accent);background:var(--panel)}
+
+/* Refresh is a glyph. The word was a second bordered button beside the one
+   that matters; the arrow says the same thing in 32px. */
+.btn.icon{width:32px;padding:0;justify-content:center}
+.btn.icon svg{width:15px;height:15px}
+
+/* The network pill repeated what the chain switch already shows. */
+#netPill{display:none}
+
+/* The badge on Points and the "site ↗" chip were 9px labels stuck to things
+   that did not need labelling. Their markup is gone; this is belt and braces
+   for any string that rebuilds them. */
+.navi .badge,.sitechip{display:none}
+
+/* Connect. Two causes:
+   1. `.wbtn{display:inline-flex}` beats the browser's own [hidden]{display:none},
+      so the wallet pill rendered while disconnected — the blue disc and "——"
+      beside Connect in the screenshot. Same bug the lanes had. Rule 11 in
+      the generator makes `hidden` win for everything in the bar.
+   2. .wallet was display:block, so its two inline buttons sat on a text
+      baseline: the 40px pill set the line, and the 32px Connect hung six
+      pixels low. A flex row with align-items:center has no baseline to hang from. */
+.wallet{display:flex;align-items:center;margin-left:0}
+.wbtn{height:32px;padding:0 8px 0 5px;gap:8px;border-radius:var(--r1)}
+.wav{width:20px;height:20px;flex:0 0 20px}
+.wtxt{line-height:1.15}
+.wtxt b{font-size:11px}
+.wtxt i{font-size:10px}
+
+/* Fold order, outermost first, all measured: full label 1340, search 1300,
+   Telegram mark 1190, socials group 1150, Refresh 1080. */
+@media (max-width:1150px){ .socials{display:none} }
+
+.topbar [hidden]{display:none!important}
 </style>
 </head>
 <body>
@@ -993,14 +1103,14 @@ thead th,.lb th,.rail h3,.laneh .n,.hstat span{text-transform:uppercase;letter-s
   <div class="topbar">
     <!-- Logo is the switch between the two surfaces: here → the website, and the
          website's logo → back here. -->
-    <a class="logo" href="/home.html" title="Switch to the Arclite website" aria-label="Arclite website"><svg class="mk" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><linearGradient id="markGrad" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#0a84ff"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs><path d="M 8 54 Q 22 51 36 41 Q 51 30 55 11" stroke="url(#markGrad)" stroke-width="7.5" stroke-linecap="round"/><circle cx="54" cy="10" r="6.5" fill="#7dd3fc"/></svg>ARCLITE<span class="sitechip">site ↗</span></a>
+    <a class="logo" href="/home.html" title="Switch to the Arclite website" aria-label="Arclite website"><svg class="mk" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><linearGradient id="markGrad" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#0a84ff"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs><path d="M 8 54 Q 22 51 36 41 Q 51 30 55 11" stroke="url(#markGrad)" stroke-width="7.5" stroke-linecap="round"/><circle cx="54" cy="10" r="6.5" fill="#7dd3fc"/></svg>ARCLITE</a>
     <nav class="nav" id="nav" aria-label="Terminal views">
       <a class="navi" data-view="tokens" href="#tokens">Tokens</a>
       <a class="navi" data-view="launchpad" href="#launchpad">Launchpad</a>
       <a class="navi" data-view="launch" href="#launch">Launch</a>
-      <a class="navi draw" data-view="draw" href="#draw" id="naviDraw"><span class="livedot"></span><span class="full">Lucky </span>Trencher<span class="cd" id="naviCd">--:--</span></a>
-      <a class="navi" data-view="points" href="#points">Points<span class="badge">PTS</span></a>
+      <a class="navi" data-view="points" href="#points">Points</a>
       <a class="navi" data-view="portfolio" href="#portfolio">Portfolio</a>
+      <a class="navi draw" data-view="draw" href="#draw" id="naviDraw"><span class="livedot"></span><span class="lbl"><span class="full">Lucky </span>Trencher</span><span class="cd" id="naviCd">--:--</span></a>
     </nav>
     <div class="chsw" id="chsw" title="Chain">
       <button data-chain="arc" title="Arc — Circle's L1, gas paid in USDC">
@@ -1029,18 +1139,26 @@ thead th,.lb th,.rail h3,.laneh .n,.hstat span{text-transform:uppercase;letter-s
     </div>
     <div class="pill live" id="netPill">arc</div>
     <div class="search">
-      <span style="color:var(--ink3)">⌕</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
       <input id="q" placeholder="Search name, symbol or address…" autocomplete="off">
       <kbd>/</kbd>
     </div>
     <div class="spacer"></div>
+    <div class="socials">
+    <a class="xlink tglink" href="https://t.me/ArcliteFun" target="_blank" rel="noopener"
+       title="Arclite on Telegram" aria-label="Arclite on Telegram">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">
+        <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+      </svg>
+    </a>
     <a class="xlink" href="https://x.com/ArcLiteFun" target="_blank" rel="noopener"
        title="@ArcLiteFun on X" aria-label="Arclite on X">
       <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">
         <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
       </svg>
     </a>
-    <button class="btn" id="refreshBtn">Refresh</button>
+    </div>
+    <button class="btn icon" id="refreshBtn" title="Refresh" aria-label="Refresh"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg></button>
     <!-- One wallet control. Connect swaps for the wallet button, and the
          button IS the way into Portfolio: one click opens the page with
          holdings across every chain, points, trades and launches. (It used to
@@ -2371,9 +2489,9 @@ async function loadPortfolio(force){
 }
 
 /* ---------- Phantom (Solana address only; every read is server-side) ---------- */
-function phantom(){ const p = (window.phantom && window.phantom.solana) || window.solana; return (p && p.isPhantom) ? p : null; }
+function phantomProvider(){ const p = (window.phantom && window.phantom.solana) || window.solana; return (p && p.isPhantom) ? p : null; }
 async function connectSol(){
-  const p = phantom();
+  const p = phantomProvider();
   if(!p){ toast('No Phantom wallet detected — install it to see Solana holdings.',1); return; }
   try{
     const r = await p.connect();
@@ -2384,7 +2502,7 @@ async function connectSol(){
   }catch(e){ toast('Phantom: '+String(e.message||e).slice(0,80),1); }
 }
 function disconnectSol(){
-  try{ const p=phantom(); if(p && p.disconnect) p.disconnect(); }catch(e){}
+  try{ const p=phantomProvider(); if(p && p.disconnect) p.disconnect(); }catch(e){}
   PF.solAddr=null; PF.sol=null; try{ localStorage.removeItem('ark_sol'); }catch(e){}
   renderPortfolio();
 }

@@ -16,9 +16,13 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const short = a => a.slice(0,6)+'…'+a.slice(-4);
 const fmtP = n => n<0.0001 ? '$'+n.toExponential(2) : '$'+n.toFixed(6);
 
-const html = fs.readFileSync(path.join(__dirname, 'terminal.html'), 'utf8')
-  // ethers comes from the CDN in the browser; here we inject it as a global instead
-  .replace(/<script src="https:\/\/cdnjs[^"]*ethers[^"]*"><\/script>/, '');
+// The file exactly as it ships. Assertions about what the browser downloads
+// must read this, not the doctored copy below.
+const rawHtml = fs.readFileSync(path.join(__dirname, 'terminal.html'), 'utf8');
+const html = rawHtml
+  // ethers comes from a CDN in the browser; here we inject it as a global
+  // instead, so every <script src> that would fetch it is stripped.
+  .replace(/<script src="https:\/\/(?:cdnjs|cdn\.jsdelivr|unpkg)[^"]*ethers[^"]*"><\/script>/g, '');
 
 const API = 'https://empathetic-magic-production-dd77.up.railway.app';
 const TOK = '0x1111111111111111111111111111111111111111';
@@ -121,8 +125,15 @@ function boot(url, boptions) {
   });
   w.open = () => ({});
   w.alert = () => {}; w.confirm = () => true;
-  const script = html.match(/<script>([\s\S]*)<\/script>\s*<\/body>/)[1];
-  w.eval(script);
+  // Grab the LAST inline script — the page one. This used to be a greedy
+  // match from the first <script>, which worked only while the page script was
+  // the sole inline script. The ethers CDN-fallback shims in <head> are inline
+  // too, so the old pattern swallowed the head, the markup and all, and eval'd
+  // HTML as JavaScript ("Invalid regular expression: missing /").
+  const si = html.lastIndexOf('<script>') + '<script>'.length;
+  const script = html.slice(si, html.indexOf('</script>', si));
+  if (BOPT.pre) BOPT.pre(w);
+  try { w.eval(script); } catch (e) { w.__bootError = e; }
   return { dom, w, d: w.document };
 }
 
@@ -133,9 +144,9 @@ function boot(url, boptions) {
   const d = m.d, w = m.w;
   const logo = d.querySelector('a.logo');
   ok(logo && logo.getAttribute('href') === '/home.html', 'logo is a link to the website (/home.html)');
-  ok(!!d.querySelector('.logo .sitechip'), 'logo carries the "site ↗" hint chip');
+  ok(!d.querySelector('.logo .sitechip') && !d.querySelector('.navi .badge'), 'v16: the "site ↗" chip and the PTS badge are gone — labels on things that needed none');
   const navs = [...d.querySelectorAll('.navi')].map(a => a.dataset.view);
-  ok(JSON.stringify(navs) === JSON.stringify(['tokens','launchpad','launch','draw','points','portfolio']), 'top nav: Tokens · Launchpad · Launch · Draw · Points · Portfolio');
+  ok(JSON.stringify(navs) === JSON.stringify(['tokens','launchpad','launch','points','portfolio','draw']), 'top nav: Tokens · Launchpad · Launch · Points · Portfolio · Lucky Trencher (the live item sits last, apart from the run)');
   ok(d.querySelector('.navi.on') && d.querySelector('.navi.on').dataset.view === 'tokens', 'mainnet defaults to the Tokens view');
   ok(d.getElementById('hs1').textContent === '7,552' && d.getElementById('hs2').textContent === '$1.31M', 'hero stats filled from /stats (tokens, 24h volume)');
   ok(d.getElementById('hs3').textContent === '11.3K' && d.getElementById('hs4').textContent === '1.6K', 'hero txns/traders formatted like RadarDEX (K)');
@@ -1004,10 +1015,13 @@ function boot(url, boptions) {
   console.log('\n=== topbar width budget ===');
   ok(/\.wallet\{[^}]*flex:0 0 auto/.test(html),
      'the wallet control cannot shrink, so it is never the thing that gets cut');
-  ok(/@media \(max-width:1440px\)\{ #netPill\{display:none\} \}/.test(html) &&
-     /@media \(max-width:1150px\)\{ \.xlink\{display:none\} \}/.test(html) &&
-     /@media \(max-width:1080px\)\{ #refreshBtn\{display:none\} \}/.test(html),
-     'the measured fold order is present: chain pill, X link, then Refresh');
+  ok(/@media \(max-width:1340px\)\{ \.navi\.draw \.full\{display:none\}/.test(html) &&
+     /@media \(max-width:1300px\)\{ \.search\{display:none\} \}/.test(html) &&
+     /@media \(max-width:1190px\)\{ \.tglink\{display:none\} \}/.test(html) &&
+     /@media \(max-width:1150px\)\{ \.socials\{display:none\} \}/.test(html) &&
+     /@media \(max-width:1080px\)\{ #refreshBtn\{display:none\} \}/.test(html) &&
+     !/max-width:1440px\)\{ #netPill/.test(html) && /#netPill\{display:none\}/.test(html),
+     'v16 fold order, outermost first: full label 1340, search 1300, Telegram 1190, socials 1150, Refresh 1080; the network pill is simply gone');
   ok(/\.topbar\{[\s\S]{0,160}overflow-x:auto/.test(html),
      'topbar still scrolls on phones rather than widening the page');
 
@@ -1036,7 +1050,88 @@ function boot(url, boptions) {
   ok(/@keyframes skelpulse/.test(css15) && /\.skel,\.skelcard\{animation:skelpulse/.test(css15), 'skeletons still pulse — a dead grey box reads as broken');
   ok(/\.btn\{white-space:nowrap\}/.test(css15) && /\.toolbar \.btn\{flex:0 0 auto\}/.test(css15), '"Launch a token" cannot wrap or be squeezed by the toolbar');
   ok(/id="tickTrack" style="animation:none"/.test(html), 'the ticker placeholder does not slide under the marquee mask');
+  // Measured on the live site at 390px before this rule: the bar needed 921px,
+  // had 390, and Connect sat at x=758 with the scrollbar hidden — invisible and
+  // unreachable on a phone. Sticky-right survives any amount of overflow.
+  ok(/\.topbar \.wallet\{position:sticky;right:0/.test(css15), 'the wallet is pinned to the right of the top bar, so it cannot scroll off on a phone');
   ok(!/waiting for data|waiting for chain events/.test(html), 'load-time placeholders read as a state, not a hang');
+
+  // ---- the single point of failure that took the whole terminal down ----
+  // `const net = new ethers.Network(...)` runs at top level, so a blocked CDN
+  // throws a ReferenceError there, stops script evaluation, and leaves every
+  // later const in the temporal dead zone: a shell that says "loading…" for
+  // ever with nothing in the console. Reproduced in jsdom before this fix.
+
+  // ---- v16 guard: the top bar, and the two things that killed the boot ----
+  console.log('\n=== v16: boot survives a Phantom wallet ===');
+  // Found in the user's own Chrome: the Phantom extension defines
+  // window.phantom as a non-configurable property before any page script
+  // runs, and the page declared `function phantom()` at top level. Per spec
+  // that is a TypeError at instantiation — zero statements run. First prove
+  // jsdom reproduces the mechanism, then prove the shipped script survives it.
+  {
+    const withPhantom = w => Object.defineProperty(w, 'phantom', { value: { solana: { isPhantom: true } }, configurable: false, writable: false, enumerable: false });
+    const probe = new JSDOM('<!doctype html><p></p>', { runScripts: 'outside-only' }).window;
+    withPhantom(probe);
+    let msg = ''; try { probe.eval('function phantom(){}'); } catch (e) { msg = e.message; }
+    ok(/already been declared/.test(msg), 'control: a top-level `function phantom()` really does throw under a Phantom global ("' + msg + '")');
+    const p = boot('https://arclite.fun/app/terminal.html?net=mainnet', { pre: withPhantom });
+    await sleep(400);
+    ok(!p.w.__bootError, 'the shipped script instantiates with window.phantom locked' + (p.w.__bootError ? ' — ' + p.w.__bootError.message : ''));
+    ok(p.w.__term && p.d.getElementById('hs1').textContent === '7,552', 'and it actually runs: the hero fills from the API with Phantom installed');
+    ok(!/\bfunction phantom\(/.test(rawHtml) && /function phantomProvider\(/.test(rawHtml) && !/[^A-Za-z]phantom\(\)/.test(rawHtml), 'the helper is phantomProvider(); no call site still says phantom()');
+    // Static census: no top-level declaration may share a name with a global
+    // that a wallet extension is known to inject. Cheaper than finding the
+    // next one in production.
+    const si = rawHtml.lastIndexOf('<script>') + 8, js = rawHtml.slice(si, rawHtml.indexOf('</script>', si));
+    const decl = [...js.matchAll(/^(?:async\s+)?(?:function\s*\*?|let|const|var|class)\s+([A-Za-z_$][\w$]*)/gm)].map(m => m[1]);
+    const injected = ['phantom','solana','ethereum','solflare','backpack','coinbase','coinbaseSolana','coinbaseWalletExtension','keplr','okxwallet','okx','braveSolana','trustwallet','trustWallet','magicEden','glow','exodus','bitkeep','xnft','unisat','tronLink','tronWeb','rabby','zerion','coin98','bybitWallet','bitget','bitgetWallet','talismanEth','frame','tally','xfi','nightly','slope','sollet','coinhub','web3','walletRouter','evmproviders','starknet','cardano','aptos','sui','suiWallet','martian','petra','argentX','leap','cosmos','near','ton','tonkeeper','openmask','ronin','clover','mathwallet','safepal','tokenpocket','BinanceChain','kaikas','klaytn','hashpack','xverse','LeatherProvider','HiroWalletProvider','BitcoinProvider','plug','fluent','conflux','enkrypt','rainbow','walletconnect','SubWallet','polkadot','injectedWeb3','fuel','fuelet'];
+    const clash = decl.filter(n => injected.includes(n));
+    ok(clash.length === 0, 'no top-level declaration collides with a wallet-injected global' + (clash.length ? ' — ' + clash.join(', ') : '') + ' (' + decl.length + ' checked)');
+  }
+
+  console.log('\n=== v16: the top bar ===');
+  const css16 = html.slice(html.indexOf('<style>'), html.indexOf('</style>'));
+  ok(/\.topbar \[hidden\]\{display:none!important\}/.test(css16), '`hidden` wins in the top bar — the wallet pill cannot render beside Connect while disconnected');
+  ok(/\.wallet\{display:flex;align-items:center/.test(css16), 'the wallet is a centred flex row, so Connect cannot hang from a baseline six pixels low');
+  ok(/\.topbar \.btn\{height:32px/.test(css16) && /\.navi\{display:inline-flex;align-items:center;height:32px/.test(css16) && /\.chsw button\{height:26px/.test(css16) && /\.search\{flex:0 1 340px;min-width:170px;height:32px/.test(css16) && /\.wbtn\{height:32px/.test(css16),
+     'one control height: nav, chain switch, search, Refresh, Connect and the wallet pill are all 32px');
+  ok(/\.search\{flex:0 1 340px;min-width:170px/.test(css16), 'search has a preferred width and a floor, so it cannot collapse to "S" beside the spacer');
+  ok(/\.navi\.draw\{[^}]*color:var\(--accent\)/.test(css16) && /\.navi\.draw\{[^}]*background:var\(--accent-bg\)/.test(css16) && !/\.navi\.draw\{[^}]*box-shadow/.test(css16) && !/\.navi\.draw::before/.test(css16),
+     'Lucky Trencher is the one accent-tinted nav item: tint + hairline, no glow, no dot');
+  ok(/\.navi\.draw \.cd\{font:600 11\.5px var\(--fm\);color:var\(--ink\)/.test(css16), 'the countdown is ink mono on the tint, tabular');
+  {
+    const nd = m.d.getElementById('naviDraw');
+    ok(nd && nd.querySelector('.lbl') && nd.querySelector('.lbl .full') && /Trencher$/.test(nd.querySelector('.lbl').textContent), 'the label is one span, so the flex row cannot split "Lucky " from "Trencher"');
+    ok(m.d.querySelector('.nav').lastElementChild === nd, 'Lucky Trencher is the last item in the nav');
+    const soc = m.d.querySelector('.topbar .socials');
+    ok(soc && soc.querySelector('a.tglink[href="https://t.me/ArcliteFun"]') && soc.querySelector('a.xlink:not(.tglink)[href="https://x.com/ArcLiteFun"]'), 'X and Telegram sit together in one .socials group');
+    ok(/\.socials \.xlink\{[^}]*color:var\(--ink\)/.test(css16) && /\.socials \.xlink:hover\{color:var\(--accent\)/.test(css16), 'social glyphs are ink (16.9:1), accent on hover — not the 3.75:1 grey they were');
+    const rb = m.d.getElementById('refreshBtn');
+    ok(rb && rb.classList.contains('icon') && rb.querySelector('svg') && rb.getAttribute('aria-label') === 'Refresh' && rb.title === 'Refresh', 'Refresh is a 32px glyph button with the word kept for screen readers');
+    ok(m.d.querySelector('.search svg') && !/⌕/.test(m.d.querySelector('.search').innerHTML), 'the search magnifier is drawn, not a font glyph');
+    ok(!m.d.querySelector('.sitechip') && !m.d.querySelector('.navi .badge'), 'no "site ↗" chip, no PTS badge');
+  }
+  // Two rules v15 wrote and then dropped: they were appended after the CSS
+  // splice, so the build never contained them. The splice is last now.
+  ok(/#libFail\{position:fixed;top:0/.test(css16), 'the ethers-failure banner is styled (v15 shipped it as a bare div)');
+  ok(/@media \(max-width:1190px\)\{ \.tglink\{display:none\} \}/.test(css16), 'the Telegram fold rule is actually in the build');
+
+  console.log('\n=== ethers availability ===');
+  ok(/cdnjs\.cloudflare\.com[^"]*ethers/.test(rawHtml) && /cdn\.jsdelivr\.net[^"]*ethers/.test(rawHtml) && /unpkg\.com[^"]*ethers/.test(rawHtml),
+     'three independent origins are tried for ethers, not one');
+  ok((rawHtml.match(/ethers[@\/]6\.13\.2/g)||[]).length >= 3, 'every fallback pins the same version as the primary');
+  ok(/if\(!window\.ethers\)\{addEventListener\('DOMContentLoaded'/.test(rawHtml) && /id='libFail'/.test(rawHtml),
+     'if all three fail the page says so instead of showing "loading…" for ever');
+  {
+    const blocked = rawHtml.replace(/<script src="https:\/\/(?:cdnjs|cdn\.jsdelivr|unpkg)[^"]*"><\/script>/g, '');
+    const bw = new JSDOM(blocked, { runScripts:'dangerously', url:'https://arclite.fun/app/terminal.html',
+                                    virtualConsole:new (require('jsdom').VirtualConsole)(), pretendToBeVisual:true });
+    await sleep(300);
+    const banner = bw.window.document.getElementById('libFail');
+    ok(!!banner && bw.window.document.body.firstElementChild === banner, 'the banner really renders, first thing in the body, when ethers is missing');
+    ok(/no funds are affected/.test(banner ? banner.textContent : ''), 'the banner says the wallet and the funds are fine');
+  }
   // #ededf0 on #5aa2ff is 2.23:1. Dark-on-accent is 7.58:1, and it is what
   // home.html uses — the primary button must read the same on both surfaces.
   ok(!/\.btn\.primary\{[^}]*color:var\(--ink\)/.test(css15) && (css15.match(/\.btn\.primary\{[^}]*color:#0a0a0b/g)||[]).length>=2,
@@ -1297,7 +1392,22 @@ function boot(url, boptions) {
   await sleep(500);
   const pd = pw2.d, pw = pw2.w;
   const pop = pd.getElementById('drawPop');
-  ok(!!pop && pop.hidden, 'on load the popup is hidden — the page gets 25s to settle first');
+  // This assertion used to be unconditional, and it failed for four minutes in
+  // every hour. The popup's `late` branch deliberately shows itself when the
+  // round is between 5 and 1 minutes from CLOSE — and close is :58, not :00,
+  // so the window is :53:00-:57:00. A suite that goes red on the wall clock
+  // ~7% of the time trains you to ignore red, which is the last thing a money
+  // path needs. Assert the real rule: hidden outside the window, shown inside.
+  // Measured from the page itself: DRAW_ROUND 3600, DRAW_CLOSE 120.
+  const nowSec = Math.floor(Date.now() / 1000);
+  const closeAt = (Math.floor(nowSec / 3600) + 1) * 3600 - 120;
+  const secsToClose = Math.max(0, closeAt - nowSec);
+  const inLateWindow = secsToClose <= 300 && secsToClose > 60;
+  if (inLateWindow) {
+    ok(!!pop && !pop.hidden, `${secsToClose}s to close: inside the last-five-minutes window, so the popup shows itself`);
+  } else {
+    ok(!!pop && pop.hidden, `${secsToClose}s to close: outside the nudge window, so the popup is hidden on load`);
+  }
   ok(!!pd.getElementById('drawPopMute') && pd.getElementById('drawPopMute').textContent === 'Not today', 'there is a "Not today" mute');
   ok(/POP = \{ arm: Date\.now\(\) \+ 25000/.test(html), 'the early nudge is armed 25s after load');
   ok(/const early = c\.secs > 300 && Date\.now\(\) >= POP\.arm && !drawPopDismissed\(c\.round\)/.test(html), 'early: any time with >5 min left, once per round, quiet after ×');
