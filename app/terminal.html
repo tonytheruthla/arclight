@@ -1400,6 +1400,14 @@ const NETWORKS = {
   mainnet: {
     label:'Mainnet', chainId:5042,
     rpc:'https://rpc.arclite.fun',
+    /* Public Arc mainnet endpoints, no credentials — used only when the proxy
+       above is unreachable. Ordered by measured eth_getLogs ceiling
+       (100,000 / 9,975 / 7,658) because the scanner asks for 9,500. */
+    rpcFallbacks:[
+      'https://rpc.blockdaemon.mainnet.arc.io',
+      'https://rpc.quicknode.mainnet.arc.io',
+      'https://rpc.mainnet.arc.io'
+    ],
     explorer:'https://arcscan.app',
     mode:'scanner',
     // Uniswap V3, resolved from SwapRouter.factory() on chain 5042
@@ -1619,9 +1627,49 @@ const TOKEN_ABI = ['function name() view returns (string)','function symbol() vi
    "request limit reached" readily; every call backs off and retries.
 ================================================================== */
 const net = new ethers.Network('arc', BigInt(CHAIN_ID));
-const provider = new ethers.JsonRpcProvider(RPC, net, {
-  staticNetwork: net, batchMaxCount: 1, batchStallTime: 0
-});
+/* One provider, several origins. ethers has no built-in "try the next URL" for
+   a single JsonRpcProvider, so the failover goes in at the fetch layer: a
+   FetchRequest whose getUrlFunc walks the list until one answers. Proven
+   against the live 502 before it was written into the build. */
+const RPC_URLS = [RPC].concat(NET.rpcFallbacks || []);
+let RPC_AT = 0, RPC_PRIMARY_RETRY = 0;
+const RPC_URL_IN_USE = () => RPC_URLS[RPC_AT];
+const provider = (() => {
+  if (RPC_URLS.length < 2) {
+    return new ethers.JsonRpcProvider(RPC, net, { staticNetwork: net, batchMaxCount: 1, batchStallTime: 0 });
+  }
+  const req = new ethers.FetchRequest(RPC_URLS[0]);
+  /* Read the ACTIVE getUrl off the request before overwriting it, rather than
+     minting a fresh one with createGetUrlFunc(): reading it honours whatever
+     FetchRequest.registerGetUrl() has installed, which is how the test harness
+     intercepts the network. createGetUrlFunc() bypasses that hook, and using it
+     here silently sent five suite tests to the real internet. */
+  const base = req.getUrlFunc;
+  req.getUrlFunc = async (rq, signal) => {
+    /* Come back to the proxy every 60s: it caches and it hides the key, so it
+       is preferred whenever it is alive. */
+    if (RPC_AT !== 0 && Date.now() - RPC_PRIMARY_RETRY > 60000) { RPC_PRIMARY_RETRY = Date.now(); RPC_AT = 0; }
+    let last = null, lastErr = null;
+    for (let i = 0; i < RPC_URLS.length; i++) {
+      const idx = (RPC_AT + i) % RPC_URLS.length;
+      const c = rq.clone(); c.url = RPC_URLS[idx];
+      try {
+        const resp = await base(c, signal);
+        /* 5xx means that origin is broken. Anything else — including a JSON-RPC
+           error body carried on a 200 — is a real answer and belongs to the
+           caller, so rate limits and reverts still surface normally. */
+        if (resp.statusCode < 500) {
+          if (idx !== RPC_AT) { RPC_AT = idx; if (idx !== 0) RPC_PRIMARY_RETRY = Date.now(); }
+          return resp;
+        }
+        last = resp;
+      } catch (e) { lastErr = e; }
+    }
+    if (last) return last;
+    throw (lastErr || new Error('no RPC origin reachable'));
+  };
+  return new ethers.JsonRpcProvider(req, net, { staticNetwork: net, batchMaxCount: 1, batchStallTime: 0 });
+})();
 /* There is no Arclite launchpad on mainnet, so PUMP/PRED are undefined in
    scanner mode. `new ethers.Contract(undefined, ...)` throws synchronously,
    which would kill the whole script at evaluation time and leave every
@@ -2154,7 +2202,7 @@ async function load(){
     }catch(e){
       const msg=String(e&&(e.shortMessage||e.message||e));
       tb.innerHTML='<tr><td colspan="9" class="empty">'+
-        '<div style="font-size:13px;color:var(--ink2);margin-bottom:6px">Could not reach the Arc mainnet RPC.</div>'+
+        '<div style="font-size:13px;color:var(--ink2);margin-bottom:6px">Could not reach the Arc mainnet RPC (' + RPC_URL_IN_USE() + ').</div>'+
         '<div style="font-size:11.5px;color:var(--ink3);margin-bottom:14px">'+msg.slice(0,120)+'</div>'+
         '<button class="btn" onclick="load()">Retry</button></td></tr>';
       document.getElementById('lastSync').textContent='offline · '+new Date().toLocaleTimeString();

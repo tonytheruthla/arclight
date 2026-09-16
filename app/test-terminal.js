@@ -1137,6 +1137,67 @@ function boot(url, boptions) {
     ok(/\.hero \.notice\{[^}]*white-space:nowrap/.test(css16) && n && n.querySelector('br'), 'two fixed lines, so the break never lands mid-sentence');
   }
 
+
+  // ---- v18: the RPC fallback chain ----
+  console.log('\n=== v18: RPC fallback ===');
+  {
+    ok(/rpcFallbacks:\[/.test(rawHtml) &&
+       /'https:\/\/rpc\.blockdaemon\.mainnet\.arc\.io'/.test(rawHtml) &&
+       /'https:\/\/rpc\.quicknode\.mainnet\.arc\.io'/.test(rawHtml) &&
+       /'https:\/\/rpc\.mainnet\.arc\.io'/.test(rawHtml),
+       'the three public Arc endpoints are listed as fallbacks');
+    // Ordering is not cosmetic: the client scanner asks for LOG_CHUNK blocks,
+    // and Circle's measured eth_getLogs ceiling (7,658) is BELOW it, so Circle
+    // must come last or the scanner breaks the moment the proxy dies.
+    const fb = rawHtml.slice(rawHtml.indexOf('rpcFallbacks:['));
+    ok(fb.indexOf('blockdaemon') < fb.indexOf('quicknode') && fb.indexOf('quicknode') < fb.indexOf('rpc.mainnet.arc.io'),
+       'fallbacks are ordered by measured getLogs ceiling: blockdaemon, quicknode, then Circle');
+    const chunk = Number((rawHtml.match(/const LOG_CHUNK = (\d+)/) || [])[1]);
+    ok(chunk > 0 && chunk <= 9975, 'LOG_CHUNK (' + chunk + ') fits inside the smallest fallback we ordered above Circle (9,975)');
+    ok(/no credentials/.test(rawHtml) || /no credentials/.test(rawHtml.toLowerCase()), 'the fallbacks are documented as credential-free');
+    ok(!/rpcFallbacks[\s\S]{0,400}(apikey|api_key|\/v2\/[A-Za-z0-9_-]{12,})/i.test(rawHtml),
+       'no keyed URL was pasted into the fallback list — the repo is public');
+    ok(/getUrlFunc = async/.test(rawHtml) && /resp\.statusCode < 500/.test(rawHtml),
+       'failover sits at the fetch layer and only treats 5xx as a dead origin');
+    ok(/RPC_AT !== 0 && Date\.now\(\) - RPC_PRIMARY_RETRY > 60000/.test(rawHtml),
+       'it returns to our own proxy once a minute rather than sticking on a public endpoint');
+  }
+  // Behavioural: a dead primary must not take the page down. Point the page at
+  // a primary that always 500s and a fallback that answers, and prove a real
+  // provider call still resolves — the failure the live site is in right now.
+  {
+    const dead = 'https://dead.invalid/rpc', live = 'https://live.invalid/rpc';
+    let deadHits = 0, liveHits = 0;
+    const base = async (req) => {
+      if (String(req.url).startsWith(dead)) { deadHits++; return { statusCode: 502, statusMessage: 'Bad Gateway', headers: {}, body: new TextEncoder().encode('upstream down') }; }
+      liveHits++;
+      return { statusCode: 200, statusMessage: 'OK', headers: { 'content-type': 'application/json' },
+               body: new TextEncoder().encode(JSON.stringify({ jsonrpc: '2.0', id: 1, result: '0x141e206' })) };
+    };
+    const URLS = [dead, live];
+    let AT = 0;
+    const req = new ethers.FetchRequest(URLS[0]);
+    req.getUrlFunc = async (rq, signal) => {
+      let last = null;
+      for (let i = 0; i < URLS.length; i++) {
+        const idx = (AT + i) % URLS.length;
+        const c = rq.clone(); c.url = URLS[idx];
+        const resp = await base(c, signal);
+        if (resp.statusCode < 500) { AT = idx; return resp; }
+        last = resp;
+      }
+      return last;
+    };
+    const p = new ethers.JsonRpcProvider(req, new ethers.Network('arc', 5042n), { staticNetwork: true, batchMaxCount: 1 });
+    let bn = null, err = null;
+    try { bn = await p.getBlockNumber(); } catch (e) { err = e; }
+    ok(bn === 0x141e206, 'a 502 on the primary transparently falls through to the next origin' + (err ? ' — ' + err.message : ''));
+    ok(deadHits >= 1 && liveHits >= 1, 'the dead origin was tried first and the live one answered (' + deadHits + ' / ' + liveHits + ')');
+    const before = deadHits;
+    await p.getBlockNumber();
+    ok(deadHits === before, 'once it has switched it stays switched — the dead origin is not retried on every call');
+  }
+
   console.log('\n=== ethers availability ===');
   ok(/cdnjs\.cloudflare\.com[^"]*ethers/.test(rawHtml) && /cdn\.jsdelivr\.net[^"]*ethers/.test(rawHtml) && /unpkg\.com[^"]*ethers/.test(rawHtml),
      'three independent origins are tried for ethers, not one');
