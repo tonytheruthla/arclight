@@ -417,6 +417,29 @@ function fakeLog(iface, eventName, args, overrides = {}) {
     ok(peak === 40, 'only one slice is materialised at a time — peak ' + peak + ', total ' + st7.transfers);
   }
 
+  /* total_supply is write-once for ordinary tokens and refreshable for pad
+     tokens. Both halves matter: without write-once a bad third-party list can
+     corrupt every market cap; without the refresh, an Arclite token's
+     graduation burn never reaches the UI and the fix is invisible. */
+  {
+    const db8 = freshDb();
+    const ORD = A(0xE1), PAD = A(0xE2);
+    for (const a of [ORD, PAD]) await store.upsertToken(db8, { address: a, name:'x', symbol:'X', decimals:18, dex:'v3', poolRef:P_OLD, fee:3000, usdcIsToken0:true, block:1, metaOk:true });
+    const supply = async a => Number((await db8.query('SELECT total_supply FROM tokens WHERE address=$1',[a.toLowerCase()])).rows[0].total_supply);
+
+    await store.setTokenSupply(db8, ORD, 1_000_000_000);
+    ok(await supply(ORD) === 1_000_000_000, 'first write sets the supply');
+    await store.setTokenSupply(db8, ORD, 1);
+    ok(await supply(ORD) === 1_000_000_000, 'a second ordinary write is ignored — write-once still holds');
+
+    await store.setTokenSupply(db8, PAD, 1_000_000_000);
+    await store.setTokenSupply(db8, PAD, 560_767_181, { force: true });
+    ok(await supply(PAD) === 560_767_181, 'force updates a pad token after its graduation burn (1B -> 560,767,181)');
+
+    const mcapBefore = 0.0000042 * 1_000_000_000, mcapAfter = 0.0000042 * 560_767_181;
+    ok(mcapAfter < mcapBefore, 'and the market cap the UI computes falls with it: $' + mcapBefore.toFixed(0) + ' -> $' + mcapAfter.toFixed(0));
+  }
+
   // runChunk surfaces TooDense unchanged (so the loop can shrink) and still rolls back
   const tp = mkPool(null);
   let surfaced = null;

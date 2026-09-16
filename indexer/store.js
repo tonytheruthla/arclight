@@ -168,12 +168,27 @@ async function getProfiles(db, addrs) {
 
 /** Fill name/symbol on a tokens row from a launchpad, without touching
  *  decimals/meta_ok unless the caller has verified them (confirmOk). */
-/** Total supply in whole tokens. Written once; a later different value is a
- *  data problem upstream, not something to silently overwrite. */
-async function setTokenSupply(db, address, supply) {
+/** Total supply in whole tokens. Written once by default: for an ordinary ERC-20
+ *  a later different value is a data problem upstream, not something to silently
+ *  overwrite.
+ *
+ *  `force` is the one legitimate exception. Arclite pad tokens BURN their unsold
+ *  curve supply at graduation, so their totalSupply genuinely falls — once. Every
+ *  market cap is price x total_supply, so if this column never updates, our own
+ *  UI keeps quoting the pre-burn number and the burn fixes nothing where anyone
+ *  can see it. Only the on-chain read may pass force. */
+async function setTokenSupply(db, address, supply, { force = false } = {}) {
   await db.query(
-    `UPDATE tokens SET total_supply = $2 WHERE address = $1 AND total_supply IS NULL`,
+    force
+      ? `UPDATE tokens SET total_supply = $2 WHERE address = $1`
+      : `UPDATE tokens SET total_supply = $2 WHERE address = $1 AND total_supply IS NULL`,
     [address.toLowerCase(), supply]);
+}
+
+/** Addresses the Arclite pad launched — the only tokens whose supply can change. */
+async function getLaunchTokenAddresses(db, limit = 50) {
+  const r = await db.query('SELECT address FROM launch_tokens ORDER BY address LIMIT $1', [limit]);
+  return r.rows.map(x => x.address);
 }
 
 async function setTokenNames(db, address, { name, symbol, source, confirmOk = false }) {
@@ -203,4 +218,4 @@ async function getImage(db, address) {
 }
 
 module.exports = { getState, setState, upsertToken, getKnownTokens, getTokensMissingMeta, updateTokenMeta, insertSwap, applyTransfer, takeSnapshot,
-  upsertLaunchToken, insertLaunchTrade, sharesToday, addSharePoint, upsertProfile, getProfiles, setTokenNames, setTokenSupply, putImage, getImage, ZERO, DEAD };
+  upsertLaunchToken, insertLaunchTrade, sharesToday, addSharePoint, upsertProfile, getProfiles, setTokenNames, setTokenSupply, getLaunchTokenAddresses, putImage, getImage, ZERO, DEAD };

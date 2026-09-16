@@ -6,7 +6,7 @@ require('dotenv').config();
 const { ethers } = require('ethers');
 const { ARC, TOPICS, pumpAddress } = require('./chain');
 const { decodePoolCreatedV3, decodeInitializeV4, decodeSwapV3, decodeSwapV4, decodeTransfer, decodeTokenCreated, decodeLaunchTrade } = require('./process');
-const { getState, setState, upsertToken, getKnownTokens, getTokensMissingMeta, updateTokenMeta, insertSwap, applyTransfer, takeSnapshot, upsertLaunchToken, insertLaunchTrade } = require('./store');
+const { getState, setState, upsertToken, getKnownTokens, getTokensMissingMeta, updateTokenMeta, setTokenSupply, getLaunchTokenAddresses, insertSwap, applyTransfer, takeSnapshot, upsertLaunchToken, insertLaunchTrade } = require('./store');
 const { listTokens } = require('./queries');
 const { makePool, migrate } = require('./db');
 
@@ -152,7 +152,41 @@ async function backfillMeta(db, provider, limit = 5) {
     fixed++;
     console.log(`[meta] ${meta.symbol || '?'} ${addr} decimals=${meta.decimals}`);
   }
+  await refreshLaunchSupply(db, provider);
   return fixed;
+}
+
+/** Re-read totalSupply for pad-launched tokens.
+ *
+ *  Every other token's supply is written once, which is right — it does not move.
+ *  Arclite pad tokens are the exception: at graduation the pad burns the curve
+ *  supply nobody bought, so totalSupply drops, once, permanently. Market cap is
+ *  price x total_supply, so without this the site would keep reporting the
+ *  pre-burn supply and the burn would be invisible exactly where it matters.
+ *
+ *  Read from the chain, not from a third-party token list — an outside list will
+ *  not know about our burn, and on the day it happens it would overwrite the
+ *  correct value with a stale one. */
+async function refreshLaunchSupply(db, provider) {
+  let addrs = [];
+  try { addrs = await getLaunchTokenAddresses(db, 25); } catch { return 0; }
+  if (!addrs.length) return 0;
+  let changed = 0;
+  for (const addr of addrs) {
+    try {
+      const c = new ethers.Contract(addr, ['function totalSupply() view returns (uint256)'], provider);
+      const raw = await c.totalSupply();
+      const whole = Number(raw / 10n ** 18n);
+      if (!(whole > 0)) continue;
+      const cur = await db.query('SELECT total_supply FROM tokens WHERE address = $1', [addr]);
+      const was = cur.rows[0] && cur.rows[0].total_supply;
+      if (was != null && Number(was) === whole) continue;
+      await setTokenSupply(db, addr, whole, { force: true });
+      changed++;
+      console.log(`[supply] ${addr} ${was == null ? 'set' : Number(was).toLocaleString() + ' ->'} ${whole.toLocaleString()}`);
+    } catch { /* one odd token must not stop the rest */ }
+  }
+  return changed;
 }
 
 /** Block timestamps for every swap in a chunk from TWO getBlock calls, not one
