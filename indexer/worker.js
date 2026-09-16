@@ -10,7 +10,7 @@ const { getState, setState, upsertToken, getKnownTokens, getTokensMissingMeta, u
 const { listTokens } = require('./queries');
 const { makePool, migrate } = require('./db');
 
-const LOG_CHUNK = Number(process.env.LOG_CHUNK || 9500);   // starting/maximum block span per chunk
+const LOG_CHUNK = Number(process.env.LOG_CHUNK || 250);   // starting/maximum block span per chunk
 /* Provider credit budget (Infura free tier: 3M credits/day; eth_getLogs = 255,
  * eth_call / getBlock / blockNumber = 80). Each poll that finds new blocks costs
  * 2 getLogs + 1 blockNumber ≈ 590 credits, plus 80 per unique swap block.
@@ -28,7 +28,21 @@ const LOG_CHUNK = Number(process.env.LOG_CHUNK || 9500);   // starting/maximum b
  * fetch that comes back with more than MAX_LOGS_PER_CHUNK logs aborts the chunk
  * BEFORE processing (one wasted getLogs, ~255 credits) and the main loop retries
  * it at half the block range. Chunk size grows back once ranges are quiet. */
-const MAX_LOGS_PER_CHUNK = Number(process.env.MAX_LOGS_PER_CHUNK || 6000);
+/* Why 250 and 25,000 rather than the old 9,500 and 6,000.
+ *
+ * The merged discovery/swap call fetches a WHOLE chunk in one getLogs. When the
+ * range is too big the provider refuses it (20,000-result cap) and
+ * getLogsAdaptive splits — but a split holds `a` AND `b` in memory before the
+ * size check can reject them, so peak memory is ~2x a 20,000-log leaf plus the
+ * JSON-RPC response strings being parsed. On 16 Sept's Arc traffic (35.4
+ * matching logs/block) a 9,500-block chunk meant ~336,000 logs and a peak that
+ * blew a ~512MB heap: "FATAL ERROR: Reached heap limit".
+ *
+ * Bounding the WORK is the fix, not buying a bigger heap. At 250 blocks the
+ * merged call is ~8,800 logs (~26MB) and never splits at all. Transfers are
+ * separately streamed in TRANSFER_SLICE-block slices. Both are now bounded by a
+ * constant instead of by how busy the chain happens to be. */
+const MAX_LOGS_PER_CHUNK = Number(process.env.MAX_LOGS_PER_CHUNK || 25000);
 const MIN_CHUNK          = Number(process.env.MIN_CHUNK || 200);
 /* Block span per transfers fetch. Small on purpose — see the streaming note in
  * processChunk. 25 blocks was ~9,000 transfer logs on 16 Sept's traffic. */
@@ -444,4 +458,4 @@ if (require.main === module) {
   main().catch(e => { console.error('FATAL', e); process.exit(1); });
 }
 
-module.exports = { processChunk, runChunk, takeSnapshots, getLogsAdaptive, retry, blockTimes, nextChunkSize, TooDense, MAX_LOGS_PER_CHUNK };
+module.exports = { processChunk, runChunk, takeSnapshots, getLogsAdaptive, retry, blockTimes, nextChunkSize, TooDense, MAX_LOGS_PER_CHUNK, LOG_CHUNK, MIN_CHUNK, TRANSFER_SLICE };

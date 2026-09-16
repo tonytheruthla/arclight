@@ -308,7 +308,27 @@ function fakeLog(iface, eventName, args, overrides = {}) {
 
   // --- memory bound: dense fetch aborts the chunk before processing; chunk size adapts
   console.log('\n=== memory bound: TooDense aborts early, chunk size halves then recovers ===');
-  const { nextChunkSize, TooDense, MAX_LOGS_PER_CHUNK } = require('./worker');
+  const { nextChunkSize, TooDense, MAX_LOGS_PER_CHUNK, LOG_CHUNK, TRANSFER_SLICE } = require('./worker');
+  /* Memory safety of the DEFAULTS, pinned as arithmetic rather than hope.
+     The merged discovery/swap call fetches a whole chunk in ONE getLogs. If that
+     exceeds the provider's 20,000-result cap, getLogsAdaptive splits — and a
+     split holds `a` AND `b` before the size check can reject them, so peak
+     memory is ~2x a 20k leaf plus the JSON being parsed. That is what produced
+     "FATAL ERROR: Reached heap limit" on 16 Sept with LOG_CHUNK = 9500.
+     35.4 matching logs/block is measured, from the worker's own log line
+     (7,071 logs in the 200-block range 21062190-21062389). */
+  {
+    const MEASURED_LOGS_PER_BLOCK = 7071 / 200;
+    const PROVIDER_RESULT_CAP = 20000;
+    const mergedLogs = LOG_CHUNK * MEASURED_LOGS_PER_BLOCK;
+    ok(mergedLogs < PROVIDER_RESULT_CAP,
+       'default LOG_CHUNK keeps the merged call under the provider cap so it never splits (' +
+       Math.round(mergedLogs) + ' logs at ' + LOG_CHUNK + ' blocks)');
+    ok(mergedLogs < MAX_LOGS_PER_CHUNK,
+       'and under MAX_LOGS_PER_CHUNK, so a normal chunk is not rejected as TooDense');
+    ok(TRANSFER_SLICE * 361 < MAX_LOGS_PER_CHUNK,
+       'a transfer slice at measured density (361/block) also fits under the cap');
+  }
   ok(nextChunkSize(9500, { tooDense: true }) === 4750, 'TooDense halves the chunk (9500 -> 4750)');
   ok(nextChunkSize(300, { tooDense: true }) === 150, 'TooDense keeps halving past 200 (300 -> 150)');
   /* The bug this pins: MIN_CHUNK used to floor the shrink, so nextChunkSize(200)
@@ -324,20 +344,25 @@ function fakeLog(iface, eventName, args, overrides = {}) {
     ok(c === 1, 'it bottoms out at a single, indivisible block (got ' + c + ')');
   }
   ok(nextChunkSize(1, { tooDense: true }) === 1, 'one block cannot shrink further — the loop force-processes it instead');
-  ok(nextChunkSize(4750, { logs: 100 }) === 9500, 'a quiet chunk doubles back, capped at LOG_CHUNK');
+  ok(nextChunkSize(LOG_CHUNK / 2, { logs: 100 }) === LOG_CHUNK, 'a quiet chunk doubles back, capped at LOG_CHUNK (' + LOG_CHUNK + ')');
   ok(nextChunkSize(4750, { logs: MAX_LOGS_PER_CHUNK - 1 }) === 4750, 'a busy-but-OK chunk holds its size');
-  ok(nextChunkSize(9500, { logs: 10 }) === 9500, 'already at max stays at max');
+  ok(nextChunkSize(LOG_CHUNK, { logs: 10 }) === LOG_CHUNK, 'already at LOG_CHUNK stays there');
+  ok(nextChunkSize(9500, { logs: 10 }) === 9500, 'a chunk above LOG_CHUNK is never grown further');
 
   // a provider whose first fetch returns MAX+1 logs: processChunk must throw TooDense
   // having done NO discovery, NO DB writes and NO further RPC calls.
   const db5 = freshDb();
   await store.upsertToken(db5, { address: T_OLD, name:'Old', symbol:'OLD', decimals:18, dex:'v3', poolRef:P_OLD, fee:3000, usdcIsToken0:true, block:50, metaOk:true });
-  const flood = Array.from({ length: MAX_LOGS_PER_CHUNK + 1 }, (_, i) =>
+  /* An explicit small cap keeps the suite fast: what is under test is that the
+     threshold aborts the chunk, not what the production default happens to be
+     (25,000 — building that many fake logs twice took the suite over 2 min). */
+  const TEST_CAP = 50;
+  const flood = Array.from({ length: TEST_CAP + 1 }, (_, i) =>
     fakeLog(IFACES.v3Pool, 'Swap', [A(0x9), A(0x9), 1_000_000n, -1n*10n**18n, sqrt, 0n, 0], { address: P_OLD, blockNumber: 2000 + (i % 50), txHash: '0x' + i.toString(16).padStart(64, '0'), logIndex: i }));
   let fetches = 0, blockFetches = 0;
   const floodProvider = { async getLogs() { fetches++; return flood; }, async getBlock() { blockFetches++; return { timestamp: 1 }; } };
   let denseErr = null;
-  try { await processChunk(db5, floodProvider, 2000, 2100); } catch (e) { denseErr = e; }
+  try { await processChunk(db5, floodProvider, 2000, 2100, TEST_CAP); } catch (e) { denseErr = e; }
   ok(denseErr && denseErr.tooDense, 'processChunk throws TooDense on a flood: ' + (denseErr && denseErr.message));
   ok(fetches === 1, 'aborted after the FIRST getLogs — no follow-up, no transfers fetch: ' + fetches);
   ok(blockFetches === 0, 'no block timestamps fetched for a chunk that was abandoned');
@@ -354,7 +379,7 @@ function fakeLog(iface, eventName, args, overrides = {}) {
     ok(!threw, 'forced single block does not throw TooDense: ' + (threw && threw.message));
     // floodProvider answers EVERY getLogs with the same flood, and processChunk
     // makes two (merged + transfers), so the forced total is 2x the flood.
-    ok(stats && stats.logs === 2 * (MAX_LOGS_PER_CHUNK + 1), 'forced chunk processed all ' + (stats && stats.logs) + ' logs, none dropped');
+    ok(stats && stats.logs === 2 * (TEST_CAP + 1), 'forced chunk processed all ' + (stats && stats.logs) + ' logs, none dropped');
     ok((await db6.query('SELECT count(*)::int n FROM swaps')).rows[0].n > 0, 'the forced block\'s swaps reached the DB instead of being lost');
   }
 
@@ -395,7 +420,7 @@ function fakeLog(iface, eventName, args, overrides = {}) {
   // runChunk surfaces TooDense unchanged (so the loop can shrink) and still rolls back
   const tp = mkPool(null);
   let surfaced = null;
-  try { await runChunk(tp.pool, floodProvider, 2000, 2100); } catch (e) { surfaced = e; }
+  try { await runChunk(tp.pool, floodProvider, 2000, 2100, TEST_CAP); } catch (e) { surfaced = e; }
   ok(surfaced && surfaced.tooDense && tp.log.includes('ROLLBACK') && tp.released === 1, 'runChunk passes TooDense through after ROLLBACK + release');
 
   // --- getLogsAdaptive: Infura's 20k-result cap, reproduced verbatim, must be
