@@ -11,6 +11,7 @@ const express = require('express');
 const { ethers } = require('ethers');
 const { makePool, migrate } = require('./db');
 const { listTokens, getToken, getStats, recentSwaps, pointsLeaderboard, pointsForWallet, walletHoldings, walletTrades, walletLaunches } = require('./queries');
+const { createCache } = require('./cache');
 const { solHoldings } = require('./sol');
 const { sharesToday, addSharePoint, getProfiles, upsertProfile, putImage, getImage } = require('./store');
 const { pumpAddress } = require('./chain');
@@ -78,6 +79,39 @@ function makeApp(db, opts = {}) {
   });
 
   const fail = (res, e) => { console.error(e); res.status(500).json({ error: 'internal error' }); };
+  /* CACHE_TTL_MS=0 disables caching entirely: the test suite writes to the DB and
+     immediately reads it back through the API, which a cache would defeat. */
+  const CACHE_TTL = Number(process.env.CACHE_TTL_MS ?? 15000);
+  const listCache = CACHE_TTL > 0
+    ? createCache({ ttlMs: CACHE_TTL, staleMs: 3600000 })
+    : { get: (_k, fn) => fn(), stats: () => ({}), clear: () => {} };
+
+  /* Keep the common path warm.
+   *
+   * The cache above means only a COLD request pays the ~10s scan. Without a
+   * warmer, the first visitor after a quiet spell is still the one who waits,
+   * and on mobile that person simply leaves. So refresh the default view on a
+   * timer, in the background, whether or not anyone is asking.
+   *
+   * staleMs is an hour rather than minutes for the same reason: an hour-old row
+   * count served instantly beats a correct one served after ten seconds, and the
+   * warmer means it will never actually be an hour old.
+   *
+   * unref() so this timer never holds the process open — tests create an app and
+   * expect to exit. */
+  const WARM = [
+    ['new:50:0',    () => listTokens(db, { sort: 'new',    limit: 50, offset: 0 })],
+    ['volume:50:0', () => listTokens(db, { sort: 'volume', limit: 50, offset: 0 })],
+    ['stats',       () => getStats(db)],
+    ['swaps:30',    () => recentSwaps(db, 30)],
+  ];
+  const warm = () => { for (const [k, fn] of WARM) listCache.get(k, fn).catch(() => {}); };
+  if (process.env.NO_WARM !== '1' && CACHE_TTL > 0) {
+    warm();
+    const t = setInterval(warm, Number(process.env.WARM_MS || 12000));
+    if (t.unref) t.unref();
+  }
+
 
   app.get('/api/v1', (req, res) => {
     res.json({ name: 'Arclite Explorer API', chainId: 5042, launchpad: pumpAddress(),
@@ -91,7 +125,11 @@ function makeApp(db, opts = {}) {
       const sort = ['volume', 'mcap', 'txns', 'holders', 'new', 'change'].includes(req.query.sort) ? req.query.sort : 'new';
       const limit = Math.min(Number(req.query.limit) || 50, 200);
       const offset = Math.max(Number(req.query.offset) || 0, 0);
-      const rows = await listTokens(db, { sort, limit, offset });
+      /* Cached: this query scans the whole swaps table regardless of limit.
+         See cache.js for why stale-while-revalidate and single-flight are both
+         required rather than nice to have. */
+      const rows = await listCache.get(`${sort}:${limit}:${offset}`, () => listTokens(db, { sort, limit, offset }));
+      res.set('Cache-Control', 'public, max-age=10');
       res.json({ sort, limit, offset, count: rows.length, tokens: rows });
     } catch (e) { fail(res, e); }
   });
@@ -105,14 +143,20 @@ function makeApp(db, opts = {}) {
   });
 
   app.get('/api/v1/stats', async (req, res) => {
-    try { res.json({ ...(await getStats(db)), launchpad: pumpAddress(), at: new Date().toISOString() }); }
+    try {
+      const st = await listCache.get('stats', () => getStats(db));
+      res.set('Cache-Control', 'public, max-age=10');
+      res.json({ ...st, launchpad: pumpAddress(), at: new Date().toISOString() });
+    }
     catch (e) { fail(res, e); }
   });
 
   app.get('/api/v1/swaps/recent', async (req, res) => {
     try {
       const limit = Math.min(Number(req.query.limit) || 30, 100);
-      res.json({ swaps: await recentSwaps(db, limit) });
+      const swaps = await listCache.get(`swaps:${limit}`, () => recentSwaps(db, limit));
+      res.set('Cache-Control', 'public, max-age=5');
+      res.json({ swaps });
     } catch (e) { fail(res, e); }
   });
 
