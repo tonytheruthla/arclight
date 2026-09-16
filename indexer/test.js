@@ -202,8 +202,18 @@ function fakeLog(iface, eventName, args, overrides = {}) {
   };
   const stats = await processChunk(db2, mockProvider, 100, 200);
 
-  const logCalls = calls.length;
-  ok(logCalls === 3, 'chunk with a new pool costs 3 getLogs (merged + follow-up for the new pool + transfers), got ' + logCalls);
+  /* Two kinds of call, counted separately on purpose. Discovery/swap calls must
+     stay minimal — that was the whole point of merging them into one request.
+     Transfer calls now scale with the range because they are STREAMED in
+     TRANSFER_SLICE-block slices to bound memory (see processChunk). Counting
+     only the total would hide an accidental extra merged call behind the
+     slices, so the test splits them. */
+  const isTransferCall = f => JSON.stringify(f.topics || []).includes(TOPICS.erc20Transfer);
+  const discovery = calls.filter(f => !isTransferCall(f));
+  const slices    = calls.filter(isTransferCall);
+  const expSlices = n => Math.ceil(n / 25);
+  ok(discovery.length === 2, 'chunk with a new pool costs 2 discovery getLogs (merged + follow-up for the new pool), got ' + discovery.length);
+  ok(slices.length === expSlices(101), '101 blocks => ' + expSlices(101) + ' transfer slices, got ' + slices.length);
   ok(Array.isArray(calls[0].topics[0]) && calls[0].topics[0].length === 4, 'first call ORs all four discovery/swap topics in one request');
   ok(calls[0].address.map(a=>a.toLowerCase()).includes(P_OLD.toLowerCase()), 'first call includes the already-known pool address');
   const swaps = (await db2.query('SELECT token_address, usdc_amount FROM swaps ORDER BY block_number')).rows;
@@ -219,10 +229,12 @@ function fakeLog(iface, eventName, args, overrides = {}) {
   ok(bal.filter(r => Number(r.balance) > 0).length === 2, 'holders = 2 (sender is net negative, never counted)');
   ok((await store.getKnownTokens(db2,'v3')).length === 2, 'new pool discovered and stored');
 
-  // a quiet chunk (nothing new) must be exactly 2 calls
+  // a quiet chunk (nothing new) must cost exactly ONE discovery call
   calls.length = 0;
   await processChunk(db2, mockProvider, 300, 400);
-  ok(calls.length === 2, 'quiet chunk costs exactly 2 getLogs, got ' + calls.length);
+  const qDisc = calls.filter(f => !isTransferCall(f));
+  ok(qDisc.length === 1, 'quiet chunk costs exactly 1 discovery getLogs (no follow-up), got ' + qDisc.length);
+  ok(calls.filter(isTransferCall).length === expSlices(101), 'plus its ' + expSlices(101) + ' transfer slices');
 
   // --- block timestamps are only fetched for swaps we keep. The V4 PoolManager
   //     emits Swap for every pool on the chain; the ones on unknown (non-USDC)
@@ -298,7 +310,20 @@ function fakeLog(iface, eventName, args, overrides = {}) {
   console.log('\n=== memory bound: TooDense aborts early, chunk size halves then recovers ===');
   const { nextChunkSize, TooDense, MAX_LOGS_PER_CHUNK } = require('./worker');
   ok(nextChunkSize(9500, { tooDense: true }) === 4750, 'TooDense halves the chunk (9500 -> 4750)');
-  ok(nextChunkSize(300, { tooDense: true }) === 200, 'never shrinks below MIN_CHUNK (200)');
+  ok(nextChunkSize(300, { tooDense: true }) === 150, 'TooDense keeps halving past 200 (300 -> 150)');
+  /* The bug this pins: MIN_CHUNK used to floor the shrink, so nextChunkSize(200)
+     returned 200 and the main loop retried the identical range forever. Arc went
+     public on 16 Sept and a 200-block window can hold 7,071 matching logs, so the
+     floor was reachable in production — the worker printed "shrinking chunk
+     200 -> 200 and retrying" ~100 times a second until the container OOMed. */
+  ok(nextChunkSize(200, { tooDense: true }) === 100, 'a 200-block chunk still shrinks (was the 200 -> 200 deadlock)');
+  {
+    let c = 9500, guard = 0;
+    while (nextChunkSize(c, { tooDense: true }) !== c && guard++ < 100) c = nextChunkSize(c, { tooDense: true });
+    ok(guard < 100, 'the shrink ladder terminates rather than looping');
+    ok(c === 1, 'it bottoms out at a single, indivisible block (got ' + c + ')');
+  }
+  ok(nextChunkSize(1, { tooDense: true }) === 1, 'one block cannot shrink further — the loop force-processes it instead');
   ok(nextChunkSize(4750, { logs: 100 }) === 9500, 'a quiet chunk doubles back, capped at LOG_CHUNK');
   ok(nextChunkSize(4750, { logs: MAX_LOGS_PER_CHUNK - 1 }) === 4750, 'a busy-but-OK chunk holds its size');
   ok(nextChunkSize(9500, { logs: 10 }) === 9500, 'already at max stays at max');
@@ -317,6 +342,55 @@ function fakeLog(iface, eventName, args, overrides = {}) {
   ok(fetches === 1, 'aborted after the FIRST getLogs — no follow-up, no transfers fetch: ' + fetches);
   ok(blockFetches === 0, 'no block timestamps fetched for a chunk that was abandoned');
   ok((await db5.query('SELECT count(*)::int n FROM swaps')).rows[0].n === 0, 'nothing written to the DB for the abandoned chunk');
+
+  // A single block that is over the cap cannot be split, so the main loop passes
+  // cap = Infinity and the chunk must PROCESS rather than throw. Looping there
+  // loses the block's data permanently; processing it costs memory once.
+  {
+    const db6 = freshDb();
+    await store.upsertToken(db6, { address: T_OLD, name:'Old', symbol:'OLD', decimals:18, dex:'v3', poolRef:P_OLD, fee:3000, usdcIsToken0:true, block:50, metaOk:true });
+    let threw = null, stats = null;
+    try { stats = await processChunk(db6, floodProvider, 2000, 2000, Infinity); } catch (e) { threw = e; }
+    ok(!threw, 'forced single block does not throw TooDense: ' + (threw && threw.message));
+    // floodProvider answers EVERY getLogs with the same flood, and processChunk
+    // makes two (merged + transfers), so the forced total is 2x the flood.
+    ok(stats && stats.logs === 2 * (MAX_LOGS_PER_CHUNK + 1), 'forced chunk processed all ' + (stats && stats.logs) + ' logs, none dropped');
+    ok((await db6.query('SELECT count(*)::int n FROM swaps')).rows[0].n > 0, 'the forced block\'s swaps reached the DB instead of being lost');
+  }
+
+  /* Transfers are streamed in block slices, not fetched whole. On 16 Sept a
+     single 200-block window held 72,292 Transfer logs against 7,071 from the
+     merged call — so the transfers fetch, not the chunk, is what decides peak
+     memory. Slicing means a big chunk (needed to keep up with the chain) no
+     longer implies a big allocation. */
+  {
+    const db7 = freshDb();
+    await store.upsertToken(db7, { address: T_OLD, name:'Old', symbol:'OLD', decimals:18, dex:'v3', poolRef:P_OLD, fee:3000, usdcIsToken0:true, block:50, metaOk:true });
+    const ranges = [];
+    let live = 0, peak = 0;
+    const sliceProvider = {
+      async getLogs(f) {
+        const from = Number(f.fromBlock), to = Number(f.toBlock);
+        const isTransfer = JSON.stringify(f.topics || []).includes(TOPICS.erc20Transfer);
+        if (!isTransfer) return [];
+        ranges.push([from, to]);
+        const batch = Array.from({ length: 40 }, (_, i) =>
+          fakeLog(IFACES.erc20, 'Transfer', [A(0x1), A(0x2), 10n ** 18n],
+            { address: T_OLD, blockNumber: from, txHash: '0x' + (from * 100 + i).toString(16).padStart(64, '0'), logIndex: i }));
+        live = batch.length; peak = Math.max(peak, live);   // one slice held at a time
+        return batch;
+      },
+      async getBlock() { return { timestamp: 1 }; },
+    };
+    const st7 = await processChunk(db7, sliceProvider, 1000, 1199);   // 200 blocks
+    ok(ranges.length === 8, '200-block chunk => 8 transfer slices of 25 (got ' + ranges.length + ')');
+    ok(ranges.every(([a, b]) => b - a + 1 <= 25), 'no slice exceeds TRANSFER_SLICE blocks');
+    ok(ranges[0][0] === 1000 && ranges[ranges.length - 1][1] === 1199, 'slices tile the chunk exactly, no gap at either end');
+    const covered = ranges.reduce((n, [a, b]) => n + (b - a + 1), 0);
+    ok(covered === 200, 'slices cover all 200 blocks exactly once (got ' + covered + ')');
+    ok(st7.transfers === 8 * 40, 'every slice\'s transfers are counted, not just the last (got ' + st7.transfers + ')');
+    ok(peak === 40, 'only one slice is materialised at a time — peak ' + peak + ', total ' + st7.transfers);
+  }
 
   // runChunk surfaces TooDense unchanged (so the loop can shrink) and still rolls back
   const tp = mkPool(null);

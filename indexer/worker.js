@@ -10,7 +10,7 @@ const { getState, setState, upsertToken, getKnownTokens, getTokensMissingMeta, u
 const { listTokens } = require('./queries');
 const { makePool, migrate } = require('./db');
 
-const LOG_CHUNK = 9500;               // Arc's eth_getLogs caps at 10k blocks — same limit terminal.html works around
+const LOG_CHUNK = Number(process.env.LOG_CHUNK || 9500);   // starting/maximum block span per chunk
 /* Provider credit budget (Infura free tier: 3M credits/day; eth_getLogs = 255,
  * eth_call / getBlock / blockNumber = 80). Each poll that finds new blocks costs
  * 2 getLogs + 1 blockNumber ≈ 590 credits, plus 80 per unique swap block.
@@ -29,14 +29,24 @@ const LOG_CHUNK = 9500;               // Arc's eth_getLogs caps at 10k blocks �
  * BEFORE processing (one wasted getLogs, ~255 credits) and the main loop retries
  * it at half the block range. Chunk size grows back once ranges are quiet. */
 const MAX_LOGS_PER_CHUNK = Number(process.env.MAX_LOGS_PER_CHUNK || 6000);
-const MIN_CHUNK          = 200;
+const MIN_CHUNK          = Number(process.env.MIN_CHUNK || 200);
+/* Block span per transfers fetch. Small on purpose — see the streaming note in
+ * processChunk. 25 blocks was ~9,000 transfer logs on 16 Sept's traffic. */
+const TRANSFER_SLICE     = Number(process.env.TRANSFER_SLICE || 25);
+/* MIN_CHUNK is where the chunk RESTS, not a floor it cannot pass. A dense
+ * range has to be able to shrink all the way to a single block, because a
+ * 200-block window that is over the cap can only be split further. Flooring
+ * the shrink at 200 made nextChunkSize(200) return 200, and the main loop
+ * retried the identical range forever — 'shrinking chunk 200 -> 200'. */
 class TooDense extends Error {
   constructor(count, from, to) { super(`${count} logs in ${from}-${to} exceeds MAX_LOGS_PER_CHUNK=${MAX_LOGS_PER_CHUNK}`); this.tooDense = true; }
 }
-/** Next chunk size after a chunk outcome. Halve on TooDense (floor MIN_CHUNK);
- *  double back toward LOG_CHUNK once a chunk comes in well under the cap. */
+/** Next chunk size after a chunk outcome. Halve on TooDense, all the way down to
+ *  a single block if the range stays over the cap; double back toward LOG_CHUNK
+ *  once a chunk comes in well under it. The halving MUST strictly decrease, or
+ *  the main loop retries an identical range forever. */
 function nextChunkSize(current, { tooDense = false, logs = 0 } = {}) {
-  if (tooDense) return Math.max(MIN_CHUNK, Math.floor(current / 2));
+  if (tooDense) return Math.max(1, Math.floor(current / 2));   // must strictly decrease
   if (logs < MAX_LOGS_PER_CHUNK / 4 && current < LOG_CHUNK) return Math.min(LOG_CHUNK, current * 2);
   return current;
 }
@@ -161,13 +171,13 @@ async function blockTimes(provider, fromBlock, toBlock, blockNumbers) {
  *  happens we split — using the provider's suggested end block when it gives
  *  one, halving otherwise — and stitch the pieces back together. Quiet ranges
  *  still cost one call; only genuinely dense ranges pay for more. */
-async function getLogsAdaptive(provider, filter, depth = 0) {
+async function getLogsAdaptive(provider, filter, depth = 0, cap = MAX_LOGS_PER_CHUNK) {
   const from = Number(filter.fromBlock), to = Number(filter.toBlock);
   let lastErr;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const logs = await provider.getLogs(filter);
-      if (logs.length > MAX_LOGS_PER_CHUNK) throw new TooDense(logs.length, from, to);
+      if (logs.length > cap) throw new TooDense(logs.length, from, to);
       return logs;
     } catch (e) {
       if (e && e.tooDense) throw e;
@@ -181,10 +191,10 @@ async function getLogsAdaptive(provider, filter, depth = 0) {
         let mid = m ? Number(m[2]) : Math.floor((from + to) / 2);
         if (!(mid >= from && mid < to)) mid = Math.floor((from + to) / 2);
         console.log(`[split] ${from}-${to} exceeded the provider result cap; retrying as ${from}-${mid} + ${mid + 1}-${to}`);
-        const a = await getLogsAdaptive(provider, { ...filter, fromBlock: from, toBlock: mid }, depth + 1);
-        if (a.length > MAX_LOGS_PER_CHUNK) throw new TooDense(a.length, from, mid);
-        const b = await getLogsAdaptive(provider, { ...filter, fromBlock: mid + 1, toBlock: to }, depth + 1);
-        if (a.length + b.length > MAX_LOGS_PER_CHUNK) throw new TooDense(a.length + b.length, from, to);
+        const a = await getLogsAdaptive(provider, { ...filter, fromBlock: from, toBlock: mid }, depth + 1, cap);
+        if (a.length > cap) throw new TooDense(a.length, from, mid);
+        const b = await getLogsAdaptive(provider, { ...filter, fromBlock: mid + 1, toBlock: to }, depth + 1, cap);
+        if (a.length + b.length > cap) throw new TooDense(a.length + b.length, from, to);
         return a.concat(b);
       }
       lastErr = e;                                   // transient: back off and retry
@@ -194,7 +204,7 @@ async function getLogsAdaptive(provider, filter, depth = 0) {
   throw lastErr;
 }
 
-async function processChunk(db, provider, fromBlock, toBlock) {
+async function processChunk(db, provider, fromBlock, toBlock, cap = MAX_LOGS_PER_CHUNK) {
   // ---- 1. ONE getLogs for discovery AND swaps on every pool we already know.
   // eth_getLogs accepts an address list and an OR-list of topics, so factory
   // PoolCreated, PoolManager Initialize, and Swap events from all known V3 pools
@@ -210,7 +220,7 @@ async function processChunk(db, provider, fromBlock, toBlock) {
     topics: [[TOPICS.poolCreated, TOPICS.v4Initialize, TOPICS.v3Swap, TOPICS.v4Swap,
               ...(PUMP ? [TOPICS.pumpCreated, TOPICS.pumpBought, TOPICS.pumpSold] : [])]],
     fromBlock, toBlock,
-  });
+  }, 0, cap);
   const byTopic = t => merged.filter(l => l.topics && l.topics[0] === t);
   const poolCreatedLogs = byTopic(TOPICS.poolCreated);
   const initLogs        = byTopic(TOPICS.v4Initialize);
@@ -247,7 +257,7 @@ async function processChunk(db, provider, fromBlock, toBlock) {
   // (V4 needs nothing extra: all V4 swaps come from the one PoolManager address
   // and are matched to known poolIds below, which now include this chunk's.)
   if (newV3Pools.length) {
-    const late = await getLogsAdaptive(provider, { address: newV3Pools, topics: [TOPICS.v3Swap], fromBlock, toBlock });
+    const late = await getLogsAdaptive(provider, { address: newV3Pools, topics: [TOPICS.v3Swap], fromBlock, toBlock }, 0, cap);
     v3SwapLogs = v3SwapLogs.concat(late);
   }
   // Narrow to swaps we will actually store BEFORE fetching block timestamps.
@@ -282,20 +292,34 @@ async function processChunk(db, provider, fromBlock, toBlock) {
     if (tr) { await insertLaunchTrade(db, tr); launchTrades++; }
   }
 
-  // ---- 3. transfers, for holder counts
+  // ---- 3. transfers, for holder counts — STREAMED in block slices.
+  /* This is by far the densest fetch the worker makes: it asks every known
+   * token address for every Transfer in the range, and on 16 Sept a single
+   * 200-block window held 72,292 of them. Materialising a whole chunk's worth
+   * at once is what actually put the container under memory pressure — the
+   * merged call above was only 7,071 in the same window.
+   *
+   * Slicing decouples the two concerns. Peak memory now depends on
+   * TRANSFER_SLICE, not on the chunk size, so the chunk can stay big enough to
+   * keep up with the chain while each fetch stays small enough to hold. Each
+   * slice is fetched, applied and released before the next one is requested. */
   const allTokens = v3Tokens.concat(v4Tokens);
   let transferCount = 0;
   if (allTokens.length) {
-    const trLogs = await getLogsAdaptive(provider, {
-      address: allTokens.map(t => t.address), topics: [TOPICS.erc20Transfer], fromBlock, toBlock,
-    });
-    transferCount = trLogs.length;
+    const addrs = allTokens.map(t => t.address);
     const byAddr = new Map(allTokens.map(t => [t.address.toLowerCase(), t]));
-    for (const log of trLogs) {
-      const t = byAddr.get(log.address.toLowerCase());
-      if (!t) continue;
-      const tr = decodeTransfer(log, t.decimals);
-      if (tr) await applyTransfer(db, t.address, tr);
+    for (let sFrom = fromBlock; sFrom <= toBlock; sFrom += TRANSFER_SLICE) {
+      const sTo = Math.min(sFrom + TRANSFER_SLICE - 1, toBlock);
+      const trLogs = await getLogsAdaptive(provider, {
+        address: addrs, topics: [TOPICS.erc20Transfer], fromBlock: sFrom, toBlock: sTo,
+      }, 0, cap);
+      transferCount += trLogs.length;
+      for (const log of trLogs) {
+        const t = byAddr.get(log.address.toLowerCase());
+        if (!t) continue;
+        const tr = decodeTransfer(log, t.decimals);
+        if (tr) await applyTransfer(db, t.address, tr);
+      }
     }
   }
 
@@ -309,11 +333,11 @@ async function processChunk(db, provider, fromBlock, toBlock) {
  *  double-count every transfer it had already applied. Wrapping the chunk and
  *  its setState() in one transaction means a chunk is either fully applied
  *  and marked done, or not applied at all. Postgres does the rest. */
-async function runChunk(pool, provider, fromBlock, toBlock) {
+async function runChunk(pool, provider, fromBlock, toBlock, cap = MAX_LOGS_PER_CHUNK) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const stats = await processChunk(client, provider, fromBlock, toBlock);
+    const stats = await processChunk(client, provider, fromBlock, toBlock, cap);
     await setState(client, ARC.chainId, toBlock);
     await client.query('COMMIT');
     return stats;
@@ -361,6 +385,7 @@ async function main() {
   let lastSnapshot = 0;
   let chunksSinceMeta = 0;
   let chunk = LOG_CHUNK;
+  let forceOne = false;
 
   while (true) {
     try {
@@ -369,9 +394,19 @@ async function main() {
         const to = Math.min(head, lastBlock + chunk);
         let stats;
         try {
-          stats = await runChunk(db, provider, lastBlock + 1, to);
+          /* forceOne: this exact single block already came back over the cap and
+             cannot be split any further, so process it rather than retry it. A
+             block is indivisible — looping here loses the data permanently,
+             processing it costs one oversized chunk of memory, once. */
+          stats = await runChunk(db, provider, lastBlock + 1, to, forceOne ? Infinity : MAX_LOGS_PER_CHUNK);
+          forceOne = false;
         } catch (e) {
           if (!(e && e.tooDense)) throw e;
+          if (chunk <= 1) {
+            console.log(`[dense] ${e.message} — single block, cannot split further; processing it anyway`);
+            forceOne = true;
+            continue;
+          }
           const next = nextChunkSize(chunk, { tooDense: true });
           console.log(`[dense] ${e.message} — shrinking chunk ${chunk} -> ${next} and retrying`);
           chunk = next;
@@ -380,6 +415,7 @@ async function main() {
         console.log(`[chunk] ${lastBlock + 1}-${to} · +${stats.discovered} tokens · ${stats.swaps} swaps · ${stats.transfers} transfers${stats.launchTrades ? ' · ' + stats.launchTrades + ' launchpad' : ''} · ${stats.logs} logs`);
         lastBlock = to;
         chunk = nextChunkSize(chunk, { logs: stats.logs });
+        if (chunk < MIN_CHUNK && stats.logs < MAX_LOGS_PER_CHUNK) chunk = Math.min(MIN_CHUNK, LOG_CHUNK);
         // Repair metadata during the backfill too, not just once caught up. A
         // cold start is millions of blocks behind, so gating this on "caught up"
         // meant every token discovered on the way stayed nameless and unpriced
