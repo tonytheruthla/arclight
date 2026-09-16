@@ -44,6 +44,22 @@ contract ArcliteToken {
     mapping(address => uint256) public balanceOf;
     mapping(address => mapping(address => uint256)) public allowance;
 
+    /// @notice Voluntary, self-service time-lock on a holder's own balance. Any
+    ///         holder can call it on themselves; nobody can lock anyone else's
+    ///         tokens. Intended use: a creator locks their own curve-bought first
+    ///         buy so the market can see, on-chain, that they cannot dump it —
+    ///         a stronger signal than a promise. One-way: a call can only extend
+    ///         the lock, never shorten it, so it can't be used to fake-then-clear
+    ///         a lock right before selling.
+    mapping(address => uint64) public lockedUntil;
+    uint64 public constant LOCK_7D = 7 days;
+    uint64 public constant LOCK_30D = 30 days;
+    uint64 public constant LOCK_90D = 90 days;
+
+    event TokensLocked(address indexed holder, uint64 until);
+    error BadLockDuration();
+    error TransferLocked();
+
     event Transfer(address indexed from, address indexed to, uint256 value);
     event Approval(address indexed owner, address indexed spender, uint256 value);
 
@@ -84,7 +100,37 @@ contract ArcliteToken {
         return true;
     }
 
+    /// @notice Lock your own balance against every outbound transfer — direct
+    ///         sends and sell() through the pump both go through _transfer, so
+    ///         both are blocked. Fixed durations only, so the UI can show a
+    ///         trust badge without parsing arbitrary timestamps.
+    function lockMyTokens(uint64 duration) external {
+        if (duration != LOCK_7D && duration != LOCK_30D && duration != LOCK_90D) revert BadLockDuration();
+        uint64 newUntil = uint64(block.timestamp) + duration;
+        if (newUntil > lockedUntil[msg.sender]) lockedUntil[msg.sender] = newUntil;
+        emit TokensLocked(msg.sender, lockedUntil[msg.sender]);
+    }
+
+    /// @notice Destroy your OWN tokens and reduce totalSupply with them.
+    /// @dev    Self-only on purpose: there is no burnFrom and no privileged
+    ///         burner, so no owner, operator or pad can ever destroy somebody
+    ///         else's balance. The pad calls this on itself to remove curve
+    ///         supply that was never sold.
+    ///
+    ///         totalSupply is decremented, not just moved to a dead address.
+    ///         That distinction is the whole point: a transfer to 0x…dead
+    ///         leaves totalSupply untouched, so every market cap computed as
+    ///         price x totalSupply stays wrong. Only a real burn fixes the
+    ///         number that everyone actually quotes.
+    function burn(uint256 value) external {
+        if (block.timestamp < lockedUntil[msg.sender]) revert TransferLocked();
+        require(balanceOf[msg.sender] >= value, "balance");
+        unchecked { balanceOf[msg.sender] -= value; totalSupply -= value; }
+        emit Transfer(msg.sender, address(0), value);
+    }
+
     function _transfer(address from, address to, uint256 value) internal returns (bool) {
+        if (block.timestamp < lockedUntil[from]) revert TransferLocked();
         require(balanceOf[from] >= value, "balance");
         balanceOf[from] -= value;
         balanceOf[to] += value;
@@ -107,9 +153,22 @@ contract ArclitePumpV4 {
     uint256 public constant VIRTUAL_USDC = 3_000e18;         // curve seed (virtual)
     uint256 public constant VIRTUAL_TOKENS = 1_080_000_000e18;
 
-    uint256 public immutable deploymentFee;   // flat, native USDC
+    uint256 public immutable deploymentFee;   // flat, native USDC. May be 0 — see LAUNCH_COOLDOWN.
     uint256 public immutable graduationUsdc;  // real USDC raised to graduate
+    /// @notice Minimum time between two launches from the same address. Exists
+    ///         because deploymentFee can be 0: with no cost to spam, the only
+    ///         gate left is time. 10 minutes is nothing to a real creator and
+    ///         meaningfully slows a script from flooding the board — it does
+    ///         not stop a sybil with many funded wallets, nothing on-chain can.
+    uint256 public constant LAUNCH_COOLDOWN = 10 minutes;
+    mapping(address => uint64) public lastLaunchAt;
+    error LaunchCooldown();
     uint16 public constant TRADE_FEE_BPS = 100; // 1%
+    /// @notice Creator's share of every trade fee, in bps OF THE FEE (not of the
+    ///         trade). 8000 = 80% of the 1% fee, i.e. 0.8% of volume, accrued to
+    ///         the token's creator and claimable at any time. Pull, not push: a
+    ///         creator contract that reverts on receive must never block trades.
+    uint16 public constant CREATOR_FEE_SHARE_BPS = 8000;
     uint256 public constant CREATOR_LOCK = 30 days;
 
     /// @notice Window after graduation in which the operator may migrate liquidity to a
@@ -130,6 +189,14 @@ contract ArclitePumpV4 {
     /// @notice Sum of all USDC owed to curves and graduation redemption pools.
     ///         Platform fees may never be withdrawn out of this.
     uint256 public totalReserves;
+
+    /// @notice Unclaimed trade-fee earnings per creator, aggregated across all
+    ///         their tokens. Owed to creators; the solvency check protects it
+    ///         from platform withdrawal exactly like curve reserves.
+    mapping(address => uint256) public creatorFees;
+    /// @notice Sum of all unclaimed creator fees. Counted alongside
+    ///         totalReserves in every solvency check.
+    uint256 public totalCreatorFees;
 
     // ----------------------------- state
 
@@ -158,7 +225,13 @@ contract ArclitePumpV4 {
     event Bought(address indexed token, address indexed buyer, uint256 usdcIn, uint256 tokensOut);
     event Sold(address indexed token, address indexed seller, uint256 tokensIn, uint256 usdcOut);
     event Graduated(address indexed token, uint256 raisedUsdc, uint64 at);
+    /// @notice Curve supply that was never sold, destroyed at graduation, plus
+    ///         any tokens handed back through redeem(). Emitted with the supply
+    ///         that remains, so an indexer never has to guess.
+    event SupplyBurned(address indexed token, uint256 amount, uint256 remainingSupply);
     event CreatorClaimed(address indexed token, address indexed creator, uint256 amount);
+    event CreatorFeeAccrued(address indexed token, address indexed creator, uint256 amount);
+    event CreatorFeesClaimed(address indexed creator, uint256 amount);
     event FeesWithdrawn(address indexed to, uint256 amount);
     event Migrated(address indexed token, address indexed lpVault, uint256 usdc, uint256 tokens);
     event Redeemed(address indexed token, address indexed holder, uint256 tokensIn, uint256 usdcOut);
@@ -251,6 +324,8 @@ contract ArclitePumpV4 {
         returns (address token)
     {
         if (msg.value != deploymentFee) revert WrongFee();
+        if (block.timestamp < lastLaunchAt[msg.sender] + LAUNCH_COOLDOWN) revert LaunchCooldown();
+        lastLaunchAt[msg.sender] = uint64(block.timestamp);
         accruedFees += msg.value;
 
         token = _clone(tokenImplementation);
@@ -304,7 +379,7 @@ contract ArclitePumpV4 {
 
         uint256 fee = (msg.value * TRADE_FEE_BPS) / 10_000;
         uint256 usdcIn = msg.value - fee;
-        accruedFees += fee;
+        _accrueFee(token, c.creator, fee);
 
         tokensOut = quoteBuy(token, usdcIn);
         if (tokensOut > CURVE_SUPPLY - c.soldTokens) revert CurveSoldOut();
@@ -334,7 +409,7 @@ contract ArclitePumpV4 {
         usdcOut = quoteSell(token, tokensIn);
         uint256 fee = (usdcOut * TRADE_FEE_BPS) / 10_000;
         usdcOut -= fee;
-        accruedFees += fee;
+        _accrueFee(token, c.creator, fee);
         require(usdcOut >= minUsdcOut, "slippage");
 
         uint256 gross = usdcOut + fee;
@@ -357,6 +432,27 @@ contract ArclitePumpV4 {
         c.redeemPool = c.realUsdc;
         c.redeemSupply = c.soldTokens;
         emit Graduated(token, c.realUsdc, c.graduatedAt);
+
+        /* Burn the curve supply nobody bought.
+         *
+         * Selling stops at graduation, so soldTokens is final here and
+         * CURVE_SUPPLY - soldTokens is exactly the part of the curve that was
+         * never taken. Those tokens had no owner and no path out: buy() is
+         * closed, migrate() only moves LP_RESERVE and claimCreatorAllocation()
+         * only moves CREATOR_ALLOC. Left alone they sit in this contract for
+         * ever while still counting toward totalSupply, which overstates every
+         * market cap the token ever shows.
+         *
+         * LP_RESERVE and CREATOR_ALLOC are untouched: both are still owed to
+         * someone and both still have a function that pays them out.
+         *
+         * Redemption is unaffected. It divides redeemPool by redeemSupply, and
+         * redeemSupply is soldTokens, which this does not change. */
+        uint256 unsold = CURVE_SUPPLY - c.soldTokens;
+        if (unsold > 0) {
+            ArcliteToken(token).burn(unsold);
+            emit SupplyBurned(token, unsold, ArcliteToken(token).totalSupply());
+        }
     }
 
     /// @notice Move a graduated token's liquidity to the DEX vault and burn the LP there.
@@ -399,6 +495,11 @@ contract ArclitePumpV4 {
         totalReserves -= usdcOut;
 
         ArcliteToken(token).transferFrom(msg.sender, address(this), tokensIn);
+        /* Same reasoning as graduation: a redeemed token has been paid out and
+         * has no route back into circulation, so holding it would inflate
+         * totalSupply for everyone still holding. Burn it on arrival. */
+        ArcliteToken(token).burn(tokensIn);
+        emit SupplyBurned(token, tokensIn, ArcliteToken(token).totalSupply());
         _send(msg.sender, usdcOut);
         emit Redeemed(token, msg.sender, tokensIn, usdcOut);
     }
@@ -426,14 +527,40 @@ contract ArclitePumpV4 {
 
     // ----------------------------- admin
 
+    /// @dev Splits a trade fee between platform and the token's creator.
+    ///      Pull accounting only — nothing is sent here, so a hostile creator
+    ///      address can never block or reenter a trade.
+    function _accrueFee(address token, address creator, uint256 fee) internal {
+        uint256 creatorCut = (fee * CREATOR_FEE_SHARE_BPS) / 10_000;
+        accruedFees += fee - creatorCut;
+        if (creatorCut != 0) {
+            creatorFees[creator] += creatorCut;
+            totalCreatorFees += creatorCut;
+            emit CreatorFeeAccrued(token, creator, creatorCut);
+        }
+    }
+
+    /// @notice Creator withdraws their accumulated share of trade fees.
+    /// @dev    Deliberately NOT pausable — this is an exit, and a paused contract
+    ///         must never trap money owed to anyone.
+    function claimCreatorFees() external nonReentrant returns (uint256 amount) {
+        amount = creatorFees[msg.sender];
+        if (amount == 0) revert ZeroAmount();
+        creatorFees[msg.sender] = 0;
+        totalCreatorFees -= amount;
+        _send(msg.sender, amount);
+        emit CreatorFeesClaimed(msg.sender, amount);
+    }
+
     /// @notice Withdraw accrued platform fees to the fixed treasury.
     /// @dev No destination argument by design. The solvency check makes it impossible
-    ///      to withdraw fees out of user curve reserves even if fee accounting drifts.
+    ///      to withdraw fees out of user curve reserves OR unclaimed creator earnings,
+    ///      even if fee accounting drifts.
     function withdrawFees() external onlyOwner nonReentrant {
         uint256 amount = accruedFees;
         if (amount == 0) revert ZeroAmount();
         accruedFees = 0;
-        if (address(this).balance - amount < totalReserves) revert Insolvent();
+        if (address(this).balance - amount < totalReserves + totalCreatorFees) revert Insolvent();
         _send(treasury, amount);
         emit FeesWithdrawn(treasury, amount);
     }
