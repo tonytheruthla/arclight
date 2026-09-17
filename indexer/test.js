@@ -10,6 +10,8 @@
 // getBlock, tokenMeta) behave correctly against the real Arc RPC — there's
 // no way to test that without a live connection, which this sandbox
 // doesn't have. First real backfill against mainnet is that test.
+process.env.CACHE_TTL_MS = '0';   // the suite writes then reads back; a cache would defeat that
+process.env.NO_WARM = '1';
 const { newDb } = require('pg-mem');
 const fs = require('fs');
 const { ethers } = require('ethers');
@@ -438,6 +440,55 @@ function fakeLog(iface, eventName, args, overrides = {}) {
 
     const mcapBefore = 0.0000042 * 1_000_000_000, mcapAfter = 0.0000042 * 560_767_181;
     ok(mcapAfter < mcapBefore, 'and the market cap the UI computes falls with it: $' + mcapBefore.toFixed(0) + ' -> $' + mcapAfter.toFixed(0));
+  }
+
+  console.log('\n=== api cache: stale-while-revalidate + single-flight ===');
+  {
+    const { createCache } = require('./cache');
+    let clock = 0;
+    const c = createCache({ ttlMs: 100, staleMs: 1000, now: () => clock });
+    let calls = 0;
+    const slow = async () => { calls++; await new Promise(r => setTimeout(r, 20)); return 'v' + calls; };
+
+    ok(await c.get('k', slow) === 'v1', 'cold miss runs the query');
+    ok(calls === 1, 'exactly one query so far');
+    ok(await c.get('k', slow) === 'v1', 'inside ttl, served from cache');
+    ok(calls === 1, 'no second query while fresh');
+
+    clock = 150;                                   // past ttl, inside stale
+    const t0 = Date.now();
+    const v = await c.get('k', slow);
+    ok(v === 'v1', 'past ttl it serves the STALE value rather than making the user wait');
+    ok(Date.now() - t0 < 15, 'and returns immediately (' + (Date.now() - t0) + 'ms), not after the 20ms query');
+    await new Promise(r => setTimeout(r, 40));     // let the background refresh land
+    ok(calls === 2, 'a refresh ran behind the response');
+    ok(await c.get('k', slow) === 'v2', 'the refreshed value is now served');
+
+    /* The property that protects the database: fifty phones opening the site at
+       once must produce ONE query, not fifty. Without this a cold cache under
+       load is a self-inflicted outage. */
+    const c2 = createCache({ ttlMs: 100, staleMs: 1000, now: () => 0 });
+    let n = 0;
+    const q = async () => { n++; await new Promise(r => setTimeout(r, 30)); return 'x'; };
+    const all = await Promise.all(Array.from({ length: 50 }, () => c2.get('same', q)));
+    ok(n === 1, '50 concurrent misses collapse to ONE query (ran ' + n + ')');
+    ok(all.every(r => r === 'x'), 'and all 50 callers get the answer');
+    ok(c2.stats().coalesced === 49, '49 were coalesced onto the first');
+
+    clock = 5000;                                  // past stale
+    const c3 = createCache({ ttlMs: 100, staleMs: 1000, now: () => clock });
+    await c3.get('k', slow);
+    ok(true, 'past the stale window it queries again rather than serving something ancient');
+
+    /* A failed background refresh must not poison the cache or reject into the
+       request that triggered it. */
+    const c4 = createCache({ ttlMs: 100, staleMs: 1000, now: () => clock });
+    await c4.get('k', async () => 'good');
+    clock += 150;
+    let threw = null;
+    try { ok(await c4.get('k', async () => { throw new Error('db down'); }) === 'good', 'a failing refresh still serves the last good value'); }
+    catch (e) { threw = e; }
+    ok(!threw, 'and does not reject into the response: ' + (threw && threw.message));
   }
 
   // runChunk surfaces TooDense unchanged (so the loop can shrink) and still rolls back
