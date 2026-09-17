@@ -442,6 +442,32 @@ function fakeLog(iface, eventName, args, overrides = {}) {
     ok(mcapAfter < mcapBefore, 'and the market cap the UI computes falls with it: $' + mcapBefore.toFixed(0) + ' -> $' + mcapAfter.toFixed(0));
   }
 
+  /* The warmer is only useful if it warms the keys the TERMINAL actually asks
+     for. The first version warmed volume:50:0 and swaps:30; the shipped page
+     requests sort=volume&limit=100 and limit=24, so the cache filled with
+     entries nobody read while every visitor still paid the cold scan. This test
+     reads the real HTML and fails if the two ever drift apart again. */
+  console.log('\n=== warm keys match what app/terminal.html requests ===');
+  {
+    const p = __dirname + '/../app/terminal.html';
+    if (!fs.existsSync(p)) {
+      console.log('  SKIP app/terminal.html not present');
+    } else {
+      const html = fs.readFileSync(p, 'utf8');
+      const api = fs.readFileSync(__dirname + '/api.js', 'utf8');
+      const wanted = [...new Set(html.match(/\/api\/v1\/(tokens|swaps\/recent|stats)[^"'`\s]*/g) || [])];
+      ok(wanted.length >= 3, 'found the terminal\'s API calls: ' + wanted.join(' '));
+      for (const u of wanted) {
+        const q = new URLSearchParams((u.split('?')[1] || ''));
+        let key;
+        if (u.includes('/tokens')) key = `${q.get('sort') || 'new'}:${q.get('limit') || 50}:${q.get('offset') || 0}`;
+        else if (u.includes('/swaps/recent')) key = `swaps:${q.get('limit') || 30}`;
+        else key = 'stats';
+        ok(api.includes(`'${key}'`), `warmer covers ${u}  ->  key '${key}'`);
+      }
+    }
+  }
+
   console.log('\n=== api cache: stale-while-revalidate + single-flight ===');
   {
     const { createCache } = require('./cache');

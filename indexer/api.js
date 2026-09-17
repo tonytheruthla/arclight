@@ -99,11 +99,23 @@ function makeApp(db, opts = {}) {
    *
    * unref() so this timer never holds the process open — tests create an app and
    * expect to exit. */
+  /* These keys are the EXACT requests app/terminal.html makes on load. They were
+     read out of the shipped HTML, not guessed:
+
+       /api/v1/tokens?sort=volume&limit=100   -> 'volume:100:0'
+       /api/v1/swaps/recent?limit=24          -> 'swaps:24'
+       /api/v1/stats                          -> 'stats'
+
+     The first version of this list warmed volume:50:0 and swaps:30, which no
+     caller ever asks for. The cache filled with entries nobody read while every
+     real visitor still paid the ~10s cold scan. If the terminal's query string
+     changes, change these with it or the warmer silently stops working. */
   const WARM = [
-    ['new:50:0',    () => listTokens(db, { sort: 'new',    limit: 50, offset: 0 })],
-    ['volume:50:0', () => listTokens(db, { sort: 'volume', limit: 50, offset: 0 })],
-    ['stats',       () => getStats(db)],
-    ['swaps:30',    () => recentSwaps(db, 30)],
+    ['volume:100:0', () => listTokens(db, { sort: 'volume', limit: 100, offset: 0 })],
+    ['stats',        () => getStats(db)],
+    ['swaps:24',     () => recentSwaps(db, 24)],
+    // secondary: the sort a user reaches for first after landing
+    ['new:100:0',    () => listTokens(db, { sort: 'new',    limit: 100, offset: 0 })],
   ];
   const warm = () => { for (const [k, fn] of WARM) listCache.get(k, fn).catch(() => {}); };
   if (process.env.NO_WARM !== '1' && CACHE_TTL > 0) {
