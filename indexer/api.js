@@ -334,9 +334,17 @@ if (require.main === module) {
   const db = makePool();
   // Migrate before listening: a request that hits a table that doesn't exist
   // yet would 500 for the first few seconds otherwise.
+  /* Listen FIRST, migrate after.
+   *
+   * The old order was migrate().then(listen). When migrate blocked on a lock
+   * held by the worker's long transaction, the server never bound a port, the
+   * platform saw a dead container, and the logs said nothing at all. Binding
+   * first means the service is always reachable and /health always answers —
+   * a degraded API that can say "still migrating" beats one that is invisible. */
+  const app = makeApp(db);
+  app.listen(PORT, () => console.log(`[api] listening on :${PORT}`));
   migrate(db).catch(e => console.error('[db] migrate failed (continuing):', e.message))
     .then(() => {
-      makeApp(db).listen(PORT, () => console.log(`[api] listening on :${PORT}`));
       // Logos/names from the launchpads' public APIs. Lives here rather than in
       // the worker because it needs no RPC — it keeps running while the worker
       // is PAUSED. META_RESOLVER=0 turns it off.
