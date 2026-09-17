@@ -9,7 +9,9 @@ const o=JSON.parse(solc.compile(JSON.stringify(input)));
 const errs=(o.errors||[]).filter(e=>e.severity==='error');
 if(errs.length){ console.error(errs.map(e=>e.formattedMessage).join('\n')); process.exit(1); }
 (o.errors||[]).forEach(e=>console.log('  warn:', e.formattedMessage.split('\n')[0]));
-const out={};
+const solcVersion = solc.version();
+console.log('solc', solcVersion);
+const out={ solcVersion };
 for(const name of ['ArclitePumpV4','ArcliteToken']){
   const c=o.contracts[file][name];
   out[name]={abi:c.abi, bytecode:'0x'+c.evm.bytecode.object};

@@ -25,7 +25,7 @@ const ok = (name, cond, detail) => {
 
 // The four addresses that were verified on chain after the Sept 8 deploy.
 const MAINNET = {
-  pump:    '0xa855b64c978118fdAC9746d1795c1E16668dd394',
+  pump:    '0xB52A6D9fe1cf135f4309536713bd2a43b34dc361',
   predict: '0xb7148f397Bcd7020eCa3A4dbf3eb7D7DE82C4547',
 };
 const TESTNET_LEFTOVERS = [

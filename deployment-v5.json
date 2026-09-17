@@ -1,0 +1,21 @@
+{
+  "version": "0.5",
+  "network": "arc",
+  "chainId": 5042,
+  "solcVersion": "0.8.37+commit.f401782d.Emscripten.clang",
+  "deployer": "0x01Cf6dC3F06b8c75A3eBF3b214dB562E956998be",
+  "treasury": "0x81cfC1013620DC96f3b94A8147888983428B374d",
+  "lpVault": "0x81cfC1013620DC96f3b94A8147888983428B374d",
+  "graduationUsdc": "1500000000000000000000",
+  "deploymentFee": "0",
+  "contracts": {
+    "ArclitePumpV4": {
+      "address": "0xB52A6D9fe1cf135f4309536713bd2a43b34dc361",
+      "deployTx": "0xb4a9edb0cd2b2632aa8eb9c5e16e53c5cb6ddfec170056ab81368070ab60dfc2",
+      "setLpVaultTx": "0xca2a6b2a4cc6f8007d2e2c295998e553f270719054f152f9105b6ceb7ea45bb8"
+    }
+  },
+  "note": "Adds the graduation burn (task #59). Predict/Draw/Limit unchanged.",
+  "ownershipHandoff": null,
+  "timestamp": "2026-09-16T08:34:59.278Z"
+}
