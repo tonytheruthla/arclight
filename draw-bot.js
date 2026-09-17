@@ -150,6 +150,15 @@ const readState = () => { try { return JSON.parse(fs.readFileSync(STATE, 'utf8')
 const writeState = s => { try { fs.writeFileSync(STATE, JSON.stringify(s, null, 2)); } catch (e) { console.error('[state]', e.message); } };
 
 async function main() {
+  /* Say something BEFORE the first await. The original version's first output
+     came after provider.getBlockNumber(), so a container that could not reach
+     the RPC produced zero logs and looked identical to one that never started.
+     On Railway that is indistinguishable from a crash, and it cost an
+     afternoon of guessing. Boot banner first, always. */
+  console.log(`[boot] draw-bot starting · pid ${process.pid} · node ${process.version}`);
+  console.log(`[boot] rpc ${RPC} · chain ${CHAIN_ID} · draw ${DRAW}`);
+  console.log(`[boot] TG_TOKEN ${TG_TOKEN ? 'set' : 'MISSING'} · TG_CHAT ${TG_CHAT || 'MISSING'} · DRY ${DRY ? '1' : '0'}`);
+
   if (!DRY && (!TG_TOKEN || !TG_CHAT)) {
     console.error('\n  TG_TOKEN and TG_CHAT are required (or set DRY=1 to preview).\n');
     process.exit(1);
@@ -158,9 +167,23 @@ async function main() {
   const draw = new ethers.Contract(DRAW, ABI, provider);
   const iface = new ethers.Interface(ABI);
 
+  /* Prove the RPC is reachable, loudly, with a bounded wait. An unreachable
+     endpoint used to hang here forever in silence. */
+  let head0;
+  try {
+    head0 = await Promise.race([
+      provider.getBlockNumber(),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('no response in 20s')), 20000)),
+    ]);
+    console.log(`[boot] rpc ok, head ${head0.toLocaleString()}`);
+  } catch (e) {
+    console.error(`[boot] RPC UNREACHABLE: ${e.message}. Check the endpoint and that the container has outbound network.`);
+    process.exit(1);
+  }
+
   let st = readState();
   if (!st.lastBlock) {
-    st.lastBlock = await provider.getBlockNumber();
+    st.lastBlock = head0;
     writeState(st);
     console.log(`[init] starting from block ${st.lastBlock} — no backfill, so a restart cannot spam the group`);
   }
