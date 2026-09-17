@@ -17,12 +17,41 @@ async function setState(db, chainId, block) {
   );
 }
 
+/** Chain-supplied text, made safe for Postgres and for display.
+ *
+ *  A token on Arc shipped a NUL byte (0x00) in its name. Postgres rejects the
+ *  whole statement — `invalid byte sequence for encoding "UTF8": 0x00` — so
+ *  upsertToken threw, the chunk rolled back, and the worker retried the same
+ *  range forever. The indexer sat frozen for hours on one hostile string.
+ *
+ *  That is a denial-of-service anyone can perform for the price of a token
+ *  launch, so this is a security fix as much as a correctness one. Every piece
+ *  of text that comes off the chain goes through here before it touches the
+ *  database.
+ *
+ *  - NUL and other C0/C1 control characters are stripped. They cannot render
+ *    and Postgres will not store NUL at all.
+ *  - Unicode direction overrides (U+202A..U+202E, U+2066..U+2069) are stripped:
+ *    they let a name reorder the characters around it in the UI, which is how
+ *    a token pretends to be a different token.
+ *  - Zero-width characters go too — invisible padding used to mimic a symbol.
+ *  - Length is capped so one token cannot bloat a row.
+ */
+function safeText(v, max = 256) {
+  if (v === null || v === undefined) return '';
+  return String(v)
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, '')
+    .replace(/[\u202A-\u202E\u2066-\u2069\u200B-\u200F\uFEFF]/g, '')
+    .slice(0, max)
+    .trim();
+}
+
 async function upsertToken(db, t) {
   await db.query(
     `INSERT INTO tokens (address, name, symbol, decimals, dex, pool_ref, fee, usdc_is_token0, first_seen_block, meta_ok)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
      ON CONFLICT (address) DO NOTHING`,
-    [t.address.toLowerCase(), t.name || '', t.symbol || '', t.decimals || 18,
+    [t.address.toLowerCase(), safeText(t.name), safeText(t.symbol, 64), t.decimals || 18,
      t.dex, t.poolRef, t.fee, t.usdcIsToken0, t.block, t.metaOk === true]
   );
 }
@@ -40,7 +69,7 @@ async function getTokensMissingMeta(db, limit = 10) {
 async function updateTokenMeta(db, address, meta) {
   await db.query(
     `UPDATE tokens SET name = $2, symbol = $3, decimals = $4, meta_ok = true WHERE address = $1`,
-    [address.toLowerCase(), meta.name || '', meta.symbol || '', meta.decimals]
+    [address.toLowerCase(), safeText(meta.name), safeText(meta.symbol, 64), meta.decimals]
   );
 }
 
@@ -149,7 +178,7 @@ async function upsertLaunchToken(db, t) {
   await db.query(
     `INSERT INTO launch_tokens (address, creator, name, symbol, created_block, created_at)
      VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (address) DO NOTHING`,
-    [t.address.toLowerCase(), t.creator.toLowerCase(), t.name || '', t.symbol || '', t.block, t.blockTime]
+    [t.address.toLowerCase(), t.creator.toLowerCase(), safeText(t.name), safeText(t.symbol, 64), t.block, t.blockTime]
   );
 }
 
@@ -199,12 +228,12 @@ async function upsertProfile(db, p) {
     await db.query(
       `UPDATE token_profiles SET name=$2, symbol=$3, logo_url=$4, website=$5, twitter=$6, telegram=$7, description=$8, source=$9, updated_by=$10, updated_at=now()
        WHERE address = $1`,
-      [addr, p.name || '', p.symbol || '', p.logoUrl || null, p.website || null, p.twitter || null, p.telegram || null, p.description || null, p.source, p.updatedBy || null]);
+      [addr, safeText(p.name), safeText(p.symbol, 64), safeText(p.logoUrl, 512) || null, safeText(p.website, 512) || null, safeText(p.twitter, 512) || null, safeText(p.telegram, 512) || null, safeText(p.description, 1024) || null, p.source, p.updatedBy || null]);
   } else {
     await db.query(
       `INSERT INTO token_profiles (address, name, symbol, logo_url, website, twitter, telegram, description, source, updated_by)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-      [addr, p.name || '', p.symbol || '', p.logoUrl || null, p.website || null, p.twitter || null, p.telegram || null, p.description || null, p.source, p.updatedBy || null]);
+      [addr, safeText(p.name), safeText(p.symbol, 64), safeText(p.logoUrl, 512) || null, safeText(p.website, 512) || null, safeText(p.twitter, 512) || null, safeText(p.telegram, 512) || null, safeText(p.description, 1024) || null, p.source, p.updatedBy || null]);
   }
   return true;
 }
@@ -269,5 +298,5 @@ async function getImage(db, address) {
   return r.rows[0] || null;
 }
 
-module.exports = { applyTransfersBatch, scaleToDecimalString, getState, setState, upsertToken, getKnownTokens, getTokensMissingMeta, updateTokenMeta, insertSwap, applyTransfer, takeSnapshot,
+module.exports = { safeText, applyTransfersBatch, scaleToDecimalString, getState, setState, upsertToken, getKnownTokens, getTokensMissingMeta, updateTokenMeta, insertSwap, applyTransfer, takeSnapshot,
   upsertLaunchToken, insertLaunchTrade, sharesToday, addSharePoint, upsertProfile, getProfiles, setTokenNames, setTokenSupply, getLaunchTokenAddresses, putImage, getImage, ZERO, DEAD };

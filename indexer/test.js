@@ -468,6 +468,38 @@ function fakeLog(iface, eventName, args, overrides = {}) {
     }
   }
 
+  console.log('\n=== safeText: a hostile token name cannot halt the indexer ===');
+  {
+    /* A real token on Arc shipped a NUL byte in its name. Postgres refuses to
+       store 0x00 at all — `invalid byte sequence for encoding "UTF8"` — so the
+       INSERT threw, the chunk rolled back, and the worker retried the same
+       range forever. The indexer sat frozen for hours.
+
+       Anyone can do that for the price of a token launch, so this is a
+       denial-of-service fix, not just a tidy-up. */
+    ok(store.safeText('Evil\u0000Token') === 'EvilToken', 'NUL is stripped — the byte Postgres rejects outright');
+    ok(store.safeText('\u0000') === '', 'a name that is nothing but NUL becomes empty, not an error');
+    ok(store.safeText('a\u0001b\u001Fc') === 'abc', 'other C0 control characters go too');
+    ok(store.safeText('USDC\u202Egnikat') === 'USDCgnikat', 'RTL override stripped — it lets a name reorder the UI around it to impersonate another token');
+    ok(store.safeText('US\u200BDC') === 'USDC', 'zero-width padding stripped — invisible characters used to mimic a symbol');
+    ok(store.safeText('Argus') === 'Argus', 'an ordinary name is untouched');
+    ok(store.safeText(null) === '' && store.safeText(undefined) === '', 'null and undefined become empty strings');
+    ok(store.safeText('x'.repeat(400)).length === 256, 'length is capped so one token cannot bloat a row');
+    ok(store.safeText('  spaced  ') === 'spaced', 'trimmed');
+
+    /* End to end: the exact shape that broke production must now insert cleanly
+       and be readable back. */
+    const dbN = freshDb();
+    let boom = null;
+    try {
+      await store.upsertToken(dbN, { address: A(0xDEAD), name: 'Bad\u0000Name', symbol: 'B\u0000AD',
+        decimals: 18, dex: 'v3', poolRef: P_OLD, fee: 3000, usdcIsToken0: true, block: 1, metaOk: true });
+    } catch (e) { boom = e; }
+    ok(!boom, 'upsertToken survives a NUL-bearing name: ' + (boom && boom.message));
+    const row = (await dbN.query('SELECT name, symbol FROM tokens WHERE address=$1', [A(0xDEAD).toLowerCase()])).rows[0];
+    ok(row && row.name === 'BadName' && row.symbol === 'BAD', 'and stores the cleaned text: ' + JSON.stringify(row));
+  }
+
   console.log('\n=== applyTransfersBatch: same answer, 1,667x fewer round trips ===');
   {
     const A9 = a => a.toLowerCase();
