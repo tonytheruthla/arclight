@@ -104,6 +104,10 @@ function decodeTransfer(log, decimals) {
     from: p.args.from,
     to: p.args.to,
     amount: Number(p.args.value) / 10 ** decimals,
+    /* The exact integer, unscaled. `amount` above is a float and loses
+       precision the moment it is created; summing many of those compounds the
+       error. Callers that aggregate should use amountRaw and scale once. */
+    amountRaw: p.args.value,
     block: log.blockNumber,
     txHash: log.transactionHash,
     logIndex: log.index,

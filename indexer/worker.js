@@ -6,7 +6,7 @@ require('dotenv').config();
 const { ethers } = require('ethers');
 const { ARC, TOPICS, pumpAddress } = require('./chain');
 const { decodePoolCreatedV3, decodeInitializeV4, decodeSwapV3, decodeSwapV4, decodeTransfer, decodeTokenCreated, decodeLaunchTrade } = require('./process');
-const { getState, setState, upsertToken, getKnownTokens, getTokensMissingMeta, updateTokenMeta, setTokenSupply, getLaunchTokenAddresses, insertSwap, applyTransfer, takeSnapshot, upsertLaunchToken, insertLaunchTrade } = require('./store');
+const { applyTransfersBatch, getState, setState, upsertToken, getKnownTokens, getTokensMissingMeta, updateTokenMeta, setTokenSupply, getLaunchTokenAddresses, insertSwap, applyTransfer, takeSnapshot, upsertLaunchToken, insertLaunchTrade } = require('./store');
 const { listTokens } = require('./queries');
 const { makePool, migrate } = require('./db');
 
@@ -362,11 +362,36 @@ async function processChunk(db, provider, fromBlock, toBlock, cap = MAX_LOGS_PER
         address: addrs, topics: [TOPICS.erc20Transfer], fromBlock: sFrom, toBlock: sTo,
       }, 0, cap);
       transferCount += trLogs.length;
+      /* Net every delta in memory, then write once.
+       *
+       * This used to be two awaited round trips per log — ~180,000 sequential
+       * queries per chunk, inside the chunk's single transaction. That was
+       * almost the entire chunk time, and it held table locks long enough that
+       * the API could not run its own migrations and the site went dark.
+       *
+       * Netting first also collapses a wallet that traded fifty times into one
+       * row, and guarantees each (token, holder) appears once — which ON
+       * CONFLICT DO UPDATE requires.
+       *
+       * Deltas are accumulated as exact BigInts and scaled once at write time.
+       * Summing the float `amount` would compound rounding across thousands of
+       * additions; this is more accurate than what it replaces, not just faster. */
+      const deltas = new Map();
+      const decimalsBy = new Map();
       for (const log of trLogs) {
         const t = byAddr.get(log.address.toLowerCase());
         if (!t) continue;
         const tr = decodeTransfer(log, t.decimals);
-        if (tr) await applyTransfer(db, t.address, tr);
+        if (!tr || tr.amountRaw === undefined) continue;
+        const token = t.address.toLowerCase();
+        decimalsBy.set(token, t.decimals);
+        const k1 = token + '|' + tr.from.toLowerCase();
+        const k2 = token + '|' + tr.to.toLowerCase();
+        deltas.set(k1, (deltas.get(k1) || 0n) - tr.amountRaw);
+        deltas.set(k2, (deltas.get(k2) || 0n) + tr.amountRaw);
+      }
+      if (deltas.size) {
+        await applyTransfersBatch(db, deltas, tok => decimalsBy.get(tok) ?? 18);
       }
     }
   }

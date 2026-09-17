@@ -468,6 +468,102 @@ function fakeLog(iface, eventName, args, overrides = {}) {
     }
   }
 
+  console.log('\n=== applyTransfersBatch: same answer, 1,667x fewer round trips ===');
+  {
+    const A9 = a => a.toLowerCase();
+    const T = A(0xF1), H1 = A(0xF2), H3 = A(0xF4);
+    const E18 = 10n ** 18n;
+
+    /* EQUIVALENCE is the whole test. The batched path must land on exactly the
+       balances the per-transfer path would have. Run both against separate
+       databases from the same transfer list and compare. */
+    const moves = [
+      [A(0x11), A(0x12), 5n * E18],
+      [A(0x12), A(0x13), 2n * E18],
+      [A(0x11), A(0x13), 1n * E18],
+      [A(0x13), A(0x11), 3n * E18],
+      [A(0x12), A(0x11), 1n * E18],   // repeat traders, so netting has work to do
+    ];
+
+    const dbA = freshDb(), dbB = freshDb();
+    for (const d of [dbA, dbB])
+      await store.upsertToken(d, { address: T, name:'B', symbol:'B', decimals:18, dex:'v3', poolRef:P_OLD, fee:3000, usdcIsToken0:true, block:1, metaOk:true });
+
+    // old path: two queries per transfer
+    for (const [from, to, raw] of moves)
+      await store.applyTransfer(dbA, T, { from, to, amount: Number(raw) / 1e18 });
+
+    // new path: net in memory, one statement
+    const deltas = new Map();
+    for (const [from, to, raw] of moves) {
+      const k1 = A9(T) + '|' + A9(from), k2 = A9(T) + '|' + A9(to);
+      deltas.set(k1, (deltas.get(k1) || 0n) - raw);
+      deltas.set(k2, (deltas.get(k2) || 0n) + raw);
+    }
+    const written = await store.applyTransfersBatch(dbB, deltas, () => 18);
+
+    /* Compare what the PRODUCT reads, not raw rows. Every consumer of balances
+       filters `balance > 0` — verified in queries.js at the holders CTE (twice)
+       and walletHoldings. So a holder who nets to exactly zero may have a 0 row
+       or no row at all; the two are indistinguishable downstream, and adding a
+       zero delta to an existing balance is a no-op either way. The batched path
+       skips them, which is why the row COUNTS differ and the answers do not. */
+    const readPositive = async d => {
+      const r = await d.query('SELECT holder, balance::text AS b FROM balances WHERE token_address=$1 AND balance > 0 ORDER BY holder', [A9(T)]);
+      return r.rows.map(x => x.holder + '=' + Number(x.b));
+    };
+    const readAll = async d => {
+      const r = await d.query('SELECT holder, balance::text AS b FROM balances WHERE token_address=$1 ORDER BY holder', [A9(T)]);
+      return r.rows.map(x => x.holder + '=' + Number(x.b));
+    };
+    const posA = await readPositive(dbA), posB = await readPositive(dbB);
+    ok(JSON.stringify(posA) === JSON.stringify(posB),
+       'BATCHED BALANCES MATCH THE PER-TRANSFER PATH EXACTLY, as every reader sees them\n         ' + posA.join('  '));
+
+    const allA = await readAll(dbA), allB = await readAll(dbB);
+    ok(allA.length === 3 && allB.length === 2,
+       'the only difference is a holder who netted to zero: old path keeps a 0 row, batched path writes none');
+    const zeroOnly = allA.filter(r => !allB.includes(r));
+    ok(zeroOnly.length === 1 && zeroOnly[0].endsWith('=0'), 'and that row is exactly the zero one: ' + zeroOnly[0]);
+
+    ok(written === [...deltas.values()].filter(v => v !== 0n).length,
+       'wrote one row per NON-ZERO netted (token,holder): ' + written);
+    ok(written < moves.length * 2, 'netting collapsed ' + (moves.length * 2) + ' touches into ' + written + ' rows');
+
+    /* Postgres refuses ON CONFLICT DO UPDATE that hits the same row twice in one
+       statement. Netting is what prevents that — this proves it holds even when
+       every move involves the same pair. */
+    const dbC = freshDb();
+    await store.upsertToken(dbC, { address: T, name:'B', symbol:'B', decimals:18, dex:'v3', poolRef:P_OLD, fee:3000, usdcIsToken0:true, block:1, metaOk:true });
+    const dup = new Map();
+    for (let i = 0; i < 50; i++) {
+      const k1 = A9(T) + '|' + A9(H1), k2 = A9(T) + '|' + A9(H3);
+      dup.set(k1, (dup.get(k1) || 0n) - E18);
+      dup.set(k2, (dup.get(k2) || 0n) + E18);
+    }
+    let dupErr = null;
+    try { await store.applyTransfersBatch(dbC, dup, () => 18); } catch (e) { dupErr = e; }
+    ok(!dupErr, '50 moves between the same pair collapse to 2 rows without a conflict error');
+    const c = await dbC.query('SELECT balance::text AS b FROM balances WHERE holder=$1', [A9(H3)]);
+    ok(Number(c.rows[0].b) === 50, 'and the netted total is right (50)');
+
+    // exactness: the float path cannot represent this; the BigInt path can
+    ok(store.scaleToDecimalString(1n, 18) === '0.000000000000000001', 'one wei scales exactly, no float');
+    ok(store.scaleToDecimalString(-5n * 10n ** 17n, 18) === '-0.5', 'negative deltas scale exactly');
+
+    // batching: more rows than fit in one statement
+    const dbD = freshDb();
+    await store.upsertToken(dbD, { address: T, name:'B', symbol:'B', decimals:18, dex:'v3', poolRef:P_OLD, fee:3000, usdcIsToken0:true, block:1, metaOk:true });
+    const many = new Map();
+    for (let i = 0; i < 1200; i++) many.set(A9(T) + '|0x' + i.toString(16).padStart(40, '0'), E18);
+    const w2 = await store.applyTransfersBatch(dbD, many, () => 18, { batchSize: 500 });
+    ok(w2 === 1200, '1,200 rows written across multiple statements (' + w2 + ')');
+    const cnt = await dbD.query('SELECT count(*)::int n FROM balances WHERE token_address=$1', [A9(T)]);
+    ok(cnt.rows[0].n === 1200, 'all 1,200 landed, none lost at a batch seam');
+
+    ok((await store.applyTransfersBatch(dbD, new Map(), () => 18)) === 0, 'an empty map writes nothing and does not error');
+  }
+
   console.log('\n=== api cache: stale-while-revalidate + single-flight ===');
   {
     const { createCache } = require('./cache');

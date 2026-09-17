@@ -65,6 +65,58 @@ async function insertSwap(db, tokenAddress, s) {
  *  0x...dead) are tracked as amount flowing to/from those sentinel addresses,
  *  but the holders query (see queries.js) excludes them — a burn address
  *  holding tokens isn't a "holder" for the UI's purposes. */
+/** BigInt -> exact decimal string, so NUMERIC gets the true value and never a
+ *  float approximation. 1234n at 3 decimals -> "1.234". */
+function scaleToDecimalString(v, decimals) {
+  const neg = v < 0n;
+  let a = neg ? -v : v;
+  const s = a.toString().padStart(decimals + 1, '0');
+  const int = s.slice(0, s.length - decimals);
+  let frac = decimals ? s.slice(s.length - decimals).replace(/0+$/, '') : '';
+  return (neg ? '-' : '') + int + (frac ? '.' + frac : '');
+}
+
+/** Apply many balance deltas in ONE statement per batch instead of two queries
+ *  per transfer.
+ *
+ *  WHY THIS EXISTS
+ *  ---------------
+ *  applyTransfer did two awaited round trips per Transfer log. At Arc's
+ *  post-public volume that was ~180,000 sequential queries inside a single
+ *  chunk transaction — which was essentially the whole chunk time, and which
+ *  held locks long enough that the API could not even run its migrations. On
+ *  17 Sept that took the site down.
+ *
+ *  `deltas` is a Map keyed `token|holder` with BigInt values, already netted in
+ *  memory. Netting first matters twice over: it collapses a holder who traded
+ *  fifty times into one row, and it guarantees each key appears once — Postgres
+ *  refuses an ON CONFLICT DO UPDATE that touches the same row twice in one
+ *  statement.
+ *
+ *  Rows are sent in batches because Postgres caps a statement at 65,535
+ *  parameters and we use three per row.
+ */
+async function applyTransfersBatch(db, deltas, decimalsFor, { batchSize = 500 } = {}) {
+  const entries = [...deltas.entries()].filter(([, v]) => v !== 0n);
+  let written = 0;
+  for (let i = 0; i < entries.length; i += batchSize) {
+    const slice = entries.slice(i, i + batchSize);
+    const vals = [], params = [];
+    slice.forEach(([key, raw], j) => {
+      const sep = key.indexOf('|');
+      const token = key.slice(0, sep), holder = key.slice(sep + 1);
+      vals.push(`($${j * 3 + 1}, $${j * 3 + 2}, $${j * 3 + 3}::numeric)`);
+      params.push(token, holder, scaleToDecimalString(raw, decimalsFor(token)));
+    });
+    await db.query(
+      `INSERT INTO balances (token_address, holder, balance) VALUES ${vals.join(',')}
+       ON CONFLICT (token_address, holder) DO UPDATE SET balance = balances.balance + EXCLUDED.balance`,
+      params);
+    written += slice.length;
+  }
+  return written;
+}
+
 async function applyTransfer(db, tokenAddress, t) {
   // Both operands cast explicitly. `0 - $3` makes Postgres infer INTEGER from the
   // literal and reject a fractional amount; and pg-mem (the test engine) drops the
@@ -217,5 +269,5 @@ async function getImage(db, address) {
   return r.rows[0] || null;
 }
 
-module.exports = { getState, setState, upsertToken, getKnownTokens, getTokensMissingMeta, updateTokenMeta, insertSwap, applyTransfer, takeSnapshot,
+module.exports = { applyTransfersBatch, scaleToDecimalString, getState, setState, upsertToken, getKnownTokens, getTokensMissingMeta, updateTokenMeta, insertSwap, applyTransfer, takeSnapshot,
   upsertLaunchToken, insertLaunchTrade, sharesToday, addSharePoint, upsertProfile, getProfiles, setTokenNames, setTokenSupply, getLaunchTokenAddresses, putImage, getImage, ZERO, DEAD };
