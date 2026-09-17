@@ -4,6 +4,46 @@ const E18 = 10n ** 18n;
 let pass = 0, fail = 0;
 const ok = (c, m) => { c ? (pass++, console.log('  PASS ' + m)) : (fail++, console.log('  FAIL ' + m)); };
 
+console.log('\n=== planScan: the range the bot asks for ===');
+/* Two bugs are pinned here, both arithmetic, both shipped in the first version.
+   1. The range was unbounded: `lastBlock+1 .. head` in ONE getLogs. After the
+      bot sat stopped for a day that was 106,000 blocks, over the provider's
+      100,000 ceiling, and every poll died with "request timeout".
+   2. The catch-up was unbounded: even chunked, it would have replayed a day of
+      old draws into the group, which is the opposite of what a heartbeat bot
+      is for. */
+{
+  const HEAD = 21304000;
+  const p1 = B.planScan(21197889, HEAD);            // the real stuck state
+  ok(p1.to - p1.from + 1 <= B.LOG_SPAN, 'never asks for more than LOG_SPAN blocks (got ' + (p1.to - p1.from + 1) + ')');
+  ok(p1.to - p1.from + 1 === 2000, 'a big gap is clamped to exactly LOG_SPAN');
+  ok(p1.skipped === 101111, 'and reports the 101,111 blocks it deliberately skipped');
+  ok(HEAD - p1.from < B.MAX_BEHIND + B.LOG_SPAN, 'the window it resumes from is recent, not a day old');
+
+  const p2 = B.planScan(21301000, HEAD);            // 3,000 behind: inside MAX_BEHIND
+  ok(p2.skipped === 0, 'inside MAX_BEHIND nothing is skipped — no draw is silently dropped');
+  ok(p2.from === 21301001 && p2.to === 21303000, 'and it scans forward in a LOG_SPAN chunk');
+
+  const p3 = B.planScan(HEAD, HEAD);
+  ok(p3.done === true, 'caught up -> done, caller sleeps');
+
+  const p4 = B.planScan(HEAD - 1, HEAD);
+  ok(!p4.done && p4.from === HEAD && p4.to === HEAD, 'one new block -> a one-block scan');
+
+  /* Walk a full catch-up and prove it terminates and covers every block once. */
+  let last = 21290000, guard = 0, covered = 0, maxSpan = 0;
+  while (guard++ < 100) {
+    const p = B.planScan(last, HEAD);
+    if (p.done) break;
+    maxSpan = Math.max(maxSpan, p.to - p.from + 1);
+    covered += p.to - p.from + 1;
+    last = p.to;
+  }
+  ok(guard < 100, 'catch-up terminates (' + guard + ' iterations)');
+  ok(maxSpan <= B.LOG_SPAN, 'no chunk in the whole walk exceeds LOG_SPAN');
+  ok(last === HEAD, 'and it finishes exactly at head, no block left behind');
+}
+
 console.log('\n=== usd formatting ===');
 ok(B.usd(1n * E18) === '$1', '1e18 -> $1');
 ok(B.usd(5n * E18) === '$5', '5e18 -> $5');

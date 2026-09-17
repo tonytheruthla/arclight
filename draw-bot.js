@@ -42,6 +42,19 @@ const DRY       = !!process.env.DRY;
 const STATE     = process.env.STATE_FILE || '.draw-bot-state.json';
 const EXPLORER  = 'https://arcscan.app';
 const POLL_MS   = Number(process.env.POLL_MS || 20000);
+/* Blocks per getLogs call. Arc does ~7,100 blocks an hour, so 2,000 is about
+   17 minutes of chain — comfortably under every provider's range ceiling and
+   small enough to answer fast. The first version of this file asked for
+   `lastBlock+1 .. head` in ONE call; after the bot sat stopped for a day that
+   was 106,000 blocks, over Blockdaemon's 100,000 cap, and every poll died with
+   "request timeout". */
+const LOG_SPAN  = Number(process.env.LOG_SPAN || 2000);
+/* How far behind is worth catching up on at all. A draw bot announcing a
+   winner from fifteen hours ago is noise, not news — and the whole point of
+   "no backfill on first run" was to keep history out of the group. Same
+   reasoning applies to a long outage: skip forward, say so in the log, and
+   start being useful now. */
+const MAX_BEHIND = Number(process.env.MAX_BEHIND || 5000);
 
 const ABI = [
   'event Drawn(uint256 indexed roundId, uint8 indexed tier, address indexed winner, uint256 winningIndex, uint256 tickets, uint256 prize, bool hitJackpot)',
@@ -101,6 +114,27 @@ function forcedMessage({ roundId, txHash }) {
   ].join('\n');
 }
 
+/** Decide what range to scan next, given where we stopped and where the chain is.
+ *
+ *  Pure on purpose: the two bugs this replaces — an unbounded range and an
+ *  unbounded catch-up — are both arithmetic, and arithmetic can be tested
+ *  without a chain.
+ *
+ *  Returns { from, to, skipped, done }.
+ *    skipped > 0  we were further behind than MAX_BEHIND and jumped forward
+ *    done         nothing to scan; caller should sleep
+ */
+function planScan(lastBlock, head, { maxBehind = MAX_BEHIND, logSpan = LOG_SPAN } = {}) {
+  let skipped = 0;
+  if (head - lastBlock > maxBehind) {
+    skipped = head - lastBlock - maxBehind;
+    lastBlock = head - maxBehind;
+  }
+  if (head <= lastBlock) return { from: lastBlock + 1, to: lastBlock, skipped, done: true };
+  const to = Math.min(head, lastBlock + logSpan);
+  return { from: lastBlock + 1, to, skipped, done: false };
+}
+
 async function send(text) {
   if (DRY || !TG_TOKEN || !TG_CHAT) { console.log('\n--- would post ---\n' + text + '\n'); return true; }
   const r = await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
@@ -137,9 +171,17 @@ async function main() {
     try {
       const head = await provider.getBlockNumber();
 
-      if (head > st.lastBlock) {
+      const plan = planScan(st.lastBlock, head);
+      if (plan.skipped > 0) {
+        console.log(`[skip] ${plan.skipped.toLocaleString()} blocks behind the useful window — jumping forward. Old rounds are not news.`);
+        st.lastBlock = plan.from - 1;
+        writeState(st);
+      }
+
+      if (!plan.done) {
+        const to = plan.to;
         const logs = await provider.getLogs({
-          address: DRAW, fromBlock: st.lastBlock + 1, toBlock: head,
+          address: DRAW, fromBlock: plan.from, toBlock: to,
           topics: [[iface.getEvent('Drawn').topicHash, iface.getEvent('Settled').topicHash]],
         });
         for (const log of logs) {
@@ -155,8 +197,9 @@ async function main() {
             await send(forcedMessage({ roundId: p.args.roundId, txHash: log.transactionHash }));
           }
         }
-        st.lastBlock = head;
+        st.lastBlock = to;
         writeState(st);
+        if (to < head) continue;          // more to do; skip the sleep and keep going
       }
 
       // The :56 warning, once per round, and only if there is something to warn about.
@@ -173,9 +216,9 @@ async function main() {
     } catch (e) {
       console.error('[loop]', (e.shortMessage || e.message || e).toString().slice(0, 140));
     }
-    await new Promise(r => setTimeout(r, POLL_MS));
+    await new Promise(r => setTimeout(r, POLL_MS));   // reached unless a chunk `continue`d
   }
 }
 
-module.exports = { warningMessage, drawnMessage, forcedMessage, usd, short, TIERS };
+module.exports = { warningMessage, drawnMessage, forcedMessage, usd, short, TIERS, planScan, LOG_SPAN, MAX_BEHIND };
 if (require.main === module) main().catch(e => { console.error(e); process.exit(1); });
